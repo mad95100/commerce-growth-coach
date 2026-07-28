@@ -14,7 +14,196 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      audit_findings: {
+        Row: {
+          action_steps: Json
+          audit_id: string
+          auto_correction: Json | null
+          category: Database["public"]["Enums"]["finding_category"]
+          created_at: string
+          estimated_gain_max: number | null
+          estimated_gain_min: number | null
+          id: string
+          impact_description: string | null
+          root_cause: string | null
+          severity: Database["public"]["Enums"]["finding_severity"]
+          sort_order: number
+          status: Database["public"]["Enums"]["finding_status"]
+          timeframe: Database["public"]["Enums"]["finding_timeframe"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          action_steps?: Json
+          audit_id: string
+          auto_correction?: Json | null
+          category: Database["public"]["Enums"]["finding_category"]
+          created_at?: string
+          estimated_gain_max?: number | null
+          estimated_gain_min?: number | null
+          id?: string
+          impact_description?: string | null
+          root_cause?: string | null
+          severity: Database["public"]["Enums"]["finding_severity"]
+          sort_order?: number
+          status?: Database["public"]["Enums"]["finding_status"]
+          timeframe?: Database["public"]["Enums"]["finding_timeframe"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          action_steps?: Json
+          audit_id?: string
+          auto_correction?: Json | null
+          category?: Database["public"]["Enums"]["finding_category"]
+          created_at?: string
+          estimated_gain_max?: number | null
+          estimated_gain_min?: number | null
+          id?: string
+          impact_description?: string | null
+          root_cause?: string | null
+          severity?: Database["public"]["Enums"]["finding_severity"]
+          sort_order?: number
+          status?: Database["public"]["Enums"]["finding_status"]
+          timeframe?: Database["public"]["Enums"]["finding_timeframe"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_findings_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audits: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          error_message: string | null
+          id: string
+          input_snapshot: Json | null
+          score: number | null
+          status: Database["public"]["Enums"]["audit_status"]
+          store_id: string
+          summary: string | null
+          updated_at: string
+          verdict: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          error_message?: string | null
+          id?: string
+          input_snapshot?: Json | null
+          score?: number | null
+          status?: Database["public"]["Enums"]["audit_status"]
+          store_id: string
+          summary?: string | null
+          updated_at?: string
+          verdict?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          id?: string
+          input_snapshot?: Json | null
+          score?: number | null
+          status?: Database["public"]["Enums"]["audit_status"]
+          store_id?: string
+          summary?: string | null
+          updated_at?: string
+          verdict?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audits_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          experience_level: Database["public"]["Enums"]["experience_level"]
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          experience_level?: Database["public"]["Enums"]["experience_level"]
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          experience_level?: Database["public"]["Enums"]["experience_level"]
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      stores: {
+        Row: {
+          created_at: string
+          currency: string
+          goal: string | null
+          id: string
+          monthly_ad_budget: number | null
+          monthly_revenue: number | null
+          name: string
+          niche: string | null
+          owner_id: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          goal?: string | null
+          id?: string
+          monthly_ad_budget?: number | null
+          monthly_revenue?: number | null
+          name: string
+          niche?: string | null
+          owner_id: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          goal?: string | null
+          id?: string
+          monthly_ad_budget?: number | null
+          monthly_revenue?: number | null
+          name?: string
+          niche?: string | null
+          owner_id?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +212,20 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      audit_status: "running" | "completed" | "failed"
+      experience_level: "debutant" | "intermediaire" | "avance"
+      finding_category:
+        | "offre"
+        | "produit"
+        | "boutique"
+        | "conversion"
+        | "acquisition"
+        | "retention"
+        | "rentabilite"
+        | "operations"
+      finding_severity: "critical" | "high" | "medium" | "low"
+      finding_status: "todo" | "in_progress" | "done"
+      finding_timeframe: "today" | "this_week" | "this_month"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +352,22 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      audit_status: ["running", "completed", "failed"],
+      experience_level: ["debutant", "intermediaire", "avance"],
+      finding_category: [
+        "offre",
+        "produit",
+        "boutique",
+        "conversion",
+        "acquisition",
+        "retention",
+        "rentabilite",
+        "operations",
+      ],
+      finding_severity: ["critical", "high", "medium", "low"],
+      finding_status: ["todo", "in_progress", "done"],
+      finding_timeframe: ["today", "this_week", "this_month"],
+    },
   },
 } as const
