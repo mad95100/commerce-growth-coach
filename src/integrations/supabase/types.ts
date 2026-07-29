@@ -132,6 +132,68 @@ export type Database = {
           },
         ]
       }
+      data_connections: {
+        Row: {
+          access_token_ciphertext: string | null
+          account_id: string | null
+          account_label: string | null
+          connected_at: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          last_error: string | null
+          metadata: Json
+          provider: Database["public"]["Enums"]["data_provider"]
+          refresh_token_ciphertext: string | null
+          scope: string | null
+          status: Database["public"]["Enums"]["data_connection_status"]
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token_ciphertext?: string | null
+          account_id?: string | null
+          account_label?: string | null
+          connected_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_error?: string | null
+          metadata?: Json
+          provider: Database["public"]["Enums"]["data_provider"]
+          refresh_token_ciphertext?: string | null
+          scope?: string | null
+          status?: Database["public"]["Enums"]["data_connection_status"]
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token_ciphertext?: string | null
+          account_id?: string | null
+          account_label?: string | null
+          connected_at?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          last_error?: string | null
+          metadata?: Json
+          provider?: Database["public"]["Enums"]["data_provider"]
+          refresh_token_ciphertext?: string | null
+          scope?: string | null
+          status?: Database["public"]["Enums"]["data_connection_status"]
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_connections_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -213,6 +275,13 @@ export type Database = {
     }
     Enums: {
       audit_status: "running" | "completed" | "failed"
+      data_connection_status:
+        | "pending"
+        | "active"
+        | "expired"
+        | "revoked"
+        | "error"
+      data_provider: "shopify" | "meta_ads" | "google_ads" | "ga4"
       experience_level: "debutant" | "intermediaire" | "avance"
       finding_category:
         | "offre"
@@ -354,6 +423,14 @@ export const Constants = {
   public: {
     Enums: {
       audit_status: ["running", "completed", "failed"],
+      data_connection_status: [
+        "pending",
+        "active",
+        "expired",
+        "revoked",
+        "error",
+      ],
+      data_provider: ["shopify", "meta_ads", "google_ads", "ga4"],
       experience_level: ["debutant", "intermediaire", "avance"],
       finding_category: [
         "offre",
