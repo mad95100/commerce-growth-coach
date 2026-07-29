@@ -19,6 +19,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedStoresIndexRouteImport } from './routes/_authenticated/stores.index'
 import { Route as AuthenticatedStoresStoreIdRouteImport } from './routes/_authenticated/stores.$storeId'
 import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authenticated/audits.$auditId'
+import { Route as ApiPublicOauthShopifyCallbackRouteImport } from './routes/api/public/oauth/shopify/callback'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -72,6 +73,12 @@ const AuthenticatedAuditsAuditIdRoute =
     path: '/audits/$auditId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicOauthShopifyCallbackRoute =
+  ApiPublicOauthShopifyCallbackRouteImport.update({
+    id: '/api/public/oauth/shopify/callback',
+    path: '/api/public/oauth/shopify/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByFullPath {
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
   '/stores/': typeof AuthenticatedStoresIndexRoute
+  '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -94,6 +102,7 @@ export interface FileRoutesByTo {
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
   '/stores': typeof AuthenticatedStoresIndexRoute
+  '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -107,6 +116,7 @@ export interface FileRoutesById {
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/_authenticated/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
   '/_authenticated/stores/': typeof AuthenticatedStoresIndexRoute
+  '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/audits/$auditId'
     | '/stores/$storeId'
     | '/stores/'
+    | '/api/public/oauth/shopify/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/audits/$auditId'
     | '/stores/$storeId'
     | '/stores'
+    | '/api/public/oauth/shopify/callback'
   id:
     | '__root__'
     | '/'
@@ -143,6 +155,7 @@ export interface FileRouteTypes {
     | '/_authenticated/audits/$auditId'
     | '/_authenticated/stores/$storeId'
     | '/_authenticated/stores/'
+    | '/api/public/oauth/shopify/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -150,6 +163,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiPublicOauthShopifyCallbackRoute: typeof ApiPublicOauthShopifyCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -224,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditsAuditIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/oauth/shopify/callback': {
+      id: '/api/public/oauth/shopify/callback'
+      path: '/api/public/oauth/shopify/callback'
+      fullPath: '/api/public/oauth/shopify/callback'
+      preLoaderRoute: typeof ApiPublicOauthShopifyCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -253,7 +274,18 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiPublicOauthShopifyCallbackRoute: ApiPublicOauthShopifyCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
