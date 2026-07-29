@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
-import { updateFindingStatus } from "@/lib/audit.functions";
+import { updateFindingStatus, generateFix } from "@/lib/audit.functions";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -17,6 +18,7 @@ import {
   Clock,
   Zap,
   Calendar,
+  Wand2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -45,6 +47,21 @@ function AuditPage() {
   const { auditId } = Route.useParams();
   const qc = useQueryClient();
   const updateStatusFn = useServerFn(updateFindingStatus);
+  const generateFixFn = useServerFn(generateFix);
+  const [fixingId, setFixingId] = useState<string | null>(null);
+
+  async function handleGenerateFix(findingId: string) {
+    setFixingId(findingId);
+    try {
+      await generateFixFn({ data: { findingId } });
+      qc.invalidateQueries({ queryKey: ["findings", auditId] });
+      toast.success("Correction générée !");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setFixingId(null);
+    }
+  }
 
   const auditQ = useQuery({
     queryKey: ["audit", auditId],
@@ -159,7 +176,13 @@ function AuditPage() {
 
             <TabsContent value="problems" className="mt-6 space-y-4">
               {findings.map((f) => (
-                <FindingCard key={f.id} finding={f} onToggle={toggleDone} />
+                <FindingCard
+                  key={f.id}
+                  finding={f}
+                  onToggle={toggleDone}
+                  onGenerateFix={handleGenerateFix}
+                  fixing={fixingId === f.id}
+                />
               ))}
             </TabsContent>
 
@@ -176,7 +199,14 @@ function AuditPage() {
                     </div>
                     <div className="space-y-3">
                       {items.map((f) => (
-                        <FindingCard key={f.id} finding={f} onToggle={toggleDone} compact />
+                        <FindingCard
+                          key={f.id}
+                          finding={f}
+                          onToggle={toggleDone}
+                          onGenerateFix={handleGenerateFix}
+                          fixing={fixingId === f.id}
+                          compact
+                        />
                       ))}
                     </div>
                   </div>
@@ -229,10 +259,14 @@ function AuditPage() {
 function FindingCard({
   finding,
   onToggle,
+  onGenerateFix,
+  fixing,
   compact,
 }: {
   finding: Finding;
   onToggle: (id: string, current: string) => void;
+  onGenerateFix: (id: string) => void;
+  fixing?: boolean;
   compact?: boolean;
 }) {
   const sevColor = {
@@ -297,12 +331,40 @@ function FindingCard({
               </ol>
             </div>
           )}
-          {(finding.estimated_gain_max ?? 0) > 0 && (
-            <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 text-sm text-success">
-              <Zap className="h-3 w-3" />
-              +{Math.round(Number(finding.estimated_gain_min))} à {Math.round(Number(finding.estimated_gain_max))} €/mois
-            </div>
-          )}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {(finding.estimated_gain_max ?? 0) > 0 && (
+              <div className="inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 text-sm text-success">
+                <Zap className="h-3 w-3" />
+                +{Math.round(Number(finding.estimated_gain_min))} à {Math.round(Number(finding.estimated_gain_max))} €/mois
+              </div>
+            )}
+            {finding.auto_correction && typeof finding.auto_correction === "object" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const ac = finding.auto_correction as { content: string };
+                  navigator.clipboard.writeText(ac.content);
+                  toast.success("Correction copiée !");
+                }}
+              >
+                <Copy className="mr-2 h-3 w-3" /> Copier la correction
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => onGenerateFix(finding.id)}
+                disabled={fixing}
+                className="bg-gradient-primary text-primary-foreground"
+              >
+                {fixing ? (
+                  <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> L'IA écrit...</>
+                ) : (
+                  <><Wand2 className="mr-2 h-3 w-3" /> Corrige maintenant</>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

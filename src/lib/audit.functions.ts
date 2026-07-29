@@ -269,3 +269,113 @@ export const updateFindingStatus = createServerFn({ method: "POST" })
     if (error) throw error;
     return { ok: true };
   });
+
+const FIX_MODEL = "google/gemini-2.5-flash";
+
+const FIX_SYSTEM_PROMPT = `Tu es EcomPilot AI, directeur e-commerce senior.
+On te donne un problème identifié sur une boutique e-commerce d'un débutant.
+Ta mission : générer UN texte concret, prêt à copier-coller, qui règle ce problème.
+
+Selon la catégorie, ça peut être :
+- une fiche produit réécrite (titre + 5 bullets bénéfices + description + FAQ 3 questions)
+- un email de relance panier (objet + corps HTML simple)
+- une accroche + description publicitaire (Meta ou Google Ads)
+- une structure d'offre (bundle, garantie, urgence, prix ancre)
+- un script d'objection ou une bannière d'urgence
+
+RÈGLES :
+- Français, tutoiement de l'utilisateur (mais vouvoiement pour les textes destinés aux clients de la boutique).
+- Zéro placeholder du type [NOM DU PRODUIT] : invente une version plausible basée sur la niche.
+- Texte concret, punchy, orienté conversion.
+- Le "title" est court (max 60 caractères) et décrit ce que c'est.
+- Le "content" est directement utilisable, sans préambule ni explication.`;
+
+export const generateFix = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ findingId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+
+    const { data: finding, error: fErr } = await supabase
+      .from("audit_findings")
+      .select("*, audits(store_id, stores(name, url, niche))")
+      .eq("id", data.findingId)
+      .single();
+    if (fErr || !finding) throw new Error("Problème introuvable");
+
+    const store = (finding.audits as { stores: { name: string; url: string | null; niche: string | null } }).stores;
+
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("LOVABLE_API_KEY manquant");
+
+    const userPrompt = `Boutique : ${store.name}
+Niche : ${store.niche || "(non précisée)"}
+URL : ${store.url || "(non fournie)"}
+
+Problème (${finding.category}, sévérité ${finding.severity}) :
+${finding.title}
+
+Cause racine :
+${finding.root_cause || "(non détaillée)"}
+
+Impact :
+${finding.impact_description || "(non détaillé)"}
+
+Génère la correction prête à copier-coller adaptée à ce problème et à cette niche.`;
+
+    const tool = {
+      type: "function" as const,
+      function: {
+        name: "submit_fix",
+        description: "Soumet la correction générée",
+        parameters: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            title: { type: "string" },
+            content: { type: "string" },
+          },
+          required: ["title", "content"],
+        },
+      },
+    };
+
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: FIX_MODEL,
+        messages: [
+          { role: "system", content: FIX_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        tools: [tool],
+        tool_choice: { type: "function", function: { name: "submit_fix" } },
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      if (res.status === 429) throw new Error("Trop de demandes, réessaie dans une minute.");
+      if (res.status === 402) throw new Error("Crédits IA épuisés — passe à l'offre Pro pour continuer.");
+      throw new Error(`AI Gateway ${res.status}: ${errText}`);
+    }
+
+    const json = await res.json();
+    const call = json.choices?.[0]?.message?.tool_calls?.[0];
+    if (!call?.function?.arguments) throw new Error("Réponse IA invalide");
+    const parsed = JSON.parse(call.function.arguments) as { title: string; content: string };
+
+    const { error: uErr } = await supabase
+      .from("audit_findings")
+      .update({ auto_correction: parsed })
+      .eq("id", data.findingId);
+    if (uErr) throw uErr;
+
+    return parsed;
+  });
