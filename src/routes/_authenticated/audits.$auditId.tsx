@@ -331,12 +331,40 @@ function FindingCard({
               </ol>
             </div>
           )}
-          {(finding.estimated_gain_max ?? 0) > 0 && (
-            <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 text-sm text-success">
-              <Zap className="h-3 w-3" />
-              +{Math.round(Number(finding.estimated_gain_min))} à {Math.round(Number(finding.estimated_gain_max))} €/mois
-            </div>
-          )}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {(finding.estimated_gain_max ?? 0) > 0 && (
+              <div className="inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 text-sm text-success">
+                <Zap className="h-3 w-3" />
+                +{Math.round(Number(finding.estimated_gain_min))} à {Math.round(Number(finding.estimated_gain_max))} €/mois
+              </div>
+            )}
+            {finding.auto_correction && typeof finding.auto_correction === "object" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const ac = finding.auto_correction as { content: string };
+                  navigator.clipboard.writeText(ac.content);
+                  toast.success("Correction copiée !");
+                }}
+              >
+                <Copy className="mr-2 h-3 w-3" /> Copier la correction
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                onClick={() => onGenerateFix(finding.id)}
+                disabled={fixing}
+                className="bg-gradient-primary text-primary-foreground"
+              >
+                {fixing ? (
+                  <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> L'IA écrit...</>
+                ) : (
+                  <><Wand2 className="mr-2 h-3 w-3" /> Corrige maintenant</>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
