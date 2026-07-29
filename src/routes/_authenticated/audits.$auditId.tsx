@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
-import { updateFindingStatus } from "@/lib/audit.functions";
+import { updateFindingStatus, generateFix } from "@/lib/audit.functions";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -17,6 +18,7 @@ import {
   Clock,
   Zap,
   Calendar,
+  Wand2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -45,6 +47,21 @@ function AuditPage() {
   const { auditId } = Route.useParams();
   const qc = useQueryClient();
   const updateStatusFn = useServerFn(updateFindingStatus);
+  const generateFixFn = useServerFn(generateFix);
+  const [fixingId, setFixingId] = useState<string | null>(null);
+
+  async function handleGenerateFix(findingId: string) {
+    setFixingId(findingId);
+    try {
+      await generateFixFn({ data: { findingId } });
+      qc.invalidateQueries({ queryKey: ["findings", auditId] });
+      toast.success("Correction générée !");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setFixingId(null);
+    }
+  }
 
   const auditQ = useQuery({
     queryKey: ["audit", auditId],
@@ -159,7 +176,13 @@ function AuditPage() {
 
             <TabsContent value="problems" className="mt-6 space-y-4">
               {findings.map((f) => (
-                <FindingCard key={f.id} finding={f} onToggle={toggleDone} />
+                <FindingCard
+                  key={f.id}
+                  finding={f}
+                  onToggle={toggleDone}
+                  onGenerateFix={handleGenerateFix}
+                  fixing={fixingId === f.id}
+                />
               ))}
             </TabsContent>
 
@@ -176,7 +199,14 @@ function AuditPage() {
                     </div>
                     <div className="space-y-3">
                       {items.map((f) => (
-                        <FindingCard key={f.id} finding={f} onToggle={toggleDone} compact />
+                        <FindingCard
+                          key={f.id}
+                          finding={f}
+                          onToggle={toggleDone}
+                          onGenerateFix={handleGenerateFix}
+                          fixing={fixingId === f.id}
+                          compact
+                        />
                       ))}
                     </div>
                   </div>
@@ -229,10 +259,14 @@ function AuditPage() {
 function FindingCard({
   finding,
   onToggle,
+  onGenerateFix,
+  fixing,
   compact,
 }: {
   finding: Finding;
   onToggle: (id: string, current: string) => void;
+  onGenerateFix: (id: string) => void;
+  fixing?: boolean;
   compact?: boolean;
 }) {
   const sevColor = {
