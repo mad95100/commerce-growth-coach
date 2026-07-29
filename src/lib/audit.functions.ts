@@ -73,6 +73,32 @@ export const runAudit = createServerFn({ method: "POST" })
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("LOVABLE_API_KEY manquant");
 
+    // Enrichissement Shopify (si connecté)
+    let shopifyBlock = "";
+    const { data: shopifyConn } = await supabase
+      .from("data_connections")
+      .select("account_id, access_token_ciphertext, status")
+      .eq("store_id", store.id)
+      .eq("provider", "shopify")
+      .maybeSingle();
+    if (shopifyConn?.status === "active" && shopifyConn.access_token_ciphertext && shopifyConn.account_id) {
+      const { fetchShopifySnapshot } = await import("@/lib/connectors/shopify.server");
+      const snap = await fetchShopifySnapshot(shopifyConn.account_id, shopifyConn.access_token_ciphertext);
+      if (snap) {
+        shopifyBlock = `
+
+Données Shopify réelles (30 derniers jours) :
+- Nom boutique : ${snap.shopName}
+- Domaine : ${snap.domain}
+- Devise : ${snap.currency}
+- Nombre de produits : ${snap.productCount ?? "?"}
+- Commandes payées (30j) : ${snap.ordersLast30d ?? "?"}
+- Chiffre d'affaires (30j) : ${snap.revenueLast30d != null ? snap.revenueLast30d.toFixed(2) + " " + snap.currency : "?"}
+- Panier moyen : ${snap.avgOrderValue != null ? snap.avgOrderValue.toFixed(2) + " " + snap.currency : "?"}
+`;
+      }
+    }
+
     const userPrompt = `Voici les infos de la boutique à auditer :
 
 - Nom : ${store.name}
@@ -80,7 +106,7 @@ export const runAudit = createServerFn({ method: "POST" })
 - Niche : ${store.niche || "(non précisée)"}
 - Chiffre d'affaires actuel : ${store.monthly_revenue ? `${store.monthly_revenue} €/mois` : "(non renseigné, probablement très faible ou zéro)"}
 - Budget pub mensuel : ${store.monthly_ad_budget ? `${store.monthly_ad_budget} €/mois` : "(non renseigné ou zéro)"}
-- Objectif : ${store.goal || "(non précisé)"}
+- Objectif : ${store.goal || "(non précisé)"}${shopifyBlock}
 
 Analyse cette boutique comme un directeur e-commerce senior qui veut aider un débutant à enfin vendre. Base-toi sur les meilleures pratiques du e-commerce moderne et sur les erreurs typiques des débutants (offre floue, page produit qui ne vend pas, absence de preuve sociale, prix mal positionné, tunnel de conversion cassé, pas de relance panier, ciblage pub trop large, etc.).
 
