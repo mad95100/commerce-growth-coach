@@ -43,27 +43,26 @@ function Landing() {
       <main>
         {/* Hero */}
         <section className="mx-auto max-w-5xl px-6 py-24 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-1.5 text-xs text-muted-foreground">
-            <Sparkles className="h-3 w-3 text-primary" />
-            L'audit IA pour débutants e-commerce
+          <div className="inline-flex items-center gap-2 rounded-full border border-destructive/40 bg-destructive/10 px-4 py-1.5 text-xs text-destructive">
+            <Sparkles className="h-3 w-3" />
+            Chaque jour sans audit = de l'argent qui part
           </div>
           <h1 className="mt-6 font-display text-5xl font-bold leading-tight md:text-7xl">
-            Ta boutique ne vend pas ?<br />
-            <span className="text-gradient-primary">Découvre pourquoi.</span>
+            Ta boutique perd de l'argent.<br />
+            <span className="text-gradient-primary">On te dit exactement où.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
-            En 2 minutes, EcomPilot AI analyse ta boutique et te dit exactement
-            quoi corriger pour enfin transformer tes visiteurs en clients.
-            Pas de jargon. Que des actions concrètes.
+            EcomPilot AI audite ta boutique en 2 minutes, chiffre chaque fuite en euros
+            et génère les corrections prêtes à coller. Pas de blabla. Que du cash à récupérer.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Link to="/auth" search={{ mode: "signup" }}>
               <Button size="lg" className="bg-gradient-primary text-primary-foreground glow-primary">
-                Lancer mon audit gratuit
+                Auditer ma boutique maintenant
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
-            <div className="text-sm text-muted-foreground">Aucune carte bancaire requise</div>
+            <div className="text-sm text-muted-foreground">1er audit gratuit · sans CB</div>
           </div>
 
           {/* Score preview */}
@@ -72,15 +71,15 @@ function Landing() {
               <ScoreCircle score={42} />
               <div className="flex-1">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">Score global</div>
-                <div className="mt-1 font-display text-2xl font-bold">Ta boutique a du potentiel bloqué</div>
+                <div className="mt-1 font-display text-2xl font-bold">Tu laisses ~2 400 €/mois sur la table</div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  3 problèmes critiques t'empêchent de convertir. Bonne nouvelle :
-                  tous les 3 sont réparables cette semaine.
+                  3 fuites majeures identifiées. Toutes réparables cette semaine
+                  avec les textes qu'on te génère.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Tag color="destructive">Page produit floue</Tag>
-                  <Tag color="warning">Pas de relance panier</Tag>
-                  <Tag color="warning">Prix mal positionné</Tag>
+                  <Tag color="destructive">Page produit qui tue la vente</Tag>
+                  <Tag color="warning">0 relance panier</Tag>
+                  <Tag color="warning">Prix mal ancré</Tag>
                 </div>
               </div>
             </div>
@@ -90,25 +89,25 @@ function Landing() {
         {/* How it works */}
         <section className="mx-auto max-w-5xl px-6 py-24">
           <div className="text-center">
-            <h2 className="font-display text-4xl font-bold">Comment ça marche</h2>
-            <p className="mt-3 text-muted-foreground">Trois étapes. Zéro compétence technique.</p>
+            <h2 className="font-display text-4xl font-bold">3 étapes. Cash récupéré.</h2>
+            <p className="mt-3 text-muted-foreground">Zéro compétence technique. Zéro tableau de bord à lire.</p>
           </div>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
               {
                 icon: Target,
-                title: "1. Dis-nous ta situation",
-                desc: "URL de ta boutique, ta niche, ton budget. On s'occupe du reste.",
+                title: "1. Tu donnes ton URL",
+                desc: "Ta boutique, ta niche, ton budget pub. 60 secondes. C'est tout.",
               },
               {
                 icon: Zap,
-                title: "2. L'IA audite en 2 min",
-                desc: "On identifie ce qui tue tes ventes : offre, page produit, prix, tunnel...",
+                title: "2. L'IA trouve les fuites",
+                desc: "Offre floue, prix cassé, tunnel troué, pubs qui brûlent : tout chiffré en euros/mois.",
               },
               {
                 icon: TrendingUp,
-                title: "3. Applique les corrections",
-                desc: "Actions classées par impact. Textes prêts à copier. Gains estimés en euros.",
+                title: "3. Tu colles les corrections",
+                desc: "Fiches produit, emails, accroches pubs. Un clic, un copier-coller, plus de ventes.",
               },
             ].map((step) => (
               <div key={step.title} className="card-elevated rounded-2xl p-6">
@@ -127,23 +126,23 @@ function Landing() {
           <div className="grid gap-8 md:grid-cols-2">
             <FeatureCard
               icon={ShieldCheck}
-              title="Un langage simple, jamais de jargon"
-              desc="On parle comme un mentor, pas comme un analyste. Chaque problème est expliqué avec un exemple concret."
+              title="Zéro jargon. Que du concret."
+              desc="On parle cash, pas Google Analytics. Chaque problème = une phrase, un exemple, une action."
             />
             <FeatureCard
               icon={TrendingUp}
-              title="Chaque action chiffrée en euros"
-              desc="Tu sais exactement combien tu peux gagner par mois en corrigeant chaque problème."
+              title="Chaque fuite chiffrée en €/mois"
+              desc="Tu sais combien tu récupères en corrigeant chaque point. Priorité = impact financier."
             />
             <FeatureCard
               icon={Sparkles}
-              title="Corrections prêtes à copier-coller"
-              desc="Fiches produit réécrites, emails de relance, accroches pubs. Zéro rédaction à faire."
+              title={"Bouton \u00abCorrige maintenant\u00bb"}
+              desc="L'IA écrit ta fiche produit, ton email de relance, ton accroche pub. Tu colles. C'est réglé."
             />
             <FeatureCard
               icon={Rocket}
               title="Suivi de tes progrès"
-              desc="Marque les actions faites. Nouveaux audits pour mesurer ton évolution."
+              desc="Coche les actions faites. Nouvel audit → tu vois ton score grimper et tes ventes suivre."
             />
           </div>
         </section>
@@ -152,14 +151,14 @@ function Landing() {
         <section className="mx-auto max-w-4xl px-6 py-24">
           <div className="card-elevated rounded-3xl p-12 text-center">
             <h2 className="font-display text-4xl font-bold">
-              Arrête de deviner. <span className="text-gradient-primary">Commence à vendre.</span>
+              Arrête de brûler ton budget. <span className="text-gradient-primary">Récupère ton cash.</span>
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-              Ton premier audit est gratuit. Aucune installation. Aucune carte bancaire.
+              Ton premier audit est gratuit. Aucune installation. Aucune CB. Résultats en 2 minutes.
             </p>
             <Link to="/auth" search={{ mode: "signup" }}>
               <Button size="lg" className="mt-8 bg-gradient-primary text-primary-foreground glow-primary">
-                Lancer mon audit maintenant
+                Lancer mon audit gratuit
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
@@ -169,7 +168,7 @@ function Landing() {
 
       <footer className="border-t border-border/40 py-8">
         <div className="mx-auto max-w-6xl px-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} EcomPilot AI — Fait pour les entrepreneurs qui veulent vendre.
+          © {new Date().getFullYear()} EcomPilot AI — Fait pour les entrepreneurs qui veulent enfin vendre.
         </div>
       </footer>
     </div>
