@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
+import { ConnectionsPanel } from "@/components/ConnectionsPanel";
 import { runAudit } from "@/lib/audit.functions";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -84,6 +85,10 @@ function StorePage() {
         <Stat label="CA mensuel" value={store.monthly_revenue ? `${store.monthly_revenue} €` : "—"} />
         <Stat label="Budget pub" value={store.monthly_ad_budget ? `${store.monthly_ad_budget} €` : "—"} />
         <Stat label="Objectif" value={store.goal || "—"} />
+      </div>
+
+      <div className="mt-8">
+        <ConnectionsPanel storeId={store.id} storeUrl={store.url} />
       </div>
 
       <div className="mt-8 card-elevated rounded-2xl p-8">
