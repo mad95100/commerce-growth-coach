@@ -159,7 +159,7 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
                     },
                   },
                   auto_correction: {
-                    type: ["object", "null"],
+                    type: "object",
                     additionalProperties: false,
                     properties: {
                       title: { type: "string" },
@@ -178,9 +178,9 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
                   "estimated_gain_min",
                   "estimated_gain_max",
                   "action_steps",
-                  "auto_correction",
                   "timeframe",
                 ],
+
               },
             },
           },
