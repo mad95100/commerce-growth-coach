@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { extractJsonBlock } from "@/lib/audit-parse";
+
 
 const AUDIT_INPUT = z.object({ storeId: z.string().uuid() });
 
