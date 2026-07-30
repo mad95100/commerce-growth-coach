@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { extractJsonBlock } from "@/lib/audit-parse";
+
 
 const AUDIT_INPUT = z.object({ storeId: z.string().uuid() });
 
@@ -159,7 +161,7 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
                     },
                   },
                   auto_correction: {
-                    type: ["object", "null"],
+                    type: "object",
                     additionalProperties: false,
                     properties: {
                       title: { type: "string" },
@@ -178,9 +180,9 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
                   "estimated_gain_min",
                   "estimated_gain_max",
                   "action_steps",
-                  "auto_correction",
                   "timeframe",
                 ],
+
               },
             },
           },
@@ -213,9 +215,24 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
       }
 
       const json = await res.json();
-      const call = json.choices?.[0]?.message?.tool_calls?.[0];
-      if (!call?.function?.arguments) throw new Error("Réponse IA invalide");
-      const parsed = JSON.parse(call.function.arguments) as {
+      const message = json.choices?.[0]?.message;
+      const rawArgs: string | undefined =
+        message?.tool_calls?.[0]?.function?.arguments ??
+        // Certains modèles répondent en texte brut malgré tool_choice : on récupère le JSON.
+        extractJsonBlock(
+          typeof message?.content === "string"
+            ? message.content
+            : Array.isArray(message?.content)
+              ? message.content.map((p: { text?: string }) => p?.text ?? "").join("")
+              : "",
+        );
+      if (!rawArgs) {
+        throw new Error(
+          `Réponse IA invalide (${json.choices?.[0]?.finish_reason ?? "sans contenu"}). Relance l'audit.`,
+        );
+      }
+      const parsed = JSON.parse(rawArgs) as {
+
         score: number;
         verdict: string;
         summary: string;
