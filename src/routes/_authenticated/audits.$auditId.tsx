@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
-import { updateFindingStatus, generateFix } from "@/lib/audit.functions";
+import { updateFindingStatus, generateFix, applyFix } from "@/lib/audit.functions";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -19,6 +19,8 @@ import {
   Zap,
   Calendar,
   Wand2,
+  Sparkles,
+  ExternalLink,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -41,6 +43,8 @@ type Finding = {
   timeframe: string;
   status: string;
   sort_order: number;
+  applied_at: string | null;
+  applied_result: unknown;
 };
 
 function AuditPage() {
@@ -48,7 +52,26 @@ function AuditPage() {
   const qc = useQueryClient();
   const updateStatusFn = useServerFn(updateFindingStatus);
   const generateFixFn = useServerFn(generateFix);
+  const applyFixFn = useServerFn(applyFix);
   const [fixingId, setFixingId] = useState<string | null>(null);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+
+  async function handleApplyFix(findingId: string) {
+    setApplyingId(findingId);
+    try {
+      const res = await applyFixFn({ data: { findingId } });
+      qc.invalidateQueries({ queryKey: ["findings", auditId] });
+      if (res.action === "no_action") {
+        toast.info(res.summary);
+      } else {
+        toast.success(res.detail ?? "Correction appliquée sur ta boutique !");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setApplyingId(null);
+    }
+  }
 
   async function handleGenerateFix(findingId: string) {
     setFixingId(findingId);
@@ -181,7 +204,9 @@ function AuditPage() {
                   finding={f}
                   onToggle={toggleDone}
                   onGenerateFix={handleGenerateFix}
+                  onApplyFix={handleApplyFix}
                   fixing={fixingId === f.id}
+                  applying={applyingId === f.id}
                 />
               ))}
             </TabsContent>
@@ -204,7 +229,9 @@ function AuditPage() {
                           finding={f}
                           onToggle={toggleDone}
                           onGenerateFix={handleGenerateFix}
+                          onApplyFix={handleApplyFix}
                           fixing={fixingId === f.id}
+                          applying={applyingId === f.id}
                           compact
                         />
                       ))}
@@ -260,13 +287,17 @@ function FindingCard({
   finding,
   onToggle,
   onGenerateFix,
+  onApplyFix,
   fixing,
+  applying,
   compact,
 }: {
   finding: Finding;
   onToggle: (id: string, current: string) => void;
   onGenerateFix: (id: string) => void;
+  onApplyFix: (id: string) => void;
   fixing?: boolean;
+  applying?: boolean;
   compact?: boolean;
 }) {
   const sevColor = {
@@ -279,6 +310,10 @@ function FindingCard({
     ? (finding.action_steps as Array<{ text: string }>)
     : [];
   const done = finding.status === "done";
+  const applied =
+    finding.applied_at && finding.applied_result && typeof finding.applied_result === "object"
+      ? (finding.applied_result as { summary: string; detail?: string; adminUrl?: string })
+      : null;
 
   return (
     <div className={`card-elevated rounded-2xl p-6 ${done ? "opacity-60" : ""}`}>
@@ -331,12 +366,45 @@ function FindingCard({
               </ol>
             </div>
           )}
+          {applied && (
+            <div className="mt-4 rounded-lg border border-success/30 bg-success/10 p-3 text-sm">
+              <div className="flex items-center gap-2 font-medium text-success">
+                <CheckCircle2 className="h-4 w-4" /> Corrigé automatiquement sur ta boutique
+              </div>
+              <p className="mt-1 text-muted-foreground">{applied.summary}</p>
+              {applied.detail && <p className="mt-1">{applied.detail}</p>}
+              {applied.adminUrl && (
+                <a
+                  href={applied.adminUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-2 inline-flex items-center gap-1 text-primary hover:underline"
+                >
+                  Voir dans Shopify <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {(finding.estimated_gain_max ?? 0) > 0 && (
               <div className="inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 text-sm text-success">
                 <Zap className="h-3 w-3" />
                 +{Math.round(Number(finding.estimated_gain_min))} à {Math.round(Number(finding.estimated_gain_max))} €/mois
               </div>
+            )}
+            {!applied && (
+              <Button
+                size="sm"
+                onClick={() => onApplyFix(finding.id)}
+                disabled={applying}
+                className="bg-gradient-primary text-primary-foreground"
+              >
+                {applying ? (
+                  <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> L'IA corrige ta boutique...</>
+                ) : (
+                  <><Sparkles className="mr-2 h-3 w-3" /> Corrige ça pour moi</>
+                )}
+              </Button>
             )}
             {finding.auto_correction && typeof finding.auto_correction === "object" ? (
               <Button
@@ -353,14 +421,14 @@ function FindingCard({
             ) : (
               <Button
                 size="sm"
+                variant="outline"
                 onClick={() => onGenerateFix(finding.id)}
                 disabled={fixing}
-                className="bg-gradient-primary text-primary-foreground"
               >
                 {fixing ? (
                   <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> L'IA écrit...</>
                 ) : (
-                  <><Wand2 className="mr-2 h-3 w-3" /> Corrige maintenant</>
+                  <><Wand2 className="mr-2 h-3 w-3" /> Générer le texte</>
                 )}
               </Button>
             )}
