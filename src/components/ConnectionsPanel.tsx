@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { CheckCircle2, Link2, Loader2, ShoppingBag, Facebook, Chrome, BarChart3 } from "lucide-react";
-import { startShopifyConnect, disconnectShopify } from "@/lib/connectors/shopify.functions";
+import { startShopifyConnect } from "@/lib/connectors/shopify.functions";
+import { startMetaConnect } from "@/lib/connectors/meta.functions";
+import { startGoogleAdsConnect } from "@/lib/connectors/google.functions";
+import { disconnectProvider } from "@/lib/connectors/connections.functions";
 
 type Connection = {
   id: string;
@@ -19,7 +22,9 @@ type Connection = {
 export function ConnectionsPanel({ storeId, storeUrl }: { storeId: string; storeUrl: string | null }) {
   const qc = useQueryClient();
   const startShopify = useServerFn(startShopifyConnect);
-  const disconnectShopifyFn = useServerFn(disconnectShopify);
+  const disconnect = useServerFn(disconnectProvider);
+  const startMeta = useServerFn(startMetaConnect);
+  const startGoogle = useServerFn(startGoogleAdsConnect);
   const [shopInput, setShopInput] = useState(() => guessShopFromUrl(storeUrl));
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -37,6 +42,35 @@ export function ConnectionsPanel({ storeId, storeUrl }: { storeId: string; store
 
   const conns = connsQ.data ?? [];
   const shopifyConn = conns.find((c) => c.provider === "shopify" && c.status === "active");
+  const metaConn = conns.find((c) => c.provider === "meta_ads" && c.status === "active");
+  const googleConn = conns.find((c) => c.provider === "google_ads" && c.status === "active");
+
+  async function handleConnectAds(provider: "meta_ads" | "google_ads") {
+    setBusy(provider);
+    try {
+      const { authorizeUrl } =
+        provider === "meta_ads"
+          ? await startMeta({ data: { storeId } })
+          : await startGoogle({ data: { storeId } });
+      window.location.href = authorizeUrl;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+      setBusy(null);
+    }
+  }
+
+  async function handleDisconnect(provider: "shopify" | "meta_ads" | "google_ads") {
+    setBusy(provider);
+    try {
+      await disconnect({ data: { storeId, provider } });
+      await qc.invalidateQueries({ queryKey: ["connections", storeId] });
+      toast.success("Source déconnectée");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function handleConnectShopify() {
     if (!shopInput.trim()) {
@@ -56,7 +90,7 @@ export function ConnectionsPanel({ storeId, storeUrl }: { storeId: string; store
   async function handleDisconnectShopify() {
     setBusy("shopify");
     try {
-      await disconnectShopifyFn({ data: { storeId } });
+      await disconnect({ data: { storeId, provider: "shopify" } });
       await qc.invalidateQueries({ queryKey: ["connections", storeId] });
       toast.success("Shopify déconnecté");
     } catch (err) {
@@ -131,9 +165,81 @@ export function ConnectionsPanel({ storeId, storeUrl }: { storeId: string; store
           </div>
         </div>
 
-        <SoonRow icon={Facebook} label="Meta Ads" />
-        <SoonRow icon={Chrome} label="Google Ads" />
+        <AdsRow
+          icon={Facebook}
+          label="Meta Ads"
+          hint="Créations, ciblage et budgets corrigés automatiquement"
+          conn={metaConn}
+          busy={busy === "meta_ads"}
+          onConnect={() => handleConnectAds("meta_ads")}
+          onDisconnect={() => handleDisconnect("meta_ads")}
+        />
+        <AdsRow
+          icon={Chrome}
+          label="Google Ads"
+          hint="Annonces, mots-clés exclus et budgets corrigés automatiquement"
+          conn={googleConn}
+          busy={busy === "google_ads"}
+          onConnect={() => handleConnectAds("google_ads")}
+          onDisconnect={() => handleDisconnect("google_ads")}
+        />
         <SoonRow icon={BarChart3} label="Google Analytics 4" />
+      </div>
+    </div>
+  );
+}
+
+function AdsRow({
+  icon: Icon,
+  label,
+  hint,
+  conn,
+  busy,
+  onConnect,
+  onDisconnect,
+}: {
+  icon: typeof ShoppingBag;
+  label: string;
+  hint: string;
+  conn: Connection | undefined;
+  busy: boolean;
+  onConnect: () => void;
+  onDisconnect: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <div className="font-medium">{label}</div>
+            {conn && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-success/15 px-2 py-0.5 text-xs text-success">
+                <CheckCircle2 className="h-3 w-3" /> Connecté
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">
+            {conn?.account_label ?? hint}
+          </div>
+          <Button
+            size="sm"
+            variant={conn ? "outline" : "default"}
+            onClick={conn ? onDisconnect : onConnect}
+            disabled={busy}
+            className={conn ? "mt-3" : "mt-3 bg-gradient-primary text-primary-foreground"}
+          >
+            {busy ? (
+              <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Patiente...</>
+            ) : conn ? (
+              "Déconnecter"
+            ) : (
+              "Connecter"
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

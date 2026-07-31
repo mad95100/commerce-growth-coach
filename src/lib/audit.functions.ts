@@ -447,23 +447,25 @@ export const applyFix = createServerFn({ method: "POST" })
       stores: { name: string; url: string | null; niche: string | null };
     };
 
-    const { data: conn } = await supabase
+    const { data: conns } = await supabase
       .from("data_connections")
-      .select("account_id, access_token_ciphertext, status")
+      .select("provider, account_id, access_token_ciphertext, refresh_token_ciphertext, status")
       .eq("store_id", auditRel.store_id)
-      .eq("provider", "shopify")
-      .maybeSingle();
+      .eq("status", "active");
 
-    if (!conn || conn.status !== "active" || !conn.access_token_ciphertext || !conn.account_id) {
+    const active = conns ?? [];
+    const shopifyConn = active.find((c) => c.provider === "shopify");
+    const metaConn = active.find((c) => c.provider === "meta_ads");
+    const googleConn = active.find((c) => c.provider === "google_ads");
+
+    if (!shopifyConn && !metaConn && !googleConn) {
       throw new Error(
-        "Connecte d'abord ta boutique Shopify pour que je puisse appliquer les corrections directement.",
+        "Connecte d'abord Shopify, Meta Ads ou Google Ads pour que je puisse appliquer les corrections directement.",
       );
     }
 
-    const { applyFixOnShopify } = await import("@/lib/apply-fix.server");
-    const result = await applyFixOnShopify({
-      shop: conn.account_id,
-      encryptedToken: conn.access_token_ciphertext,
+    const { applyFixAcrossChannels } = await import("@/lib/apply-fix.server");
+    const result = await applyFixAcrossChannels({
       store: auditRel.stores,
       finding: {
         category: finding.category,
@@ -472,6 +474,20 @@ export const applyFix = createServerFn({ method: "POST" })
         root_cause: finding.root_cause,
         impact_description: finding.impact_description,
       },
+      ...(shopifyConn?.account_id && shopifyConn.access_token_ciphertext
+        ? { shopify: { shop: shopifyConn.account_id, encryptedToken: shopifyConn.access_token_ciphertext } }
+        : {}),
+      ...(metaConn?.account_id && metaConn.access_token_ciphertext
+        ? { meta: { accountId: metaConn.account_id, encryptedToken: metaConn.access_token_ciphertext } }
+        : {}),
+      ...(googleConn?.account_id && googleConn.refresh_token_ciphertext
+        ? {
+            google: {
+              customerId: googleConn.account_id,
+              encryptedRefreshToken: googleConn.refresh_token_ciphertext,
+            },
+          }
+        : {}),
     });
 
     if (result.action === "no_action") {
