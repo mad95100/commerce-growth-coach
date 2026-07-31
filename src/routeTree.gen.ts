@@ -20,6 +20,8 @@ import { Route as AuthenticatedStoresIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedStoresStoreIdRouteImport } from './routes/_authenticated/stores.$storeId'
 import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authenticated/audits.$auditId'
 import { Route as ApiPublicOauthShopifyCallbackRouteImport } from './routes/api/public/oauth/shopify/callback'
+import { Route as ApiPublicOauthMetaCallbackRouteImport } from './routes/api/public/oauth/meta/callback'
+import { Route as ApiPublicOauthGoogleCallbackRouteImport } from './routes/api/public/oauth/google/callback'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -79,6 +81,18 @@ const ApiPublicOauthShopifyCallbackRoute =
     path: '/api/public/oauth/shopify/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicOauthMetaCallbackRoute =
+  ApiPublicOauthMetaCallbackRouteImport.update({
+    id: '/api/public/oauth/meta/callback',
+    path: '/api/public/oauth/meta/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicOauthGoogleCallbackRoute =
+  ApiPublicOauthGoogleCallbackRouteImport.update({
+    id: '/api/public/oauth/google/callback',
+    path: '/api/public/oauth/google/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -90,6 +104,8 @@ export interface FileRoutesByFullPath {
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
   '/stores/': typeof AuthenticatedStoresIndexRoute
+  '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
+  '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
   '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -102,6 +118,8 @@ export interface FileRoutesByTo {
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
   '/stores': typeof AuthenticatedStoresIndexRoute
+  '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
+  '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
   '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
 }
 export interface FileRoutesById {
@@ -116,6 +134,8 @@ export interface FileRoutesById {
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/_authenticated/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
   '/_authenticated/stores/': typeof AuthenticatedStoresIndexRoute
+  '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
+  '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
   '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
 }
 export interface FileRouteTypes {
@@ -130,6 +150,8 @@ export interface FileRouteTypes {
     | '/audits/$auditId'
     | '/stores/$storeId'
     | '/stores/'
+    | '/api/public/oauth/google/callback'
+    | '/api/public/oauth/meta/callback'
     | '/api/public/oauth/shopify/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -142,6 +164,8 @@ export interface FileRouteTypes {
     | '/audits/$auditId'
     | '/stores/$storeId'
     | '/stores'
+    | '/api/public/oauth/google/callback'
+    | '/api/public/oauth/meta/callback'
     | '/api/public/oauth/shopify/callback'
   id:
     | '__root__'
@@ -155,6 +179,8 @@ export interface FileRouteTypes {
     | '/_authenticated/audits/$auditId'
     | '/_authenticated/stores/$storeId'
     | '/_authenticated/stores/'
+    | '/api/public/oauth/google/callback'
+    | '/api/public/oauth/meta/callback'
     | '/api/public/oauth/shopify/callback'
   fileRoutesById: FileRoutesById
 }
@@ -163,6 +189,8 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiPublicOauthGoogleCallbackRoute: typeof ApiPublicOauthGoogleCallbackRoute
+  ApiPublicOauthMetaCallbackRoute: typeof ApiPublicOauthMetaCallbackRoute
   ApiPublicOauthShopifyCallbackRoute: typeof ApiPublicOauthShopifyCallbackRoute
 }
 
@@ -245,6 +273,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOauthShopifyCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/oauth/meta/callback': {
+      id: '/api/public/oauth/meta/callback'
+      path: '/api/public/oauth/meta/callback'
+      fullPath: '/api/public/oauth/meta/callback'
+      preLoaderRoute: typeof ApiPublicOauthMetaCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/oauth/google/callback': {
+      id: '/api/public/oauth/google/callback'
+      path: '/api/public/oauth/google/callback'
+      fullPath: '/api/public/oauth/google/callback'
+      preLoaderRoute: typeof ApiPublicOauthGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -274,6 +316,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiPublicOauthGoogleCallbackRoute: ApiPublicOauthGoogleCallbackRoute,
+  ApiPublicOauthMetaCallbackRoute: ApiPublicOauthMetaCallbackRoute,
   ApiPublicOauthShopifyCallbackRoute: ApiPublicOauthShopifyCallbackRoute,
 }
 export const routeTree = rootRouteImport
