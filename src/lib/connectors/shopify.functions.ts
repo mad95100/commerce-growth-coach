@@ -4,12 +4,16 @@ import { z } from "zod";
 
 const SHOPIFY_SCOPES = [
   "read_products",
+  "write_products",
   "read_orders",
   "read_customers",
   "read_analytics",
   "read_price_rules",
+  "write_price_rules",
   "read_discounts",
+  "write_discounts",
 ].join(",");
+
 
 function normalizeShop(shopInput: string): string {
   const raw = shopInput.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
