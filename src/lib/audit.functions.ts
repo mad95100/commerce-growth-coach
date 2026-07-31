@@ -477,7 +477,6 @@ export const applyFix = createServerFn({ method: "POST" })
     if (result.action === "no_action") {
       const { error } = await supabase
         .from("audit_findings")
-        // @ts-expect-error jsonb column
         .update({ applied_result: result })
         .eq("id", data.findingId);
       if (error) throw error;
@@ -486,7 +485,6 @@ export const applyFix = createServerFn({ method: "POST" })
 
     const { error: uErr } = await supabase
       .from("audit_findings")
-      // @ts-expect-error jsonb column
       .update({ applied_at: new Date().toISOString(), applied_result: result, status: "done" })
       .eq("id", data.findingId);
     if (uErr) throw uErr;
