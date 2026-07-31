@@ -17,6 +17,8 @@ export type Database = {
       audit_findings: {
         Row: {
           action_steps: Json
+          applied_at: string | null
+          applied_result: Json | null
           audit_id: string
           auto_correction: Json | null
           category: Database["public"]["Enums"]["finding_category"]
@@ -35,6 +37,8 @@ export type Database = {
         }
         Insert: {
           action_steps?: Json
+          applied_at?: string | null
+          applied_result?: Json | null
           audit_id: string
           auto_correction?: Json | null
           category: Database["public"]["Enums"]["finding_category"]
@@ -53,6 +57,8 @@ export type Database = {
         }
         Update: {
           action_steps?: Json
+          applied_at?: string | null
+          applied_result?: Json | null
           audit_id?: string
           auto_correction?: Json | null
           category?: Database["public"]["Enums"]["finding_category"]
