@@ -422,3 +422,74 @@ Génère la correction prête à copier-coller adaptée à ce problème et à ce
 
     return parsed;
   });
+
+/**
+ * Applique directement la correction dans la boutique Shopify de l'utilisateur
+ * (réécriture de fiche produit, création de code promo, etc.).
+ */
+export const applyFix = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ findingId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+
+    const { data: finding, error: fErr } = await supabase
+      .from("audit_findings")
+      .select("*, audits(store_id, stores(name, url, niche))")
+      .eq("id", data.findingId)
+      .single();
+    if (fErr || !finding) throw new Error("Problème introuvable");
+
+    const auditRel = finding.audits as {
+      store_id: string;
+      stores: { name: string; url: string | null; niche: string | null };
+    };
+
+    const { data: conn } = await supabase
+      .from("data_connections")
+      .select("account_id, access_token_ciphertext, status")
+      .eq("store_id", auditRel.store_id)
+      .eq("provider", "shopify")
+      .maybeSingle();
+
+    if (!conn || conn.status !== "active" || !conn.access_token_ciphertext || !conn.account_id) {
+      throw new Error(
+        "Connecte d'abord ta boutique Shopify pour que je puisse appliquer les corrections directement.",
+      );
+    }
+
+    const { applyFixOnShopify } = await import("@/lib/apply-fix.server");
+    const result = await applyFixOnShopify({
+      shop: conn.account_id,
+      encryptedToken: conn.access_token_ciphertext,
+      store: auditRel.stores,
+      finding: {
+        category: finding.category,
+        severity: finding.severity,
+        title: finding.title,
+        root_cause: finding.root_cause,
+        impact_description: finding.impact_description,
+      },
+    });
+
+    if (result.action === "no_action") {
+      const { error } = await supabase
+        .from("audit_findings")
+        // @ts-expect-error jsonb column
+        .update({ applied_result: result })
+        .eq("id", data.findingId);
+      if (error) throw error;
+      return result;
+    }
+
+    const { error: uErr } = await supabase
+      .from("audit_findings")
+      // @ts-expect-error jsonb column
+      .update({ applied_at: new Date().toISOString(), applied_result: result, status: "done" })
+      .eq("id", data.findingId);
+    if (uErr) throw uErr;
+
+    return result;
+  });
