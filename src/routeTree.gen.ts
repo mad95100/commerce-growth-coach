@@ -17,6 +17,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedStoresIndexRouteImport } from './routes/_authenticated/stores.index'
+import { Route as AuthenticatedTrackingStoreIdRouteImport } from './routes/_authenticated/tracking.$storeId'
 import { Route as AuthenticatedStoresStoreIdRouteImport } from './routes/_authenticated/stores.$storeId'
 import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authenticated/audits.$auditId'
 import { Route as ApiPublicOauthShopifyCallbackRouteImport } from './routes/api/public/oauth/shopify/callback'
@@ -63,6 +64,12 @@ const AuthenticatedStoresIndexRoute =
     path: '/stores/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedTrackingStoreIdRoute =
+  AuthenticatedTrackingStoreIdRouteImport.update({
+    id: '/tracking/$storeId',
+    path: '/tracking/$storeId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedStoresStoreIdRoute =
   AuthenticatedStoresStoreIdRouteImport.update({
     id: '/stores/$storeId',
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
+  '/tracking/$storeId': typeof AuthenticatedTrackingStoreIdRoute
   '/stores/': typeof AuthenticatedStoresIndexRoute
   '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
   '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
@@ -117,6 +125,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
+  '/tracking/$storeId': typeof AuthenticatedTrackingStoreIdRoute
   '/stores': typeof AuthenticatedStoresIndexRoute
   '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
   '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
@@ -133,6 +142,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/audits/$auditId': typeof AuthenticatedAuditsAuditIdRoute
   '/_authenticated/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
+  '/_authenticated/tracking/$storeId': typeof AuthenticatedTrackingStoreIdRoute
   '/_authenticated/stores/': typeof AuthenticatedStoresIndexRoute
   '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
   '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/audits/$auditId'
     | '/stores/$storeId'
+    | '/tracking/$storeId'
     | '/stores/'
     | '/api/public/oauth/google/callback'
     | '/api/public/oauth/meta/callback'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/audits/$auditId'
     | '/stores/$storeId'
+    | '/tracking/$storeId'
     | '/stores'
     | '/api/public/oauth/google/callback'
     | '/api/public/oauth/meta/callback'
@@ -178,6 +190,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/audits/$auditId'
     | '/_authenticated/stores/$storeId'
+    | '/_authenticated/tracking/$storeId'
     | '/_authenticated/stores/'
     | '/api/public/oauth/google/callback'
     | '/api/public/oauth/meta/callback'
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStoresIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/tracking/$storeId': {
+      id: '/_authenticated/tracking/$storeId'
+      path: '/tracking/$storeId'
+      fullPath: '/tracking/$storeId'
+      preLoaderRoute: typeof AuthenticatedTrackingStoreIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/stores/$storeId': {
       id: '/_authenticated/stores/$storeId'
       path: '/stores/$storeId'
@@ -296,6 +316,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedAuditsAuditIdRoute: typeof AuthenticatedAuditsAuditIdRoute
   AuthenticatedStoresStoreIdRoute: typeof AuthenticatedStoresStoreIdRoute
+  AuthenticatedTrackingStoreIdRoute: typeof AuthenticatedTrackingStoreIdRoute
   AuthenticatedStoresIndexRoute: typeof AuthenticatedStoresIndexRoute
 }
 
@@ -305,6 +326,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedAuditsAuditIdRoute: AuthenticatedAuditsAuditIdRoute,
   AuthenticatedStoresStoreIdRoute: AuthenticatedStoresStoreIdRoute,
+  AuthenticatedTrackingStoreIdRoute: AuthenticatedTrackingStoreIdRoute,
   AuthenticatedStoresIndexRoute: AuthenticatedStoresIndexRoute,
 }
 
