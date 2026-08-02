@@ -200,6 +200,72 @@ export type Database = {
           },
         ]
       }
+      fix_outcomes: {
+        Row: {
+          alert_message: string | null
+          applied_at: string
+          baseline: Json
+          checked_at: string | null
+          created_at: string
+          delta: Json | null
+          expected_gain_max: number | null
+          expected_gain_min: number | null
+          finding_id: string
+          id: string
+          latest: Json | null
+          status: Database["public"]["Enums"]["tracking_status"]
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          alert_message?: string | null
+          applied_at?: string
+          baseline?: Json
+          checked_at?: string | null
+          created_at?: string
+          delta?: Json | null
+          expected_gain_max?: number | null
+          expected_gain_min?: number | null
+          finding_id: string
+          id?: string
+          latest?: Json | null
+          status?: Database["public"]["Enums"]["tracking_status"]
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          alert_message?: string | null
+          applied_at?: string
+          baseline?: Json
+          checked_at?: string | null
+          created_at?: string
+          delta?: Json | null
+          expected_gain_max?: number | null
+          expected_gain_min?: number | null
+          finding_id?: string
+          id?: string
+          latest?: Json | null
+          status?: Database["public"]["Enums"]["tracking_status"]
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fix_outcomes_finding_id_fkey"
+            columns: ["finding_id"]
+            isOneToOne: true
+            referencedRelation: "audit_findings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fix_outcomes_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -301,6 +367,11 @@ export type Database = {
       finding_severity: "critical" | "high" | "medium" | "low"
       finding_status: "todo" | "in_progress" | "done"
       finding_timeframe: "today" | "this_week" | "this_month"
+      tracking_status:
+        | "measuring"
+        | "on_track"
+        | "underperforming"
+        | "regressed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -451,6 +522,12 @@ export const Constants = {
       finding_severity: ["critical", "high", "medium", "low"],
       finding_status: ["todo", "in_progress", "done"],
       finding_timeframe: ["today", "this_week", "this_month"],
+      tracking_status: [
+        "measuring",
+        "on_track",
+        "underperforming",
+        "regressed",
+      ],
     },
   },
 } as const
