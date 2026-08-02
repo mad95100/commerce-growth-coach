@@ -505,5 +505,17 @@ export const applyFix = createServerFn({ method: "POST" })
       .eq("id", data.findingId);
     if (uErr) throw uErr;
 
+    // Photo « avant » des indicateurs pour mesurer l'impact réel de la correction.
+    const { recordFixBaseline, loadChannelCredentials } = await import("@/lib/tracking.server");
+    const creds = await loadChannelCredentials(supabase as never, auditRel.store_id);
+    await recordFixBaseline(supabase as never, {
+      findingId: data.findingId,
+      storeId: auditRel.store_id,
+      expectedGainMin: finding.estimated_gain_min ?? null,
+      expectedGainMax: finding.estimated_gain_max ?? null,
+      creds,
+    });
+
     return result;
   });
+
