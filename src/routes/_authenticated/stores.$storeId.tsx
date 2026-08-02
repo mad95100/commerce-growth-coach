@@ -91,6 +91,21 @@ function StorePage() {
         <ConnectionsPanel storeId={store.id} storeUrl={store.url} />
       </div>
 
+      <div className="mt-8 card-elevated flex flex-wrap items-center justify-between gap-4 rounded-2xl p-6">
+        <div>
+          <h2 className="font-display text-lg font-bold">Suivi des gains (avant / après)</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Vérifie si les corrections appliquées ont vraiment fait monter la conversion, le CTR et le ROAS.
+          </p>
+        </div>
+        <Button asChild variant="outline">
+          <Link to="/tracking/$storeId" params={{ storeId: store.id }}>
+            Voir le suivi <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
+        </Button>
+      </div>
+
+
       <div className="mt-8 card-elevated rounded-2xl p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
