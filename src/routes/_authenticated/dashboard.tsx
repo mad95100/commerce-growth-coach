@@ -51,6 +51,12 @@ function Dashboard() {
         </Link>
       </div>
 
+      {storesQ.data && storesQ.data.length > 0 && (
+        <div className="mb-10">
+          <Cockpit storeId={storesQ.data[0]!.id} />
+        </div>
+      )}
+
       {storesQ.isLoading ? (
         <div className="text-sm text-muted-foreground">Chargement...</div>
       ) : !storesQ.data || storesQ.data.length === 0 ? (
