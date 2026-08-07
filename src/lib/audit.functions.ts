@@ -2,41 +2,52 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import { extractJsonBlock } from "@/lib/audit-parse";
+import {
+  computeCategoryScores,
+  computeGlobalScore,
+  computePotential,
+  computePriority,
+} from "@/lib/scoring";
 
 
 const AUDIT_INPUT = z.object({ storeId: z.string().uuid() });
 
 const AUDIT_MODEL = "google/gemini-2.5-pro";
 
-const SYSTEM_PROMPT = `Tu es EcomPilot AI, le meilleur consultant e-commerce du monde.
+const SYSTEM_PROMPT = `Tu es EcomPilot AI, le directeur e-commerce personnel de l'utilisateur.
 
-Ta mission : faire gagner plus d'argent à l'utilisateur, qui est un DÉBUTANT en e-commerce et n'arrive pas à vendre ou à convertir.
+Ta mission : le faire passer de "je ne vends pas / je ne comprends pas pourquoi" à "je génère des ventes et j'améliore ma rentabilité".
 
 RÈGLES ABSOLUES :
 - Parle comme un mentor bienveillant, JAMAIS comme un analyste de données.
 - Zéro jargon. Si un terme technique est nécessaire, explique-le entre parenthèses.
-- Tutoie l'utilisateur.
-- Utilise des analogies concrètes (ex : "c'est comme une boutique physique avec la porte fermée").
-- Chaque recommandation doit être orientée vers la CROISSANCE, la CONVERSION et la RENTABILITÉ.
-- Chiffre chaque gain estimé en euros/mois (fourchette réaliste).
+- Tutoie l'utilisateur. Utilise des analogies concrètes.
 - Encourage systématiquement ("Bonne nouvelle : c'est réparable rapidement.").
 
-STRUCTURE OBLIGATOIRE de ta réponse (JSON) :
-1. score : 0 à 100 selon l'état actuel de la boutique.
-2. verdict : UNE phrase percutante qui résume la situation.
-3. summary : 2-3 phrases qui contextualisent le score.
-4. findings : 3 à 6 problèmes classés du plus critique au moins critique. Chaque finding :
-   - category : offre | produit | boutique | conversion | acquisition | retention | rentabilite | operations
-   - severity : critical | high | medium | low
-   - title : titre clair et court en français simple
-   - root_cause : pourquoi ça arrive, expliqué à un débutant
-   - impact_description : ce que ça coûte en ventes perdues
-   - estimated_gain_min et estimated_gain_max : fourchette euros/mois potentiels
-   - action_steps : liste de 2-4 étapes concrètes, chacune avec un texte
-   - auto_correction : objet optionnel avec { title, content } si tu peux générer un texte prêt à copier (fiche produit réécrite, email de relance panier, accroche pub, etc.)
-   - timeframe : today | this_week | this_month
+RÈGLES SUR LES DONNÉES (non négociables) :
+- Utilise EN PRIORITÉ les chiffres réels fournis. Ne les recalcule pas au hasard.
+- N'invente JAMAIS une métrique. Si une donnée manque, dis-le et baisse la confiance.
+- Distingue toujours fait mesuré et hypothèse : le champ "evidence" doit contenir
+  { "based_on": "...", "assumptions": "..." } en français simple.
+- Ne promets jamais un revenu garanti : donne une fourchette réaliste.
+- Explique la base du calcul de chaque gain estimé dans impact_description.
 
-Tu es un directeur e-commerce senior qui a une seule obsession : que l'utilisateur gagne plus d'argent MAINTENANT.`;
+POUR CHAQUE PROBLÈME tu dois fournir :
+- category : offre | produit | boutique | conversion | acquisition | retention | rentabilite | operations
+- severity : critical | high | medium | low
+- title : titre clair et court en français simple
+- root_cause : pourquoi ça arrive, expliqué à un débutant
+- impact_description : ce que ça coûte + comment tu l'as estimé
+- estimated_gain_min / estimated_gain_max : fourchette euros/mois réaliste
+- difficulty : 1 (très facile) à 5 (expert)
+- time_minutes : temps nécessaire pour le corriger
+- confidence : low | medium | high selon la qualité des données disponibles
+- evidence : { based_on, assumptions }
+- action_steps : 2 à 4 étapes concrètes
+- auto_correction : { title, content } si tu peux produire un texte prêt à l'emploi
+- timeframe : today | this_week | this_month
+
+Tu es un directeur e-commerce senior obsédé par une chose : que l'utilisateur gagne plus d'argent, avec honnêteté sur ce que tu sais et ce que tu supposes.`;
 
 export const runAudit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -75,42 +86,56 @@ export const runAudit = createServerFn({ method: "POST" })
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("LOVABLE_API_KEY manquant");
 
-    // Enrichissement Shopify (si connecté)
-    let shopifyBlock = "";
-    const { data: shopifyConn } = await supabase
-      .from("data_connections")
-      .select("account_id, access_token_ciphertext, status")
-      .eq("store_id", store.id)
-      .eq("provider", "shopify")
-      .maybeSingle();
-    if (shopifyConn?.status === "active" && shopifyConn.access_token_ciphertext && shopifyConn.account_id) {
-      const { fetchShopifySnapshot } = await import("@/lib/connectors/shopify.server");
-      const snap = await fetchShopifySnapshot(shopifyConn.account_id, shopifyConn.access_token_ciphertext);
-      if (snap) {
-        shopifyBlock = `
+    // Données réelles de toutes les sources connectées (tolérant aux pannes)
+    const { captureAndStoreSnapshot, getSnapshotAround, snapshotToPromptBlock } = await import(
+      "@/lib/snapshots.server"
+    );
+    const snapshot = await captureAndStoreSnapshot(supabase as never, store.id);
+    const previous = await getSnapshotAround(supabase as never, store.id, 7);
+    const dataBlock = snapshotToPromptBlock(snapshot, previous, store.currency ?? "EUR");
 
-Données Shopify réelles (30 derniers jours) :
-- Nom boutique : ${snap.shopName}
-- Domaine : ${snap.domain}
-- Devise : ${snap.currency}
-- Nombre de produits : ${snap.productCount ?? "?"}
-- Commandes payées (30j) : ${snap.ordersLast30d ?? "?"}
-- Chiffre d'affaires (30j) : ${snap.revenueLast30d != null ? snap.revenueLast30d.toFixed(2) + " " + snap.currency : "?"}
-- Panier moyen : ${snap.avgOrderValue != null ? snap.avgOrderValue.toFixed(2) + " " + snap.currency : "?"}
-`;
-      }
-    }
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("experience_level")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const levelHint =
+      profile?.experience_level === "avance"
+        ? "Utilisateur AVANCÉ : tu peux être plus technique et plus dense."
+        : profile?.experience_level === "intermediaire"
+          ? "Utilisateur INTERMÉDIAIRE : reste simple mais tu peux utiliser les termes courants (ROAS, CPA, AOV) en les rappelant."
+          : "Utilisateur DÉBUTANT : phrases courtes, zéro jargon, maximum 4 problèmes, et commence par ce qui bloque la toute première vente.";
+
+    const situationHint =
+      store.situation === "no_sales"
+        ? "Situation : AUCUNE VENTE. Concentre-toi en priorité sur offre, prix, page produit, confiance, trafic, tracking et checkout."
+        : store.situation === "few_sales"
+          ? "Situation : QUELQUES VENTES. Cherche ce qui empêche de passer à l'échelle."
+          : store.situation === "plateau"
+            ? "Situation : CA QUI STAGNE. Cherche le plafond : offre, panier moyen, acquisition, rétention."
+            : store.situation === "not_profitable"
+              ? "Situation : DU CA MAIS PAS RENTABLE. Priorise marge, coût d'acquisition, ROAS minimum rentable."
+              : "Situation non précisée.";
 
     const userPrompt = `Voici les infos de la boutique à auditer :
 
 - Nom : ${store.name}
 - URL : ${store.url || "(non fournie)"}
 - Niche : ${store.niche || "(non précisée)"}
-- Chiffre d'affaires actuel : ${store.monthly_revenue ? `${store.monthly_revenue} €/mois` : "(non renseigné, probablement très faible ou zéro)"}
-- Budget pub mensuel : ${store.monthly_ad_budget ? `${store.monthly_ad_budget} €/mois` : "(non renseigné ou zéro)"}
-- Objectif : ${store.goal || "(non précisé)"}${shopifyBlock}
+- Chiffre d'affaires déclaré : ${store.monthly_revenue ? `${store.monthly_revenue} €/mois` : "(non renseigné)"}
+- Budget pub déclaré : ${store.monthly_ad_budget ? `${store.monthly_ad_budget} €/mois` : "(non renseigné)"}
+- Objectif de CA : ${store.revenue_goal ? `${store.revenue_goal} €/mois` : store.goal || "(non précisé)"}
+- Coût produit moyen : ${store.avg_product_cost_ratio ? `${Math.round(store.avg_product_cost_ratio * 100)} % du prix de vente` : "(non renseigné)"}
+- Charges fixes : ${store.fixed_costs_monthly ? `${store.fixed_costs_monthly} €/mois` : "(non renseignées)"}
 
-Analyse cette boutique comme un directeur e-commerce senior qui veut aider un débutant à enfin vendre. Base-toi sur les meilleures pratiques du e-commerce moderne et sur les erreurs typiques des débutants (offre floue, page produit qui ne vend pas, absence de preuve sociale, prix mal positionné, tunnel de conversion cassé, pas de relance panier, ciblage pub trop large, etc.).
+${levelHint}
+${situationHint}
+
+DONNÉES RÉELLES DISPONIBLES :
+${dataBlock}
+
+Analyse cette boutique comme un directeur e-commerce senior. Couvre l'offre, le produit, la boutique, la conversion, l'acquisition, la rétention et la rentabilité. Ne retiens que les problèmes qui coûtent réellement de l'argent, du plus coûteux au moins coûteux.
 
 Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
 
@@ -170,6 +195,18 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
                     required: ["title", "content"],
                   },
                   timeframe: { type: "string", enum: ["today", "this_week", "this_month"] },
+                  difficulty: { type: "integer", description: "1 très facile à 5 expert" },
+                  time_minutes: { type: "integer", description: "Temps estimé en minutes" },
+                  confidence: { type: "string", enum: ["low", "medium", "high"] },
+                  evidence: {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      based_on: { type: "string" },
+                      assumptions: { type: "string" },
+                    },
+                    required: ["based_on", "assumptions"],
+                  },
                 },
                 required: [
                   "category",
@@ -181,6 +218,10 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
                   "estimated_gain_max",
                   "action_steps",
                   "timeframe",
+                  "difficulty",
+                  "time_minutes",
+                  "confidence",
+                  "evidence",
                 ],
 
               },
@@ -232,7 +273,6 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
         );
       }
       const parsed = JSON.parse(rawArgs) as {
-
         score: number;
         verdict: string;
         summary: string;
@@ -247,24 +287,38 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
           action_steps: Array<{ text: string }>;
           auto_correction: { title: string; content: string } | null;
           timeframe: string;
+          difficulty?: number;
+          time_minutes?: number;
+          confidence?: string;
+          evidence?: { based_on: string; assumptions: string };
         }>;
       };
 
-      // Update audit
+      // Scoring et priorisation déterministes côté serveur (jamais devinés par l'IA)
+      const categoryScores = computeCategoryScores(parsed.findings);
+      const globalScore = computeGlobalScore(categoryScores);
+      const potential = computePotential(parsed.findings);
+
+      const ranked = parsed.findings
+        .map((f) => ({ f, priority: computePriority(f) }))
+        .sort((a, b) => b.priority - a.priority);
+
       await supabase
         .from("audits")
         .update({
           status: "completed",
-          score: parsed.score,
+          score: globalScore,
+          category_scores: categoryScores,
+          potential_gain_min: potential.min,
+          potential_gain_max: potential.max,
           verdict: parsed.verdict,
           summary: parsed.summary,
           completed_at: new Date().toISOString(),
         })
         .eq("id", audit.id);
 
-      // Insert findings
-      if (parsed.findings.length > 0) {
-        const rows = parsed.findings.map((f, i) => ({
+      if (ranked.length > 0) {
+        const rows = ranked.map(({ f, priority }, i) => ({
           audit_id: audit.id,
           category: f.category,
           severity: f.severity,
@@ -276,6 +330,11 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
           action_steps: f.action_steps,
           auto_correction: f.auto_correction ?? null,
           timeframe: f.timeframe,
+          difficulty: Math.min(5, Math.max(1, f.difficulty ?? 2)),
+          time_minutes: f.time_minutes ?? 30,
+          confidence: f.confidence === "high" || f.confidence === "low" ? f.confidence : "medium",
+          evidence: f.evidence ?? {},
+          priority_score: priority,
           sort_order: i,
         }));
         // @ts-expect-error union type accepted by insert

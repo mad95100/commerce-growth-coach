@@ -5,6 +5,7 @@ import { AppShell, EmptyState } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, Store as StoreIcon, TrendingUp } from "lucide-react";
 import { ScoreRing } from "@/components/ScoreRing";
+import { Cockpit } from "@/components/Cockpit";
 import { useEffect } from "react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -50,6 +51,12 @@ function Dashboard() {
           </Button>
         </Link>
       </div>
+
+      {storesQ.data && storesQ.data.length > 0 && (
+        <div className="mb-10">
+          <Cockpit storeId={storesQ.data[0]!.id} />
+        </div>
+      )}
 
       {storesQ.isLoading ? (
         <div className="text-sm text-muted-foreground">Chargement...</div>

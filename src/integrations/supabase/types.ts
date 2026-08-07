@@ -14,6 +14,150 @@ export type Database = {
   }
   public: {
     Tables: {
+      action_results: {
+        Row: {
+          action_id: string
+          after_metrics: Json
+          before_metrics: Json
+          confidence: Database["public"]["Enums"]["confidence_level"]
+          created_at: string
+          delta: Json
+          estimated_impact_eur: number | null
+          id: string
+          measured_at: string
+          store_id: string
+          summary: string | null
+          window_days: number
+        }
+        Insert: {
+          action_id: string
+          after_metrics?: Json
+          before_metrics?: Json
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          created_at?: string
+          delta?: Json
+          estimated_impact_eur?: number | null
+          id?: string
+          measured_at?: string
+          store_id: string
+          summary?: string | null
+          window_days?: number
+        }
+        Update: {
+          action_id?: string
+          after_metrics?: Json
+          before_metrics?: Json
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          created_at?: string
+          delta?: Json
+          estimated_impact_eur?: number | null
+          id?: string
+          measured_at?: string
+          store_id?: string
+          summary?: string | null
+          window_days?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_results_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_results_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      actions: {
+        Row: {
+          actor: Database["public"]["Enums"]["action_actor"]
+          after_value: Json | null
+          applied_at: string | null
+          before_value: Json | null
+          channel: Database["public"]["Enums"]["action_channel"]
+          created_at: string
+          error_message: string | null
+          finding_id: string | null
+          id: string
+          payload: Json
+          reason: string | null
+          reverted_at: string | null
+          revertible: boolean
+          status: Database["public"]["Enums"]["action_status"]
+          store_id: string
+          target_label: string | null
+          target_ref: string | null
+          title: string
+          tool_name: string
+          updated_at: string
+        }
+        Insert: {
+          actor?: Database["public"]["Enums"]["action_actor"]
+          after_value?: Json | null
+          applied_at?: string | null
+          before_value?: Json | null
+          channel: Database["public"]["Enums"]["action_channel"]
+          created_at?: string
+          error_message?: string | null
+          finding_id?: string | null
+          id?: string
+          payload?: Json
+          reason?: string | null
+          reverted_at?: string | null
+          revertible?: boolean
+          status?: Database["public"]["Enums"]["action_status"]
+          store_id: string
+          target_label?: string | null
+          target_ref?: string | null
+          title: string
+          tool_name: string
+          updated_at?: string
+        }
+        Update: {
+          actor?: Database["public"]["Enums"]["action_actor"]
+          after_value?: Json | null
+          applied_at?: string | null
+          before_value?: Json | null
+          channel?: Database["public"]["Enums"]["action_channel"]
+          created_at?: string
+          error_message?: string | null
+          finding_id?: string | null
+          id?: string
+          payload?: Json
+          reason?: string | null
+          reverted_at?: string | null
+          revertible?: boolean
+          status?: Database["public"]["Enums"]["action_status"]
+          store_id?: string
+          target_label?: string | null
+          target_ref?: string | null
+          title?: string
+          tool_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "actions_finding_id_fkey"
+            columns: ["finding_id"]
+            isOneToOne: false
+            referencedRelation: "audit_findings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "actions_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_findings: {
         Row: {
           action_steps: Json
@@ -22,15 +166,20 @@ export type Database = {
           audit_id: string
           auto_correction: Json | null
           category: Database["public"]["Enums"]["finding_category"]
+          confidence: Database["public"]["Enums"]["confidence_level"]
           created_at: string
+          difficulty: number
           estimated_gain_max: number | null
           estimated_gain_min: number | null
+          evidence: Json
           id: string
           impact_description: string | null
+          priority_score: number
           root_cause: string | null
           severity: Database["public"]["Enums"]["finding_severity"]
           sort_order: number
           status: Database["public"]["Enums"]["finding_status"]
+          time_minutes: number
           timeframe: Database["public"]["Enums"]["finding_timeframe"]
           title: string
           updated_at: string
@@ -42,15 +191,20 @@ export type Database = {
           audit_id: string
           auto_correction?: Json | null
           category: Database["public"]["Enums"]["finding_category"]
+          confidence?: Database["public"]["Enums"]["confidence_level"]
           created_at?: string
+          difficulty?: number
           estimated_gain_max?: number | null
           estimated_gain_min?: number | null
+          evidence?: Json
           id?: string
           impact_description?: string | null
+          priority_score?: number
           root_cause?: string | null
           severity: Database["public"]["Enums"]["finding_severity"]
           sort_order?: number
           status?: Database["public"]["Enums"]["finding_status"]
+          time_minutes?: number
           timeframe?: Database["public"]["Enums"]["finding_timeframe"]
           title: string
           updated_at?: string
@@ -62,15 +216,20 @@ export type Database = {
           audit_id?: string
           auto_correction?: Json | null
           category?: Database["public"]["Enums"]["finding_category"]
+          confidence?: Database["public"]["Enums"]["confidence_level"]
           created_at?: string
+          difficulty?: number
           estimated_gain_max?: number | null
           estimated_gain_min?: number | null
+          evidence?: Json
           id?: string
           impact_description?: string | null
+          priority_score?: number
           root_cause?: string | null
           severity?: Database["public"]["Enums"]["finding_severity"]
           sort_order?: number
           status?: Database["public"]["Enums"]["finding_status"]
+          time_minutes?: number
           timeframe?: Database["public"]["Enums"]["finding_timeframe"]
           title?: string
           updated_at?: string
@@ -87,12 +246,16 @@ export type Database = {
       }
       audits: {
         Row: {
+          audit_type: Database["public"]["Enums"]["audit_type"]
+          category_scores: Json
           completed_at: string | null
           created_at: string
           created_by: string
           error_message: string | null
           id: string
           input_snapshot: Json | null
+          potential_gain_max: number | null
+          potential_gain_min: number | null
           score: number | null
           status: Database["public"]["Enums"]["audit_status"]
           store_id: string
@@ -101,12 +264,16 @@ export type Database = {
           verdict: string | null
         }
         Insert: {
+          audit_type?: Database["public"]["Enums"]["audit_type"]
+          category_scores?: Json
           completed_at?: string | null
           created_at?: string
           created_by: string
           error_message?: string | null
           id?: string
           input_snapshot?: Json | null
+          potential_gain_max?: number | null
+          potential_gain_min?: number | null
           score?: number | null
           status?: Database["public"]["Enums"]["audit_status"]
           store_id: string
@@ -115,12 +282,16 @@ export type Database = {
           verdict?: string | null
         }
         Update: {
+          audit_type?: Database["public"]["Enums"]["audit_type"]
+          category_scores?: Json
           completed_at?: string | null
           created_at?: string
           created_by?: string
           error_message?: string | null
           id?: string
           input_snapshot?: Json | null
+          potential_gain_max?: number | null
+          potential_gain_min?: number | null
           score?: number | null
           status?: Database["public"]["Enums"]["audit_status"]
           store_id?: string
@@ -134,6 +305,73 @@ export type Database = {
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          store_id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          store_id: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          store_id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_conversations_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "coach_conversations"
             referencedColumns: ["id"]
           },
         ]
@@ -193,6 +431,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "data_connections_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_snapshots: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          fetched_at: string
+          id: string
+          kind: Database["public"]["Enums"]["snapshot_kind"]
+          partial: boolean
+          payload: Json
+          period_days: number
+          store_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          fetched_at?: string
+          id?: string
+          kind: Database["public"]["Enums"]["snapshot_kind"]
+          partial?: boolean
+          payload?: Json
+          period_days?: number
+          store_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          fetched_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["snapshot_kind"]
+          partial?: boolean
+          payload?: Json
+          period_days?: number
+          store_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_snapshots_store_id_fkey"
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"
@@ -266,6 +548,100 @@ export type Database = {
           },
         ]
       }
+      goals: {
+        Row: {
+          achieved: boolean
+          achieved_at: string | null
+          created_at: string
+          id: string
+          label: string
+          store_id: string
+          target_date: string | null
+          target_revenue: number | null
+          updated_at: string
+        }
+        Insert: {
+          achieved?: boolean
+          achieved_at?: string | null
+          created_at?: string
+          id?: string
+          label: string
+          store_id: string
+          target_date?: string | null
+          target_revenue?: number | null
+          updated_at?: string
+        }
+        Update: {
+          achieved?: boolean
+          achieved_at?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          store_id?: string
+          target_date?: string | null
+          target_revenue?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          action_href: string | null
+          action_label: string | null
+          body: string | null
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["notification_kind"]
+          read_at: string | null
+          severity: Database["public"]["Enums"]["finding_severity"]
+          store_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          action_href?: string | null
+          action_label?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          read_at?: string | null
+          severity?: Database["public"]["Enums"]["finding_severity"]
+          store_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          action_href?: string | null
+          action_label?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["notification_kind"]
+          read_at?: string | null
+          severity?: Database["public"]["Enums"]["finding_severity"]
+          store_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -298,8 +674,10 @@ export type Database = {
       }
       stores: {
         Row: {
+          avg_product_cost_ratio: number | null
           created_at: string
           currency: string
+          fixed_costs_monthly: number | null
           goal: string | null
           id: string
           monthly_ad_budget: number | null
@@ -307,12 +685,16 @@ export type Database = {
           name: string
           niche: string | null
           owner_id: string
+          revenue_goal: number | null
+          situation: Database["public"]["Enums"]["store_situation"] | null
           updated_at: string
           url: string | null
         }
         Insert: {
+          avg_product_cost_ratio?: number | null
           created_at?: string
           currency?: string
+          fixed_costs_monthly?: number | null
           goal?: string | null
           id?: string
           monthly_ad_budget?: number | null
@@ -320,12 +702,16 @@ export type Database = {
           name: string
           niche?: string | null
           owner_id: string
+          revenue_goal?: number | null
+          situation?: Database["public"]["Enums"]["store_situation"] | null
           updated_at?: string
           url?: string | null
         }
         Update: {
+          avg_product_cost_ratio?: number | null
           created_at?: string
           currency?: string
+          fixed_costs_monthly?: number | null
           goal?: string | null
           id?: string
           monthly_ad_budget?: number | null
@@ -333,8 +719,142 @@ export type Database = {
           name?: string
           niche?: string | null
           owner_id?: string
+          revenue_goal?: number | null
+          situation?: Database["public"]["Enums"]["store_situation"] | null
           updated_at?: string
           url?: string | null
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          created_at: string
+          current_period_end: string | null
+          id: string
+          provider: string | null
+          provider_customer_id: string | null
+          provider_subscription_id: string | null
+          status: string
+          tier: Database["public"]["Enums"]["plan_tier"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          provider?: string | null
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status?: string
+          tier?: Database["public"]["Enums"]["plan_tier"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          provider?: string | null
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status?: string
+          tier?: Database["public"]["Enums"]["plan_tier"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          finding_id: string | null
+          how_to: string | null
+          id: string
+          sort_order: number
+          status: Database["public"]["Enums"]["task_status"]
+          store_id: string
+          title: string
+          updated_at: string
+          week_number: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          finding_id?: string | null
+          how_to?: string | null
+          id?: string
+          sort_order?: number
+          status?: Database["public"]["Enums"]["task_status"]
+          store_id: string
+          title: string
+          updated_at?: string
+          week_number?: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          finding_id?: string | null
+          how_to?: string | null
+          id?: string
+          sort_order?: number
+          status?: Database["public"]["Enums"]["task_status"]
+          store_id?: string
+          title?: string
+          updated_at?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_finding_id_fkey"
+            columns: ["finding_id"]
+            isOneToOne: false
+            referencedRelation: "audit_findings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      usage: {
+        Row: {
+          audits_used: number
+          coach_messages_used: number
+          created_at: string
+          fixes_used: number
+          id: string
+          period_start: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          audits_used?: number
+          coach_messages_used?: number
+          created_at?: string
+          fixes_used?: number
+          id?: string
+          period_start?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          audits_used?: number
+          coach_messages_used?: number
+          created_at?: string
+          fixes_used?: number
+          id?: string
+          period_start?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -346,7 +866,19 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      action_actor: "ai" | "user"
+      action_channel:
+        | "shopify"
+        | "meta_ads"
+        | "google_ads"
+        | "ga4"
+        | "tiktok_ads"
+        | "klaviyo"
+        | "manual"
+      action_status: "proposed" | "applied" | "failed" | "reverted"
       audit_status: "running" | "completed" | "failed"
+      audit_type: "initial" | "daily" | "weekly" | "monthly"
+      confidence_level: "low" | "medium" | "high"
       data_connection_status:
         | "pending"
         | "active"
@@ -367,6 +899,18 @@ export type Database = {
       finding_severity: "critical" | "high" | "medium" | "low"
       finding_status: "todo" | "in_progress" | "done"
       finding_timeframe: "today" | "this_week" | "this_month"
+      notification_kind: "alert" | "insight" | "digest" | "system"
+      plan_tier: "free" | "pro"
+      snapshot_kind:
+        | "shopify"
+        | "meta_ads"
+        | "google_ads"
+        | "ga4"
+        | "tiktok_ads"
+        | "klaviyo"
+        | "composite"
+      store_situation: "no_sales" | "few_sales" | "plateau" | "not_profitable"
+      task_status: "todo" | "done" | "skipped"
       tracking_status:
         | "measuring"
         | "on_track"
@@ -499,7 +1043,20 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      action_actor: ["ai", "user"],
+      action_channel: [
+        "shopify",
+        "meta_ads",
+        "google_ads",
+        "ga4",
+        "tiktok_ads",
+        "klaviyo",
+        "manual",
+      ],
+      action_status: ["proposed", "applied", "failed", "reverted"],
       audit_status: ["running", "completed", "failed"],
+      audit_type: ["initial", "daily", "weekly", "monthly"],
+      confidence_level: ["low", "medium", "high"],
       data_connection_status: [
         "pending",
         "active",
@@ -522,6 +1079,19 @@ export const Constants = {
       finding_severity: ["critical", "high", "medium", "low"],
       finding_status: ["todo", "in_progress", "done"],
       finding_timeframe: ["today", "this_week", "this_month"],
+      notification_kind: ["alert", "insight", "digest", "system"],
+      plan_tier: ["free", "pro"],
+      snapshot_kind: [
+        "shopify",
+        "meta_ads",
+        "google_ads",
+        "ga4",
+        "tiktok_ads",
+        "klaviyo",
+        "composite",
+      ],
+      store_situation: ["no_sales", "few_sales", "plateau", "not_profitable"],
+      task_status: ["todo", "done", "skipped"],
       tracking_status: [
         "measuring",
         "on_track",
