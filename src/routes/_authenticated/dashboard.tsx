@@ -5,6 +5,7 @@ import { AppShell, EmptyState } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, Store as StoreIcon, TrendingUp } from "lucide-react";
 import { ScoreRing } from "@/components/ScoreRing";
+import { Cockpit } from "@/components/Cockpit";
 import { useEffect } from "react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
