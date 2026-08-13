@@ -52,7 +52,7 @@ export function ConnectionsPanel({ storeId, storeUrl }: { storeId: string; store
         provider === "meta_ads"
           ? await startMeta({ data: { storeId } })
           : await startGoogle({ data: { storeId } });
-      window.location.href = authorizeUrl;
+      redirectToAuthorization(authorizeUrl);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
       setBusy(null);
@@ -80,7 +80,7 @@ export function ConnectionsPanel({ storeId, storeUrl }: { storeId: string; store
     setBusy("shopify");
     try {
       const { authorizeUrl } = await startShopify({ data: { storeId, shopDomain: shopInput } });
-      window.location.href = authorizeUrl;
+      redirectToAuthorization(authorizeUrl);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
       setBusy(null);
@@ -257,6 +257,28 @@ function SoonRow({ icon: Icon, label }: { icon: typeof ShoppingBag; label: strin
       </div>
     </div>
   );
+}
+
+/**
+ * Redirige vers la page d'autorisation du partenaire.
+ *
+ * L'URL est validée avant navigation : une valeur absente ou relative envoyait le
+ * navigateur sur une adresse inexistante de l'application, ce qui se traduisait
+ * par une page vide sans le moindre message.
+ */
+function redirectToAuthorization(authorizeUrl: string | undefined) {
+  let target: URL;
+  try {
+    target = new URL(String(authorizeUrl));
+  } catch {
+    throw new Error(
+      "Le serveur n'a pas renvoyé d'adresse d'autorisation valide. Vérifie la configuration OAuth du projet.",
+    );
+  }
+  if (target.protocol !== "https:") {
+    throw new Error("Adresse d'autorisation refusée : elle doit être en HTTPS.");
+  }
+  window.location.href = target.toString();
 }
 
 function guessShopFromUrl(url: string | null): string {
