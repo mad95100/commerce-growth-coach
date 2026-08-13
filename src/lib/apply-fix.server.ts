@@ -3,6 +3,7 @@ import {
   getToken,
   listProducts,
   updateProduct,
+  type ShopifyProduct,
 } from "@/lib/connectors/shopify-apply.server";
 import {
   fetchMetaSnapshot,
@@ -12,6 +13,8 @@ import {
   metaUpdateAdCreative,
   metaUpdateBudget,
   metaUpdateTargeting,
+  type MetaAd,
+  type MetaAdSet,
   type MetaSnapshot,
 } from "@/lib/connectors/meta-apply.server";
 import {
@@ -22,6 +25,8 @@ import {
   googlePauseCampaign,
   googleUpdateBudget,
   googleUpdateRsaText,
+  type GoogleCampaign,
+  type GoogleRsa,
   type GoogleSnapshot,
 } from "@/lib/connectors/google-apply.server";
 import {
@@ -33,7 +38,10 @@ import {
   isKnownTool,
   parseToolArgs,
   unwrapGuard,
+  type ToolArgs,
+  type ToolName,
 } from "@/lib/action-guards";
+import { isRevertible, type ActionChannel, type PreviewLine } from "@/lib/action-plan";
 
 const APPLY_MODEL = "google/gemini-2.5-flash";
 
@@ -72,9 +80,17 @@ export type ApplyResult = {
   channel?: "shopify" | "meta_ads" | "google_ads" | "none";
 };
 
-type Tool = { type: "function"; function: { name: string; description: string; parameters: unknown } };
+type Tool = {
+  type: "function";
+  function: { name: string; description: string; parameters: unknown };
+};
 
-function tool(name: string, description: string, props: Record<string, unknown>, required: string[]): Tool {
+function tool(
+  name: string,
+  description: string,
+  props: Record<string, unknown>,
+  required: string[],
+): Tool {
   return {
     type: "function",
     function: {
@@ -102,26 +118,69 @@ export type ApplyContext = {
   google?: { customerId: string; encryptedRefreshToken: string };
 };
 
-export async function applyFixAcrossChannels(ctx: ApplyContext): Promise<ApplyResult> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY manquant");
+// ---------------------------------------------------------------------------
+// État réel des canaux — collecté à la proposition ET à la confirmation.
+// C'est ce qui permet de re-vérifier la fraîcheur avant d'écrire.
+// ---------------------------------------------------------------------------
 
+type ChannelState = {
+  shopifyToken: string | null;
+  products: ShopifyProduct[];
+  metaTok: string | null;
+  metaSnap: MetaSnapshot | null;
+  googleTok: string | null;
+  googleSnap: GoogleSnapshot | null;
+};
+
+export async function collectChannelState(ctx: ApplyContext): Promise<ChannelState> {
+  const state: ChannelState = {
+    shopifyToken: null,
+    products: [],
+    metaTok: null,
+    metaSnap: null,
+    googleTok: null,
+    googleSnap: null,
+  };
+
+  if (ctx.shopify) {
+    state.shopifyToken = getToken(ctx.shopify.encryptedToken);
+    state.products = await listProducts(ctx.shopify.shop, state.shopifyToken, 20).catch(() => []);
+  }
+
+  if (ctx.meta) {
+    state.metaTok = metaToken(ctx.meta.encryptedToken);
+    state.metaSnap = await fetchMetaSnapshot(ctx.meta.accountId, state.metaTok).catch(() => null);
+  }
+
+  if (ctx.google) {
+    state.googleTok = await googleAccessToken(ctx.google.encryptedRefreshToken).catch(() => null);
+    if (state.googleTok) {
+      state.googleSnap = await fetchGoogleSnapshot(ctx.google.customerId, state.googleTok).catch(
+        () => null,
+      );
+    }
+  }
+
+  return state;
+}
+
+function buildToolsAndContext(
+  ctx: ApplyContext,
+  state: ChannelState,
+): { tools: Tool[]; contextBlocks: string[] } {
   const tools: Tool[] = [];
   const contextBlocks: string[] = [];
 
-  // ---- Shopify ----
-  let shopifyToken: string | null = null;
-  let products: Awaited<ReturnType<typeof listProducts>> = [];
   if (ctx.shopify) {
-    shopifyToken = getToken(ctx.shopify.encryptedToken);
-    products = await listProducts(ctx.shopify.shop, shopifyToken, 20).catch(() => []);
     contextBlocks.push(
       `SHOPIFY (${ctx.shopify.shop}) — produits :\n` +
-        (products.length
-          ? products
+        (state.products.length
+          ? state.products
               .map(
                 (p) =>
-                  `- id ${p.id} | "${p.title}" | prix ${p.price ?? "?"} | description : ${(p.body_html ?? "(vide)")
+                  `- id ${p.id} | "${p.title}" | prix ${p.price ?? "?"} | description : ${(
+                    p.body_html ?? "(vide)"
+                  )
                     .replace(/<[^>]+>/g, " ")
                     .slice(0, 160)}`,
               )
@@ -144,149 +203,600 @@ export async function applyFixAcrossChannels(ctx: ApplyContext): Promise<ApplyRe
     );
   }
 
-  // ---- Meta Ads ----
-  let metaTok: string | null = null;
-  // Conservé au-delà du bloc : les garde-fous ont besoin de l'état AVANT écriture.
-  let metaSnap: MetaSnapshot | null = null;
-  if (ctx.meta) {
-    metaTok = metaToken(ctx.meta.encryptedToken);
-    metaSnap = await fetchMetaSnapshot(ctx.meta.accountId, metaTok).catch(() => null);
-    if (metaSnap) {
-      contextBlocks.push(
-        `META ADS (${ctx.meta.accountId}) — ensembles de pubs (30j) :\n` +
-          (metaSnap.adsets.length
-            ? metaSnap.adsets
-                .map(
-                  (a) =>
-                    `- adset ${a.id} | "${a.name}" | ${a.status} | budget/j ${a.daily_budget_eur ?? "?"}€ | dépense ${
-                      a.spend ?? 0
-                    }€ | achats ${a.purchases ?? 0} | ROAS ${a.roas ?? 0} | CTR ${a.ctr ?? 0}% | CPC ${
-                      a.cpc ?? 0
-                    }€ | ciblage : ${a.targeting_summary}`,
-                )
-                .join("\n")
-            : "(aucun ensemble de pubs)") +
-          `\nPublicités :\n` +
-          (metaSnap.ads.length
-            ? metaSnap.ads
-                .map(
-                  (a) =>
-                    `- ad ${a.id} | "${a.name}" | ${a.status} | titre : ${a.headline ?? "(vide)"} | texte : ${(
-                      a.primary_text ?? "(vide)"
-                    ).slice(0, 140)}`,
-                )
-                .join("\n")
-            : "(aucune publicité)"),
-      );
-      tools.push(
-        tool(
-          "meta_update_budget",
-          "Change le budget quotidien d'un ensemble de publicités Meta",
-          { adset_id: S, daily_budget_eur: N, summary: S },
-          ["adset_id", "daily_budget_eur", "summary"],
+  const metaSnap = state.metaSnap;
+  if (ctx.meta && metaSnap) {
+    contextBlocks.push(
+      `META ADS (${ctx.meta.accountId}) — ensembles de pubs (30j) :\n` +
+        (metaSnap.adsets.length
+          ? metaSnap.adsets
+              .map(
+                (a) =>
+                  `- adset ${a.id} | "${a.name}" | ${a.status} | budget/j ${a.daily_budget_eur ?? "?"}€ | dépense ${
+                    a.spend ?? 0
+                  }€ | achats ${a.purchases ?? 0} | ROAS ${a.roas ?? 0} | CTR ${a.ctr ?? 0}% | CPC ${
+                    a.cpc ?? 0
+                  }€ | ciblage : ${a.targeting_summary}`,
+              )
+              .join("\n")
+          : "(aucun ensemble de pubs)") +
+        `\nPublicités :\n` +
+        (metaSnap.ads.length
+          ? metaSnap.ads
+              .map(
+                (a) =>
+                  `- ad ${a.id} | "${a.name}" | ${a.status} | titre : ${a.headline ?? "(vide)"} | texte : ${(
+                    a.primary_text ?? "(vide)"
+                  ).slice(0, 140)}`,
+              )
+              .join("\n")
+          : "(aucune publicité)"),
+    );
+    tools.push(
+      tool(
+        "meta_update_budget",
+        "Change le budget quotidien d'un ensemble de publicités Meta",
+        { adset_id: S, daily_budget_eur: N, summary: S },
+        ["adset_id", "daily_budget_eur", "summary"],
+      ),
+      tool(
+        "meta_pause_adset",
+        "Met en pause un ensemble de publicités Meta non rentable",
+        { adset_id: S, summary: S },
+        ["adset_id", "summary"],
+      ),
+      tool(
+        "meta_update_targeting",
+        "Ajuste le ciblage d'un ensemble de publicités Meta (âge, genres, pays)",
+        {
+          adset_id: S,
+          age_min: N,
+          age_max: N,
+          genders: { type: "array", items: { type: "number" } },
+          countries: { type: "array", items: { type: "string" } },
+          summary: S,
+        },
+        ["adset_id", "summary"],
+      ),
+      tool(
+        "meta_update_creative",
+        "Réécrit la création d'une publicité Meta (texte principal, titre, description)",
+        { ad_id: S, primary_text: S, headline: S, description: S, summary: S },
+        ["ad_id", "primary_text", "headline", "summary"],
+      ),
+    );
+  }
+
+  const googleSnap = state.googleSnap;
+  if (ctx.google && googleSnap) {
+    contextBlocks.push(
+      `GOOGLE ADS (${ctx.google.customerId}) — campagnes (30j) :\n` +
+        (googleSnap.campaigns.length
+          ? googleSnap.campaigns
+              .map(
+                (c) =>
+                  `- campagne ${c.resource_name} | "${c.name}" | ${c.status} | ${c.channel} | budget ${
+                    c.budget_resource_name ?? "?"
+                  } (${c.daily_budget_eur ?? "?"}€/j) | coût ${c.cost_30d}€ | clics ${c.clicks_30d} | conversions ${
+                    c.conversions_30d
+                  } | CTR ${c.ctr_30d}`,
+              )
+              .join("\n")
+          : "(aucune campagne)") +
+        `\nAnnonces responsives :\n` +
+        (googleSnap.ads.length
+          ? googleSnap.ads
+              .map(
+                (a) =>
+                  `- annonce ${a.resource_name} | campagne "${a.campaign_name}" | titres : ${a.headlines.join(
+                    " / ",
+                  )} | descriptions : ${a.descriptions.join(" / ")}`,
+              )
+              .join("\n")
+          : "(aucune annonce responsive)"),
+    );
+    tools.push(
+      tool(
+        "google_update_budget",
+        "Change le budget quotidien d'une campagne Google Ads",
+        { budget_resource_name: S, daily_budget_eur: N, summary: S },
+        ["budget_resource_name", "daily_budget_eur", "summary"],
+      ),
+      tool(
+        "google_pause_campaign",
+        "Met en pause une campagne Google Ads non rentable",
+        { campaign_resource_name: S, summary: S },
+        ["campaign_resource_name", "summary"],
+      ),
+      tool(
+        "google_add_negative_keywords",
+        "Ajoute des mots-clés à exclure sur une campagne Google Ads",
+        {
+          campaign_resource_name: S,
+          keywords: { type: "array", items: { type: "string" } },
+          summary: S,
+        },
+        ["campaign_resource_name", "keywords", "summary"],
+      ),
+      tool(
+        "google_update_rsa",
+        "Réécrit les titres et descriptions d'une annonce responsive Google Ads",
+        {
+          ad_group_ad_resource_name: S,
+          headlines: { type: "array", items: { type: "string" } },
+          descriptions: { type: "array", items: { type: "string" } },
+          summary: S,
+        },
+        ["ad_group_ad_resource_name", "headlines", "descriptions", "summary"],
+      ),
+    );
+  }
+
+  tools.push(
+    tool("no_action", "Aucun canal connecté ne peut régler ce problème", { reason: S }, ["reason"]),
+  );
+
+  return { tools, contextBlocks };
+}
+
+// ---------------------------------------------------------------------------
+// Validation — exécutée à la proposition ET rejouée à la confirmation.
+// La ligne `actions` étant modifiable par le client via PostgREST, rien de ce
+// qui y est stocké n'est digne de confiance : tout repasse par ici avant écriture.
+// ---------------------------------------------------------------------------
+
+type ValidatedAction =
+  | { kind: "update_product"; args: ToolArgs<"update_product">; product: ShopifyProduct }
+  | {
+      kind: "create_discount_code";
+      args: ToolArgs<"create_discount_code">;
+      discount: { percentage: number; days: number };
+    }
+  | {
+      kind: "meta_update_budget";
+      args: ToolArgs<"meta_update_budget">;
+      adset: MetaAdSet;
+      budget: number;
+    }
+  | {
+      kind: "meta_pause_adset";
+      args: ToolArgs<"meta_pause_adset">;
+      adset: MetaAdSet;
+      evidence: { spend: number; roas: number };
+    }
+  | { kind: "meta_update_targeting"; args: ToolArgs<"meta_update_targeting">; adset: MetaAdSet }
+  | { kind: "meta_update_creative"; args: ToolArgs<"meta_update_creative">; ad: MetaAd }
+  | {
+      kind: "google_update_budget";
+      args: ToolArgs<"google_update_budget">;
+      campaign: GoogleCampaign;
+      budget: number;
+    }
+  | {
+      kind: "google_pause_campaign";
+      args: ToolArgs<"google_pause_campaign">;
+      campaign: GoogleCampaign;
+      evidence: { cost: number; conversions: number };
+    }
+  | {
+      kind: "google_add_negative_keywords";
+      args: ToolArgs<"google_add_negative_keywords">;
+      campaign: GoogleCampaign;
+    }
+  | { kind: "google_update_rsa"; args: ToolArgs<"google_update_rsa">; ad: GoogleRsa };
+
+function channelUnavailable(label: string): Error {
+  return new Error(`L'IA a visé ${label}, qui n'est pas connecté. Rien n'a été modifié.`);
+}
+
+export function validateAgainstState(
+  ctx: ApplyContext,
+  state: ChannelState,
+  toolName: Exclude<ToolName, "no_action">,
+  rawArgs: unknown,
+): ValidatedAction {
+  switch (toolName) {
+    case "update_product": {
+      if (!ctx.shopify || !state.shopifyToken) throw channelUnavailable("Shopify");
+      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
+      const product = unwrapGuard(
+        guardTargetExists(
+          state.products.find((p) => p.id === args.product_id) ?? null,
+          `Le produit ${args.product_id}`,
         ),
-        tool("meta_pause_adset", "Met en pause un ensemble de publicités Meta non rentable", { adset_id: S, summary: S }, [
-          "adset_id",
-          "summary",
-        ]),
-        tool(
-          "meta_update_targeting",
-          "Ajuste le ciblage d'un ensemble de publicités Meta (âge, genres, pays)",
+      );
+      return { kind: toolName, args, product };
+    }
+
+    case "create_discount_code": {
+      if (!ctx.shopify || !state.shopifyToken) throw channelUnavailable("Shopify");
+      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
+      const discount = unwrapGuard(guardDiscount({ percentage: args.percentage, days: args.days }));
+      return { kind: toolName, args, discount };
+    }
+
+    case "meta_update_budget": {
+      if (!ctx.meta || !state.metaTok || !state.metaSnap) throw channelUnavailable("Meta Ads");
+      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
+      const adset = unwrapGuard(
+        guardTargetExists(
+          state.metaSnap.adsets.find((a) => a.id === args.adset_id) ?? null,
+          `L'ensemble de publicités ${args.adset_id}`,
+        ),
+      );
+      const budget = unwrapGuard(
+        guardDailyBudget({
+          targetLabel: `« ${adset.name} »`,
+          requestedEur: args.daily_budget_eur,
+          currentDailyBudgetEur: adset.daily_budget_eur,
+        }),
+      );
+      return { kind: toolName, args, adset, budget };
+    }
+
+    case "meta_pause_adset": {
+      if (!ctx.meta || !state.metaTok || !state.metaSnap) throw channelUnavailable("Meta Ads");
+      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
+      const adset = unwrapGuard(
+        guardTargetExists(
+          state.metaSnap.adsets.find((a) => a.id === args.adset_id) ?? null,
+          `L'ensemble de publicités ${args.adset_id}`,
+        ),
+      );
+      const evidence = unwrapGuard(
+        guardMetaPause({ targetLabel: `« ${adset.name} »`, spend: adset.spend, roas: adset.roas }),
+      );
+      return { kind: toolName, args, adset, evidence };
+    }
+
+    case "meta_update_targeting": {
+      if (!ctx.meta || !state.metaTok || !state.metaSnap) throw channelUnavailable("Meta Ads");
+      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
+      const adset = unwrapGuard(
+        guardTargetExists(
+          state.metaSnap.adsets.find((a) => a.id === args.adset_id) ?? null,
+          `L'ensemble de publicités ${args.adset_id}`,
+        ),
+      );
+      return { kind: toolName, args, adset };
+    }
+
+    case "meta_update_creative": {
+      if (!ctx.meta || !state.metaTok || !state.metaSnap) throw channelUnavailable("Meta Ads");
+      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
+      const ad = unwrapGuard(
+        guardTargetExists(
+          state.metaSnap.ads.find((a) => a.id === args.ad_id) ?? null,
+          `La publicité ${args.ad_id}`,
+        ),
+      );
+      return { kind: toolName, args, ad };
+    }
+
+    case "google_update_budget": {
+      if (!ctx.google || !state.googleTok || !state.googleSnap)
+        throw channelUnavailable("Google Ads");
+      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
+      const campaign = unwrapGuard(
+        guardTargetExists(
+          state.googleSnap.campaigns.find(
+            (c) => c.budget_resource_name === args.budget_resource_name,
+          ) ?? null,
+          "La campagne visée",
+        ),
+      );
+      const budget = unwrapGuard(
+        guardDailyBudget({
+          targetLabel: `« ${campaign.name} »`,
+          requestedEur: args.daily_budget_eur,
+          currentDailyBudgetEur: campaign.daily_budget_eur,
+        }),
+      );
+      return { kind: toolName, args, campaign, budget };
+    }
+
+    case "google_pause_campaign": {
+      if (!ctx.google || !state.googleTok || !state.googleSnap)
+        throw channelUnavailable("Google Ads");
+      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
+      const campaign = unwrapGuard(
+        guardTargetExists(
+          state.googleSnap.campaigns.find((c) => c.resource_name === args.campaign_resource_name) ??
+            null,
+          "La campagne visée",
+        ),
+      );
+      const evidence = unwrapGuard(
+        guardGooglePause({
+          targetLabel: `« ${campaign.name} »`,
+          cost30d: campaign.cost_30d,
+          conversions30d: campaign.conversions_30d,
+        }),
+      );
+      return { kind: toolName, args, campaign, evidence };
+    }
+
+    case "google_add_negative_keywords": {
+      if (!ctx.google || !state.googleTok || !state.googleSnap)
+        throw channelUnavailable("Google Ads");
+      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
+      const campaign = unwrapGuard(
+        guardTargetExists(
+          state.googleSnap.campaigns.find((c) => c.resource_name === args.campaign_resource_name) ??
+            null,
+          "La campagne visée",
+        ),
+      );
+      return { kind: toolName, args, campaign };
+    }
+
+    case "google_update_rsa": {
+      if (!ctx.google || !state.googleTok || !state.googleSnap)
+        throw channelUnavailable("Google Ads");
+      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
+      const ad = unwrapGuard(
+        guardTargetExists(
+          state.googleSnap.ads.find((a) => a.resource_name === args.ad_group_ad_resource_name) ??
+            null,
+          "L'annonce responsive visée",
+        ),
+      );
+      return { kind: toolName, args, ad };
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Description d'une action validée : ce qui est montré à l'utilisateur, et ce
+// qui sert d'empreinte de fraîcheur (`beforeValue`).
+// ---------------------------------------------------------------------------
+
+export type ActionDescription = {
+  channel: ActionChannel;
+  title: string;
+  targetRef: string;
+  targetLabel: string;
+  /** État exact que l'écriture va écraser. Sert aussi d'empreinte de fraîcheur. */
+  beforeValue: Record<string, unknown> | null;
+  afterValue: Record<string, unknown>;
+  lines: PreviewLine[];
+};
+
+function stripHtml(value: string | null | undefined): string {
+  return (value ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function excerpt(value: string, max = 220): string {
+  const clean = value.trim();
+  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+}
+
+export function describeValidated(v: ValidatedAction): ActionDescription {
+  switch (v.kind) {
+    case "update_product":
+      return {
+        channel: "shopify",
+        title: "Réécrire la fiche produit",
+        targetRef: String(v.product.id),
+        targetLabel: `Produit « ${v.product.title} »`,
+        beforeValue: { title: v.product.title, body_html: v.product.body_html },
+        afterValue: { title: v.args.title, body_html: v.args.body_html },
+        lines: [
+          { label: "Titre", before: v.product.title, after: v.args.title },
           {
-            adset_id: S,
-            age_min: N,
-            age_max: N,
-            genders: { type: "array", items: { type: "number" } },
-            countries: { type: "array", items: { type: "string" } },
-            summary: S,
+            label: "Description",
+            before: excerpt(stripHtml(v.product.body_html)) || "(vide)",
+            after: excerpt(stripHtml(v.args.body_html)),
           },
-          ["adset_id", "summary"],
-        ),
-        tool(
-          "meta_update_creative",
-          "Réécrit la création d'une publicité Meta (texte principal, titre, description)",
-          { ad_id: S, primary_text: S, headline: S, description: S, summary: S },
-          ["ad_id", "primary_text", "headline", "summary"],
-        ),
-      );
-    }
-  }
+        ],
+      };
 
-  // ---- Google Ads ----
-  let googleTok: string | null = null;
-  // Conservé au-delà du bloc : les garde-fous ont besoin de l'état AVANT écriture.
-  let googleSnap: GoogleSnapshot | null = null;
-  if (ctx.google) {
-    googleTok = await googleAccessToken(ctx.google.encryptedRefreshToken).catch(() => null);
-    if (googleTok) {
-      googleSnap = await fetchGoogleSnapshot(ctx.google.customerId, googleTok).catch(() => null);
-      if (googleSnap) {
-        contextBlocks.push(
-          `GOOGLE ADS (${ctx.google.customerId}) — campagnes (30j) :\n` +
-            (googleSnap.campaigns.length
-              ? googleSnap.campaigns
-                  .map(
-                    (c) =>
-                      `- campagne ${c.resource_name} | "${c.name}" | ${c.status} | ${c.channel} | budget ${
-                        c.budget_resource_name ?? "?"
-                      } (${c.daily_budget_eur ?? "?"}€/j) | coût ${c.cost_30d}€ | clics ${c.clicks_30d} | conversions ${
-                        c.conversions_30d
-                      } | CTR ${c.ctr_30d}`,
-                  )
-                  .join("\n")
-              : "(aucune campagne)") +
-            `\nAnnonces responsives :\n` +
-            (googleSnap.ads.length
-              ? googleSnap.ads
-                  .map(
-                    (a) =>
-                      `- annonce ${a.resource_name} | campagne "${a.campaign_name}" | titres : ${a.headlines.join(
-                        " / ",
-                      )} | descriptions : ${a.descriptions.join(" / ")}`,
-                  )
-                  .join("\n")
-              : "(aucune annonce responsive)"),
-        );
-        tools.push(
-          tool(
-            "google_update_budget",
-            "Change le budget quotidien d'une campagne Google Ads",
-            { budget_resource_name: S, daily_budget_eur: N, summary: S },
-            ["budget_resource_name", "daily_budget_eur", "summary"],
-          ),
-          tool(
-            "google_pause_campaign",
-            "Met en pause une campagne Google Ads non rentable",
-            { campaign_resource_name: S, summary: S },
-            ["campaign_resource_name", "summary"],
-          ),
-          tool(
-            "google_add_negative_keywords",
-            "Ajoute des mots-clés à exclure sur une campagne Google Ads",
-            {
-              campaign_resource_name: S,
-              keywords: { type: "array", items: { type: "string" } },
-              summary: S,
-            },
-            ["campaign_resource_name", "keywords", "summary"],
-          ),
-          tool(
-            "google_update_rsa",
-            "Réécrit les titres et descriptions d'une annonce responsive Google Ads",
-            {
-              ad_group_ad_resource_name: S,
-              headlines: { type: "array", items: { type: "string" } },
-              descriptions: { type: "array", items: { type: "string" } },
-              summary: S,
-            },
-            ["ad_group_ad_resource_name", "headlines", "descriptions", "summary"],
-          ),
-        );
-      }
-    }
-  }
+    case "create_discount_code":
+      return {
+        channel: "shopify",
+        title: "Créer un code promo",
+        targetRef: v.args.code.toUpperCase().replace(/\s+/g, ""),
+        targetLabel: "Boutique Shopify",
+        beforeValue: null,
+        afterValue: {
+          code: v.args.code.toUpperCase().replace(/\s+/g, ""),
+          percentage: v.discount.percentage,
+          days: v.discount.days,
+        },
+        lines: [
+          {
+            label: "Code promo",
+            before: null,
+            after: `${v.args.code.toUpperCase().replace(/\s+/g, "")} — ${v.discount.percentage} % pendant ${v.discount.days} jours`,
+          },
+        ],
+      };
 
-  tools.push(tool("no_action", "Aucun canal connecté ne peut régler ce problème", { reason: S }, ["reason"]));
+    case "meta_update_budget":
+      return {
+        channel: "meta_ads",
+        title: "Changer le budget quotidien",
+        targetRef: v.adset.id,
+        targetLabel: `Ensemble de publicités « ${v.adset.name} »`,
+        beforeValue: { daily_budget_eur: v.adset.daily_budget_eur },
+        afterValue: { daily_budget_eur: v.budget },
+        lines: [
+          {
+            label: "Budget quotidien",
+            before: `${v.adset.daily_budget_eur} €`,
+            after: `${v.budget} €`,
+          },
+        ],
+      };
+
+    case "meta_pause_adset":
+      return {
+        channel: "meta_ads",
+        title: "Mettre en pause l'ensemble de publicités",
+        targetRef: v.adset.id,
+        targetLabel: `Ensemble de publicités « ${v.adset.name} »`,
+        beforeValue: { status: v.adset.status },
+        afterValue: { status: "PAUSED" },
+        lines: [
+          { label: "Statut", before: v.adset.status, after: "PAUSED (en pause)" },
+          {
+            label: "Justification mesurée",
+            before: null,
+            after: `${Math.round(v.evidence.spend)} € dépensés sur 30 jours, ROAS ${v.evidence.roas.toFixed(2)}`,
+          },
+        ],
+      };
+
+    case "meta_update_targeting":
+      return {
+        channel: "meta_ads",
+        title: "Ajuster le ciblage",
+        targetRef: v.adset.id,
+        targetLabel: `Ensemble de publicités « ${v.adset.name} »`,
+        beforeValue: { targeting_summary: v.adset.targeting_summary },
+        afterValue: {
+          age_min: v.args.age_min ?? null,
+          age_max: v.args.age_max ?? null,
+          genders: v.args.genders ?? null,
+          countries: v.args.countries ?? null,
+        },
+        lines: [
+          {
+            label: "Ciblage",
+            before: v.adset.targeting_summary,
+            after:
+              [
+                v.args.age_min || v.args.age_max
+                  ? `âge ${v.args.age_min ?? "?"}-${v.args.age_max ?? "?"}`
+                  : null,
+                v.args.countries?.length ? `pays ${v.args.countries.join(", ")}` : null,
+                v.args.genders?.length ? `genres ${v.args.genders.join(", ")}` : null,
+              ]
+                .filter(Boolean)
+                .join(" | ") || "(inchangé)",
+          },
+        ],
+      };
+
+    case "meta_update_creative":
+      return {
+        channel: "meta_ads",
+        title: "Réécrire la publicité",
+        targetRef: v.ad.id,
+        targetLabel: `Publicité « ${v.ad.name} »`,
+        beforeValue: { primary_text: v.ad.primary_text, headline: v.ad.headline },
+        afterValue: {
+          primary_text: v.args.primary_text,
+          headline: v.args.headline,
+          description: v.args.description ?? null,
+        },
+        lines: [
+          { label: "Titre", before: v.ad.headline ?? "(vide)", after: v.args.headline },
+          {
+            label: "Texte principal",
+            before: excerpt(v.ad.primary_text ?? "") || "(vide)",
+            after: excerpt(v.args.primary_text),
+          },
+        ],
+      };
+
+    case "google_update_budget":
+      return {
+        channel: "google_ads",
+        title: "Changer le budget quotidien",
+        targetRef: v.args.budget_resource_name,
+        targetLabel: `Campagne « ${v.campaign.name} »`,
+        beforeValue: { daily_budget_eur: v.campaign.daily_budget_eur },
+        afterValue: { daily_budget_eur: v.budget },
+        lines: [
+          {
+            label: "Budget quotidien",
+            before: `${v.campaign.daily_budget_eur} €`,
+            after: `${v.budget} €`,
+          },
+        ],
+      };
+
+    case "google_pause_campaign":
+      return {
+        channel: "google_ads",
+        title: "Mettre en pause la campagne",
+        targetRef: v.campaign.resource_name,
+        targetLabel: `Campagne « ${v.campaign.name} »`,
+        beforeValue: { status: v.campaign.status },
+        afterValue: { status: "PAUSED" },
+        lines: [
+          { label: "Statut", before: v.campaign.status, after: "PAUSED (en pause)" },
+          {
+            label: "Justification mesurée",
+            before: null,
+            after: `${Math.round(v.evidence.cost)} € dépensés sur 30 jours, 0 conversion`,
+          },
+        ],
+      };
+
+    case "google_add_negative_keywords":
+      return {
+        channel: "google_ads",
+        title: "Ajouter des mots-clés à exclure",
+        targetRef: v.campaign.resource_name,
+        targetLabel: `Campagne « ${v.campaign.name} »`,
+        // Action additive : aucun état écrasé, donc aucune contrainte de fraîcheur.
+        beforeValue: {},
+        afterValue: { keywords: v.args.keywords },
+        lines: [
+          { label: "Mots-clés exclus ajoutés", before: null, after: v.args.keywords.join(", ") },
+        ],
+      };
+
+    case "google_update_rsa":
+      return {
+        channel: "google_ads",
+        title: "Réécrire l'annonce responsive",
+        targetRef: v.ad.resource_name,
+        targetLabel: `Annonce de la campagne « ${v.ad.campaign_name} »`,
+        beforeValue: { headlines: v.ad.headlines, descriptions: v.ad.descriptions },
+        afterValue: { headlines: v.args.headlines, descriptions: v.args.descriptions },
+        lines: [
+          {
+            label: "Titres",
+            before: v.ad.headlines.join(" / ") || "(vide)",
+            after: v.args.headlines.join(" / "),
+          },
+          {
+            label: "Descriptions",
+            before: v.ad.descriptions.join(" / ") || "(vide)",
+            after: v.args.descriptions.join(" / "),
+          },
+        ],
+      };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Proposition — AUCUNE écriture externe sur ce chemin.
+// ---------------------------------------------------------------------------
+
+export type PlanOutcome =
+  | { kind: "no_action"; reason: string }
+  | {
+      kind: "plan";
+      tool: Exclude<ToolName, "no_action">;
+      /** Arguments bruts du modèle, restockés tels quels et re-validés à la confirmation. */
+      rawArgs: unknown;
+      reason: string;
+      revertible: boolean;
+      description: ActionDescription;
+    };
+
+export async function planFixAcrossChannels(ctx: ApplyContext): Promise<PlanOutcome> {
+  const key = process.env.LOVABLE_API_KEY;
+  if (!key) throw new Error("LOVABLE_API_KEY manquant");
+
+  const state = await collectChannelState(ctx);
+  const { tools, contextBlocks } = buildToolsAndContext(ctx, state);
 
   const userPrompt = `Boutique : ${ctx.store.name}
 Niche : ${ctx.store.niche || "(non précisée)"}
@@ -325,7 +835,9 @@ Applique maintenant la correction en appelant l'outil le plus pertinent.`;
   }
 
   const json = (await res.json()) as {
-    choices?: Array<{ message?: { tool_calls?: Array<{ function: { name: string; arguments: string } }> } }>;
+    choices?: Array<{
+      message?: { tool_calls?: Array<{ function: { name: string; arguments: string } }> };
+    }>;
   };
   const call = json.choices?.[0]?.message?.tool_calls?.[0];
   if (!call) throw new Error("L'IA n'a proposé aucune action. Réessaie.");
@@ -342,274 +854,207 @@ Applique maintenant la correction en appelant l'outil le plus pertinent.`;
     throw new Error("Réponse IA illisible (arguments non JSON). Relance la correction.");
   }
 
-  const channelUnavailable = (label: string) =>
-    new Error(`L'IA a visé ${label}, qui n'est pas connecté. Rien n'a été modifié.`);
-
-  // ---------- Exécution ----------
-  // Chaque branche : arguments validés (zod) -> cible vérifiée -> garde-fou métier
-  // -> écriture. Une valeur hors bornes est refusée, jamais ramenée en douce.
-
   if (toolName === "no_action") {
     const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-    return { action: toolName, channel: "none", summary: args.reason };
+    return { kind: "no_action", reason: args.reason };
   }
 
-  // ---- Shopify ----
-  if (toolName === "update_product") {
-    if (!ctx.shopify || !shopifyToken) throw channelUnavailable("Shopify");
-    const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-    const product = unwrapGuard(
-      guardTargetExists(
-        products.find((p) => p.id === args.product_id) ?? null,
-        `Le produit ${args.product_id}`,
-      ),
+  const validated = validateAgainstState(ctx, state, toolName, rawArgs);
+  const description = describeValidated(validated);
+  const reason =
+    (validated.args as { summary?: string }).summary ?? "Correction proposée par EcomPilot AI.";
+
+  return {
+    kind: "plan",
+    tool: toolName,
+    rawArgs,
+    reason,
+    revertible: isRevertible(toolName),
+    description,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Exécution — seul chemin qui écrit réellement chez Shopify / Meta / Google.
+// ---------------------------------------------------------------------------
+
+async function writeValidated(
+  ctx: ApplyContext,
+  state: ChannelState,
+  v: ValidatedAction,
+  d: ActionDescription,
+): Promise<ApplyResult> {
+  const reason = (v.args as { summary?: string }).summary;
+
+  switch (v.kind) {
+    case "update_product": {
+      const updated = await updateProduct(ctx.shopify!.shop, state.shopifyToken!, v.product.id, {
+        title: v.args.title,
+        body_html: v.args.body_html,
+      });
+      return {
+        action: v.kind,
+        channel: "shopify",
+        summary: reason ?? "Fiche produit réécrite.",
+        detail: `Produit mis à jour : « ${updated.title} »`,
+        adminUrl: updated.adminUrl,
+      };
+    }
+
+    case "create_discount_code": {
+      const created = await createDiscountCode(ctx.shopify!.shop, state.shopifyToken!, {
+        title: v.args.title,
+        code: v.args.code.toUpperCase().replace(/\s+/g, ""),
+        percentage: v.discount.percentage,
+        days: v.discount.days,
+      });
+      return {
+        action: v.kind,
+        channel: "shopify",
+        summary: reason ?? "Code promo créé.",
+        detail: `Code promo créé : ${created.code} (−${v.discount.percentage} % pendant ${v.discount.days} jours)`,
+        adminUrl: created.adminUrl,
+      };
+    }
+
+    case "meta_update_budget": {
+      await metaUpdateBudget(v.adset.id, state.metaTok!, v.budget);
+      return {
+        action: v.kind,
+        channel: "meta_ads",
+        summary: reason ?? "Budget publicitaire ajusté.",
+        detail: `Budget quotidien de « ${v.adset.name} » : ${v.adset.daily_budget_eur} € → ${v.budget} €`,
+        adminUrl: metaAdsManagerUrl(ctx.meta!.accountId),
+      };
+    }
+
+    case "meta_pause_adset": {
+      await metaPauseAdSet(v.adset.id, state.metaTok!);
+      return {
+        action: v.kind,
+        channel: "meta_ads",
+        summary: reason ?? "Ensemble de publicités mis en pause.",
+        detail: `« ${v.adset.name} » mis en pause : ${Math.round(v.evidence.spend)} € dépensés sur 30 jours pour un ROAS de ${v.evidence.roas.toFixed(2)}`,
+        adminUrl: metaAdsManagerUrl(ctx.meta!.accountId),
+      };
+    }
+
+    case "meta_update_targeting": {
+      const r = await metaUpdateTargeting(v.adset.id, state.metaTok!, {
+        age_min: v.args.age_min,
+        age_max: v.args.age_max,
+        genders: v.args.genders,
+        countries: v.args.countries,
+      });
+      return {
+        action: v.kind,
+        channel: "meta_ads",
+        summary: reason ?? "Ciblage ajusté.",
+        detail: `Nouveau ciblage de « ${v.adset.name} » : ${r.targeting_summary}`,
+        adminUrl: metaAdsManagerUrl(ctx.meta!.accountId),
+      };
+    }
+
+    case "meta_update_creative": {
+      await metaUpdateAdCreative(v.ad.id, ctx.meta!.accountId, state.metaTok!, {
+        primary_text: v.args.primary_text,
+        headline: v.args.headline,
+        description: v.args.description,
+      });
+      return {
+        action: v.kind,
+        channel: "meta_ads",
+        summary: reason ?? "Création publicitaire réécrite.",
+        detail: `Nouvelle création sur « ${v.ad.name} » — titre : « ${v.args.headline} »`,
+        adminUrl: metaAdsManagerUrl(ctx.meta!.accountId),
+      };
+    }
+
+    case "google_update_budget": {
+      await googleUpdateBudget(
+        ctx.google!.customerId,
+        state.googleTok!,
+        v.args.budget_resource_name,
+        v.budget,
+      );
+      return {
+        action: v.kind,
+        channel: "google_ads",
+        summary: reason ?? "Budget publicitaire ajusté.",
+        detail: `Budget quotidien de « ${v.campaign.name} » : ${v.campaign.daily_budget_eur} € → ${v.budget} €`,
+        adminUrl: googleAdsUrl(ctx.google!.customerId),
+      };
+    }
+
+    case "google_pause_campaign": {
+      await googlePauseCampaign(ctx.google!.customerId, state.googleTok!, v.campaign.resource_name);
+      return {
+        action: v.kind,
+        channel: "google_ads",
+        summary: reason ?? "Campagne mise en pause.",
+        detail: `« ${v.campaign.name} » mise en pause : ${Math.round(v.evidence.cost)} € dépensés sur 30 jours pour 0 conversion`,
+        adminUrl: googleAdsUrl(ctx.google!.customerId),
+      };
+    }
+
+    case "google_add_negative_keywords": {
+      await googleAddNegativeKeywords(
+        ctx.google!.customerId,
+        state.googleTok!,
+        v.campaign.resource_name,
+        v.args.keywords,
+      );
+      return {
+        action: v.kind,
+        channel: "google_ads",
+        summary: reason ?? "Mots-clés à exclure ajoutés.",
+        detail: `Mots-clés exclus ajoutés sur « ${v.campaign.name} » : ${v.args.keywords.join(", ")}`,
+        adminUrl: googleAdsUrl(ctx.google!.customerId),
+      };
+    }
+
+    case "google_update_rsa": {
+      const r = await googleUpdateRsaText(
+        ctx.google!.customerId,
+        state.googleTok!,
+        v.ad.resource_name,
+        { headlines: v.args.headlines, descriptions: v.args.descriptions },
+      );
+      return {
+        action: v.kind,
+        channel: "google_ads",
+        summary: reason ?? "Annonce réécrite.",
+        detail: `Annonce de « ${d.targetLabel} » réécrite — ${r.headlines.length} titres, ${r.descriptions.length} descriptions`,
+        adminUrl: googleAdsUrl(ctx.google!.customerId),
+      };
+    }
+  }
+}
+
+/**
+ * Exécute une action précédemment proposée.
+ *
+ * Rejoue l'intégralité de la validation contre un état FRAÎCHEMENT collecté, puis
+ * vérifie que l'état qu'on s'apprête à écraser est bien celui montré à
+ * l'utilisateur. Rien de ce qui vient de la base n'est exécuté tel quel.
+ */
+export async function executePlannedAction(
+  ctx: ApplyContext,
+  input: {
+    tool: Exclude<ToolName, "no_action">;
+    rawArgs: unknown;
+    expectedBefore: Record<string, unknown> | null;
+  },
+): Promise<ApplyResult> {
+  const state = await collectChannelState(ctx);
+  const validated = validateAgainstState(ctx, state, input.tool, input.rawArgs);
+  const description = describeValidated(validated);
+
+  if (JSON.stringify(description.beforeValue) !== JSON.stringify(input.expectedBefore)) {
+    throw new Error(
+      `${description.targetLabel} a changé depuis la proposition : je n'écrase pas une modification que tu n'as pas vue. Rien n'a été modifié — relance la correction pour repartir de l'état actuel.`,
     );
-    const updated = await updateProduct(ctx.shopify.shop, shopifyToken, product.id, {
-      title: args.title,
-      body_html: args.body_html,
-    });
-    return {
-      action: toolName,
-      channel: "shopify",
-      summary: args.summary ?? "Fiche produit réécrite.",
-      detail: `Produit mis à jour : « ${updated.title} »`,
-      adminUrl: updated.adminUrl,
-    };
   }
 
-  if (toolName === "create_discount_code") {
-    if (!ctx.shopify || !shopifyToken) throw channelUnavailable("Shopify");
-    const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-    const discount = unwrapGuard(guardDiscount({ percentage: args.percentage, days: args.days }));
-    const created = await createDiscountCode(ctx.shopify.shop, shopifyToken, {
-      title: args.title,
-      code: args.code.toUpperCase().replace(/\s+/g, ""),
-      percentage: discount.percentage,
-      days: discount.days,
-    });
-    return {
-      action: toolName,
-      channel: "shopify",
-      summary: args.summary ?? "Code promo créé.",
-      detail: `Code promo créé : ${created.code} (−${discount.percentage} % pendant ${discount.days} jours)`,
-      adminUrl: created.adminUrl,
-    };
-  }
-
-  // ---- Meta Ads ----
-  if (
-    toolName === "meta_update_budget" ||
-    toolName === "meta_pause_adset" ||
-    toolName === "meta_update_targeting" ||
-    toolName === "meta_update_creative"
-  ) {
-    if (!ctx.meta || !metaTok || !metaSnap) throw channelUnavailable("Meta Ads");
-    const adminUrl = metaAdsManagerUrl(ctx.meta.accountId);
-
-    if (toolName === "meta_update_budget") {
-      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-      const adset = unwrapGuard(
-        guardTargetExists(
-          metaSnap.adsets.find((a) => a.id === args.adset_id) ?? null,
-          `L'ensemble de publicités ${args.adset_id}`,
-        ),
-      );
-      const budget = unwrapGuard(
-        guardDailyBudget({
-          targetLabel: `« ${adset.name} »`,
-          requestedEur: args.daily_budget_eur,
-          currentDailyBudgetEur: adset.daily_budget_eur,
-        }),
-      );
-      await metaUpdateBudget(adset.id, metaTok, budget);
-      return {
-        action: toolName,
-        channel: "meta_ads",
-        summary: args.summary ?? "Budget publicitaire ajusté.",
-        detail: `Budget quotidien de « ${adset.name} » : ${adset.daily_budget_eur} € → ${budget} €`,
-        adminUrl,
-      };
-    }
-
-    if (toolName === "meta_pause_adset") {
-      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-      const adset = unwrapGuard(
-        guardTargetExists(
-          metaSnap.adsets.find((a) => a.id === args.adset_id) ?? null,
-          `L'ensemble de publicités ${args.adset_id}`,
-        ),
-      );
-      const evidence = unwrapGuard(
-        guardMetaPause({
-          targetLabel: `« ${adset.name} »`,
-          spend: adset.spend,
-          roas: adset.roas,
-        }),
-      );
-      await metaPauseAdSet(adset.id, metaTok);
-      return {
-        action: toolName,
-        channel: "meta_ads",
-        summary: args.summary ?? "Ensemble de publicités mis en pause.",
-        detail: `« ${adset.name} » mis en pause : ${Math.round(
-          evidence.spend,
-        )} € dépensés sur 30 jours pour un ROAS de ${evidence.roas.toFixed(2)}`,
-        adminUrl,
-      };
-    }
-
-    if (toolName === "meta_update_targeting") {
-      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-      const adset = unwrapGuard(
-        guardTargetExists(
-          metaSnap.adsets.find((a) => a.id === args.adset_id) ?? null,
-          `L'ensemble de publicités ${args.adset_id}`,
-        ),
-      );
-      const r = await metaUpdateTargeting(adset.id, metaTok, {
-        age_min: args.age_min,
-        age_max: args.age_max,
-        genders: args.genders,
-        countries: args.countries,
-      });
-      return {
-        action: toolName,
-        channel: "meta_ads",
-        summary: args.summary ?? "Ciblage ajusté.",
-        detail: `Nouveau ciblage de « ${adset.name} » : ${r.targeting_summary}`,
-        adminUrl,
-      };
-    }
-
-    if (toolName === "meta_update_creative") {
-      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-      const ad = unwrapGuard(
-        guardTargetExists(
-          metaSnap.ads.find((a) => a.id === args.ad_id) ?? null,
-          `La publicité ${args.ad_id}`,
-        ),
-      );
-      await metaUpdateAdCreative(ad.id, ctx.meta.accountId, metaTok, {
-        primary_text: args.primary_text,
-        headline: args.headline,
-        description: args.description,
-      });
-      return {
-        action: toolName,
-        channel: "meta_ads",
-        summary: args.summary ?? "Création publicitaire réécrite.",
-        detail: `Nouvelle création sur « ${ad.name} » — titre : « ${args.headline} »`,
-        adminUrl,
-      };
-    }
-  }
-
-  // ---- Google Ads ----
-  if (
-    toolName === "google_update_budget" ||
-    toolName === "google_pause_campaign" ||
-    toolName === "google_add_negative_keywords" ||
-    toolName === "google_update_rsa"
-  ) {
-    if (!ctx.google || !googleTok || !googleSnap) throw channelUnavailable("Google Ads");
-    const cid = ctx.google.customerId;
-    const adminUrl = googleAdsUrl(cid);
-
-    if (toolName === "google_update_budget") {
-      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-      const campaign = unwrapGuard(
-        guardTargetExists(
-          googleSnap.campaigns.find((c) => c.budget_resource_name === args.budget_resource_name) ??
-            null,
-          "La campagne visée",
-        ),
-      );
-      const budget = unwrapGuard(
-        guardDailyBudget({
-          targetLabel: `« ${campaign.name} »`,
-          requestedEur: args.daily_budget_eur,
-          currentDailyBudgetEur: campaign.daily_budget_eur,
-        }),
-      );
-      await googleUpdateBudget(cid, googleTok, args.budget_resource_name, budget);
-      return {
-        action: toolName,
-        channel: "google_ads",
-        summary: args.summary ?? "Budget publicitaire ajusté.",
-        detail: `Budget quotidien de « ${campaign.name} » : ${campaign.daily_budget_eur} € → ${budget} €`,
-        adminUrl,
-      };
-    }
-
-    if (toolName === "google_pause_campaign") {
-      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-      const campaign = unwrapGuard(
-        guardTargetExists(
-          googleSnap.campaigns.find((c) => c.resource_name === args.campaign_resource_name) ?? null,
-          "La campagne visée",
-        ),
-      );
-      const evidence = unwrapGuard(
-        guardGooglePause({
-          targetLabel: `« ${campaign.name} »`,
-          cost30d: campaign.cost_30d,
-          conversions30d: campaign.conversions_30d,
-        }),
-      );
-      await googlePauseCampaign(cid, googleTok, campaign.resource_name);
-      return {
-        action: toolName,
-        channel: "google_ads",
-        summary: args.summary ?? "Campagne mise en pause.",
-        detail: `« ${campaign.name} » mise en pause : ${Math.round(
-          evidence.cost,
-        )} € dépensés sur 30 jours pour 0 conversion`,
-        adminUrl,
-      };
-    }
-
-    if (toolName === "google_add_negative_keywords") {
-      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-      const campaign = unwrapGuard(
-        guardTargetExists(
-          googleSnap.campaigns.find((c) => c.resource_name === args.campaign_resource_name) ?? null,
-          "La campagne visée",
-        ),
-      );
-      await googleAddNegativeKeywords(cid, googleTok, campaign.resource_name, args.keywords);
-      return {
-        action: toolName,
-        channel: "google_ads",
-        summary: args.summary ?? "Mots-clés à exclure ajoutés.",
-        detail: `Mots-clés exclus ajoutés sur « ${campaign.name} » : ${args.keywords.join(", ")}`,
-        adminUrl,
-      };
-    }
-
-    if (toolName === "google_update_rsa") {
-      const args = unwrapGuard(parseToolArgs(toolName, rawArgs));
-      const ad = unwrapGuard(
-        guardTargetExists(
-          googleSnap.ads.find((a) => a.resource_name === args.ad_group_ad_resource_name) ?? null,
-          "L'annonce responsive visée",
-        ),
-      );
-      const r = await googleUpdateRsaText(cid, googleTok, ad.resource_name, {
-        headlines: args.headlines,
-        descriptions: args.descriptions,
-      });
-      return {
-        action: toolName,
-        channel: "google_ads",
-        summary: args.summary ?? "Annonce réécrite.",
-        detail: `Annonce de « ${ad.campaign_name} » réécrite — ${r.headlines.length} titres, ${r.descriptions.length} descriptions`,
-        adminUrl,
-      };
-    }
-  }
-
-  // Aucun aiguillage n'a répondu : on ne devine pas, on n'écrit rien.
-  throw new Error(
-    `L'action « ${toolName} » ne peut pas être appliquée sur les canaux connectés. Rien n'a été modifié.`,
-  );
+  return writeValidated(ctx, state, validated, description);
 }

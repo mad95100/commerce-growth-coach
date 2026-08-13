@@ -6,7 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
-import { updateFindingStatus, generateFix, applyFix } from "@/lib/audit.functions";
+import { updateFindingStatus, generateFix } from "@/lib/audit.functions";
+import { proposeFix, confirmAction } from "@/lib/actions.functions";
+import { ActionPreview } from "@/components/ActionPreview";
+import type { ActionProposal } from "@/lib/action-plan";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -52,25 +55,55 @@ function AuditPage() {
   const qc = useQueryClient();
   const updateStatusFn = useServerFn(updateFindingStatus);
   const generateFixFn = useServerFn(generateFix);
-  const applyFixFn = useServerFn(applyFix);
+  const proposeFixFn = useServerFn(proposeFix);
+  const confirmActionFn = useServerFn(confirmAction);
   const [fixingId, setFixingId] = useState<string | null>(null);
+  const [proposingId, setProposingId] = useState<string | null>(null);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [proposals, setProposals] = useState<Record<string, ActionProposal>>({});
 
-  async function handleApplyFix(findingId: string) {
+  /** Prépare la correction et affiche l'aperçu. N'écrit rien chez le partenaire. */
+  async function handleProposeFix(findingId: string) {
+    setProposingId(findingId);
+    try {
+      const res = await proposeFixFn({ data: { findingId } });
+      if (res.kind === "no_action") {
+        toast.info(res.reason);
+        return;
+      }
+      setProposals((p) => ({ ...p, [findingId]: res.proposal }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setProposingId(null);
+    }
+  }
+
+  /** Seul chemin qui écrit réellement, après confirmation explicite. */
+  async function handleConfirmProposal(findingId: string, actionId: string) {
     setApplyingId(findingId);
     try {
-      const res = await applyFixFn({ data: { findingId } });
+      const res = await confirmActionFn({ data: { actionId } });
+      setProposals((p) => {
+        const next = { ...p };
+        delete next[findingId];
+        return next;
+      });
       qc.invalidateQueries({ queryKey: ["findings", auditId] });
-      if (res.action === "no_action") {
-        toast.info(res.summary);
-      } else {
-        toast.success(res.detail ?? "Correction appliquée sur ta boutique !");
-      }
+      toast.success(res.detail ?? "Correction appliquée sur ton compte !");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
       setApplyingId(null);
     }
+  }
+
+  function handleCancelProposal(findingId: string) {
+    setProposals((p) => {
+      const next = { ...p };
+      delete next[findingId];
+      return next;
+    });
   }
 
   async function handleGenerateFix(findingId: string) {
@@ -204,8 +237,12 @@ function AuditPage() {
                   finding={f}
                   onToggle={toggleDone}
                   onGenerateFix={handleGenerateFix}
-                  onApplyFix={handleApplyFix}
+                  onProposeFix={handleProposeFix}
+                  onConfirmProposal={handleConfirmProposal}
+                  onCancelProposal={handleCancelProposal}
+                  proposal={proposals[f.id]}
                   fixing={fixingId === f.id}
+                  proposing={proposingId === f.id}
                   applying={applyingId === f.id}
                 />
               ))}
@@ -229,8 +266,12 @@ function AuditPage() {
                           finding={f}
                           onToggle={toggleDone}
                           onGenerateFix={handleGenerateFix}
-                          onApplyFix={handleApplyFix}
+                          onProposeFix={handleProposeFix}
+                          onConfirmProposal={handleConfirmProposal}
+                          onCancelProposal={handleCancelProposal}
+                          proposal={proposals[f.id]}
                           fixing={fixingId === f.id}
+                          proposing={proposingId === f.id}
                           applying={applyingId === f.id}
                           compact
                         />
@@ -287,16 +328,24 @@ function FindingCard({
   finding,
   onToggle,
   onGenerateFix,
-  onApplyFix,
+  onProposeFix,
+  onConfirmProposal,
+  onCancelProposal,
+  proposal,
   fixing,
+  proposing,
   applying,
   compact,
 }: {
   finding: Finding;
   onToggle: (id: string, current: string) => void;
   onGenerateFix: (id: string) => void;
-  onApplyFix: (id: string) => void;
+  onProposeFix: (id: string) => void;
+  onConfirmProposal: (findingId: string, actionId: string) => void;
+  onCancelProposal: (findingId: string) => void;
+  proposal?: ActionProposal;
   fixing?: boolean;
+  proposing?: boolean;
   applying?: boolean;
   compact?: boolean;
 }) {
@@ -392,17 +441,21 @@ function FindingCard({
                 +{Math.round(Number(finding.estimated_gain_min))} à {Math.round(Number(finding.estimated_gain_max))} €/mois
               </div>
             )}
-            {!applied && (
+            {!applied && !proposal && (
               <Button
                 size="sm"
-                onClick={() => onApplyFix(finding.id)}
-                disabled={applying}
+                onClick={() => onProposeFix(finding.id)}
+                disabled={proposing}
                 className="bg-gradient-primary text-primary-foreground"
               >
-                {applying ? (
-                  <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> L'IA corrige ta boutique...</>
+                {proposing ? (
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" /> L'IA prépare la correction...
+                  </>
                 ) : (
-                  <><Sparkles className="mr-2 h-3 w-3" /> Corrige ça pour moi</>
+                  <>
+                    <Sparkles className="mr-2 h-3 w-3" /> Corrige ça pour moi
+                  </>
                 )}
               </Button>
             )}
@@ -433,6 +486,14 @@ function FindingCard({
               </Button>
             )}
           </div>
+          {proposal && (
+            <ActionPreview
+              proposal={proposal}
+              applying={Boolean(applying)}
+              onConfirm={() => onConfirmProposal(finding.id, proposal.actionId)}
+              onCancel={() => onCancelProposal(finding.id)}
+            />
+          )}
         </div>
       </div>
     </div>
