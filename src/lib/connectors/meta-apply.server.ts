@@ -155,12 +155,6 @@ export async function metaPauseAdSet(adsetId: string, token: string) {
   return { adsetId };
 }
 
-/** Rattache une création existante à une publicité. Annulation de `meta_update_creative`. */
-export async function metaSetAdCreative(adId: string, token: string, creativeId: string) {
-  await graphPost(`/${adId}`, token, { creative: { creative_id: creativeId } });
-  return { adId, creativeId };
-}
-
 /** Ajuste le ciblage (âge, genres, pays) en conservant le reste du ciblage existant. */
 export async function metaUpdateTargeting(
   adsetId: string,

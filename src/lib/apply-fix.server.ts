@@ -41,7 +41,12 @@ import {
   type ToolArgs,
   type ToolName,
 } from "@/lib/action-guards";
-import { isRevertible, type ActionChannel, type PreviewLine } from "@/lib/action-plan";
+import {
+  isRevertible,
+  sameActionState,
+  type ActionChannel,
+  type PreviewLine,
+} from "@/lib/action-plan";
 
 const APPLY_MODEL = "google/gemini-2.5-flash";
 
@@ -1085,7 +1090,10 @@ export async function executePlannedAction(
   const validated = validateAgainstState(ctx, state, input.tool, input.rawArgs);
   const description = describeValidated(validated);
 
-  if (JSON.stringify(description.beforeValue) !== JSON.stringify(input.expectedBefore)) {
+  // Comparaison indépendante de l'ordre des clés : `expectedBefore` vient d'une
+  // colonne jsonb, qui ne préserve pas l'ordre d'insertion. Les valeurs, elles,
+  // restent comparées strictement.
+  if (!sameActionState(description.beforeValue, input.expectedBefore)) {
     throw new Error(
       `${description.targetLabel} a changé depuis la proposition : je n'écrase pas une modification que tu n'as pas vue. Rien n'a été modifié — relance la correction pour repartir de l'état actuel.`,
     );

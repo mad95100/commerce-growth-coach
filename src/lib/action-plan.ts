@@ -78,6 +78,44 @@ export type ProposeOutcome =
   | { kind: "proposal"; proposal: ActionProposal }
   | { kind: "no_action"; reason: string };
 
+/**
+ * Sérialisation déterministe : clés d'objet triées, ordre des tableaux préservé.
+ *
+ * `before_value` transite par une colonne `jsonb`, qui ne conserve pas l'ordre
+ * d'insertion des clés. Comparer deux états avec `JSON.stringify` produisait donc
+ * de faux « l'état a changé » — constaté sur `meta_update_creative`, dont les clés
+ * `primary_text` / `headline` ressortent inversées de la base.
+ *
+ * Les mêmes conventions que `JSON.stringify` sont conservées pour rester fidèle au
+ * transport JSON : une propriété `undefined` est omise, un `undefined` dans un
+ * tableau devient `null`.
+ */
+export function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+  if (Array.isArray(value)) {
+    // L'ordre d'un tableau est porteur de sens (titres RSA, mots-clés) : jamais trié.
+    return `[${value.map((item) => (item === undefined ? "null" : stableStringify(item))).join(",")}]`;
+  }
+  const record = value as Record<string, unknown>;
+  const entries = Object.keys(record)
+    .filter((key) => record[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`);
+  return `{${entries.join(",")}}`;
+}
+
+/**
+ * Deux états d'une cible sont-ils identiques ?
+ *
+ * Indépendant de l'ordre des clés, mais strictement sensible aux valeurs : une
+ * vraie modification de l'état amont reste détectée et refusée.
+ */
+export function sameActionState(a: unknown, b: unknown): boolean {
+  return stableStringify(a) === stableStringify(b);
+}
+
 export function isProposalExpired(expiresAt: string, now = Date.now()): boolean {
   const deadline = new Date(expiresAt).getTime();
   return !Number.isFinite(deadline) || now > deadline;
