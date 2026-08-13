@@ -126,11 +126,54 @@ export async function markFailed(supabase: Db, actionId: string, message: string
     .eq("id", actionId);
 }
 
-/** L'écriture a réussi : on consigne le résultat réellement obtenu. */
+/**
+ * L'écriture a réussi : on consigne le résultat réellement obtenu.
+ *
+ * `revertible` est réécrit ici avec la réversibilité CONSTATÉE après l'appel API,
+ * et non celle estimée à la proposition : une action n'est annonçée annulable que
+ * si l'information nécessaire a effectivement été obtenue.
+ */
 export async function finalizeApplied(
   supabase: Db,
   actionId: string,
   afterValue: Record<string, unknown>,
+  revertible: boolean,
 ): Promise<void> {
-  await supabase.from("actions").update({ after_value: afterValue }).eq("id", actionId);
+  await supabase.from("actions").update({ after_value: afterValue, revertible }).eq("id", actionId);
+}
+
+/**
+ * Réserve l'annulation avant d'écrire chez le partenaire.
+ *
+ * Transition gardée `applied` → `reverted` : une seconde annulation ne renvoie
+ * aucune ligne et n'exécute rien. Le filtre `revertible` n'est qu'une première
+ * barrière — la colonne étant modifiable par le client, c'est `executeRevert` qui
+ * refuse réellement les outils sans procédure d'annulation.
+ */
+export async function claimRevert(supabase: Db, actionId: string): Promise<ProposalRow | null> {
+  const { data, error } = await supabase
+    .from("actions")
+    .update({ status: "reverted", reverted_at: new Date().toISOString(), error_message: null })
+    .eq("id", actionId)
+    .eq("status", "applied")
+    .eq("revertible", true)
+    .select();
+  if (error) throw error;
+  const rows = (data ?? []) as ProposalRow[];
+  return rows[0] ?? null;
+}
+
+/**
+ * L'annulation a échoué : la ligne retrouve son état réel — toujours appliquée —
+ * avec le motif. Un échec n'est jamais présenté comme une annulation réussie.
+ */
+export async function restoreAfterFailedRevert(
+  supabase: Db,
+  actionId: string,
+  message: string,
+): Promise<void> {
+  await supabase
+    .from("actions")
+    .update({ status: "applied", reverted_at: null, error_message: message.slice(0, 2000) })
+    .eq("id", actionId);
 }

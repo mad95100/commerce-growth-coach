@@ -227,11 +227,19 @@ export const confirmAction = createServerFn({ method: "POST" })
       throw err;
     }
 
-    await finalizeApplied(supabase as never, data.actionId, {
-      ...(proposal.after_value ?? {}),
-      applied_detail: result.detail ?? null,
-      admin_url: result.adminUrl ?? null,
-    });
+    // Réversibilité constatée après coup, jamais présumée.
+    const revert = result.revert ?? { supported: false, data: {} };
+    await finalizeApplied(
+      supabase as never,
+      data.actionId,
+      {
+        ...(proposal.after_value ?? {}),
+        ...revert.data,
+        applied_detail: result.detail ?? null,
+        admin_url: result.adminUrl ?? null,
+      },
+      revert.supported,
+    );
 
     // Double écriture temporaire : l'UI existante lit encore audit_findings.
     await supabase
@@ -249,28 +257,116 @@ export const confirmAction = createServerFn({ method: "POST" })
       baseline: (proposal.payload?.baseline as never) ?? null,
     });
 
+    // Réponse volontairement restreinte : les données d'annulation restent côté
+    // serveur, dans la ligne `actions`. Le client n'en a pas besoin.
+    return {
+      action: result.action as string,
+      channel: (result.channel ?? null) as string | null,
+      summary: result.summary as string,
+      detail: (result.detail ?? null) as string | null,
+      adminUrl: (result.adminUrl ?? null) as string | null,
+    };
+  });
+
+/**
+ * Annule une action appliquée.
+ *
+ * Idempotent : la transition `applied` → `reverted` est gardée, une seconde
+ * annulation n'exécute rien. En cas d'échec, la ligne redevient `applied` avec le
+ * motif — un échec n'est jamais présenté comme une annulation réussie.
+ */
+export const revertAction = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => ACTION_INPUT.parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabase } = context;
+    const { loadProposal, claimRevert, restoreAfterFailedRevert } =
+      await import("@/lib/actions.server");
+
+    const action = await loadProposal(supabase as never, data.actionId);
+    if (!action) throw new Error("Cette action est introuvable.");
+    if (action.status !== "applied") {
+      throw new Error(
+        action.status === "reverted"
+          ? "Cette correction a déjà été annulée."
+          : "Cette action n'a pas été appliquée : il n'y a rien à annuler.",
+      );
+    }
+    if (!action.finding_id) throw new Error("Action incomplète : problème d'origine inconnu.");
+
+    const { finding, store, storeId } = await loadFindingContext(supabase, action.finding_id);
+    const channels = await loadChannels(supabase, storeId);
+
+    // Verrou d'idempotence : une seule annulation peut réserver l'action.
+    const claimed = await claimRevert(supabase as never, data.actionId);
+    if (!claimed) {
+      throw new Error("Cette correction vient d'être annulée, ou n'est pas annulable.");
+    }
+
+    const { executeRevert } = await import("@/lib/revert.server");
+
+    let result;
+    try {
+      result = await executeRevert(
+        { store, finding, ...channels },
+        {
+          tool: action.tool_name,
+          targetRef: action.target_ref,
+          beforeValue: action.before_value,
+          afterValue: action.after_value,
+        },
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await restoreAfterFailedRevert(supabase as never, data.actionId, message);
+      throw err;
+    }
+
+    // Double écriture temporaire : l'UI existante lit encore audit_findings. On ne
+    // rouvre le problème que si plus aucune action n'y reste appliquée.
+    const { data: stillApplied } = await supabase
+      .from("actions")
+      .select("id")
+      .eq("finding_id", finding.id)
+      .eq("status", "applied")
+      .limit(1);
+    if (!stillApplied || stillApplied.length === 0) {
+      await supabase
+        .from("audit_findings")
+        .update({ applied_at: null, applied_result: null, status: "todo" })
+        .eq("id", finding.id);
+    }
+
     return result;
   });
 
-/** Actions déjà appliquées pour un problème donné (pour l'affichage du rapport). */
-export const listFindingActions = createServerFn({ method: "POST" })
+/** Actions liées à une liste de problèmes, pour afficher l'état dans le rapport. */
+export const listActionsForFindings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => FINDING_INPUT.parse(input))
+  .inputValidator((input: unknown) =>
+    z.object({ findingIds: z.array(z.string().uuid()).max(100) }).parse(input),
+  )
   .handler(async ({ data, context }) => {
+    if (data.findingIds.length === 0) return [];
     const { data: rows, error } = await context.supabase
       .from("actions")
-      .select("id, tool_name, title, target_label, channel, status, applied_at, revertible")
-      .eq("finding_id", data.findingId)
+      .select(
+        "id, finding_id, tool_name, title, target_label, channel, status, applied_at, reverted_at, revertible, error_message",
+      )
+      .in("finding_id", data.findingIds)
       .order("created_at", { ascending: false });
     if (error) throw error;
     return (rows ?? []) as Array<{
       id: string;
+      finding_id: string | null;
       tool_name: string;
       title: string;
       target_label: string | null;
       channel: ActionChannel;
-      status: string;
+      status: "proposed" | "applied" | "failed" | "reverted";
       applied_at: string | null;
+      reverted_at: string | null;
       revertible: boolean;
+      error_message: string | null;
     }>;
   });

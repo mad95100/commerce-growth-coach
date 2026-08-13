@@ -167,15 +167,29 @@ export async function googleUpdateBudget(
   return { dailyBudgetEur };
 }
 
+/** Statuts de campagne que l'on s'autorise à écrire. `REMOVED` est volontairement exclu. */
+export type GoogleCampaignWritableStatus = "ENABLED" | "PAUSED";
+
+/** Change le statut d'une campagne. Sert à la pause comme à son annulation. */
+export async function googleSetCampaignStatus(
+  customerId: string,
+  accessToken: string,
+  campaignResourceName: string,
+  status: GoogleCampaignWritableStatus,
+) {
+  await mutate(customerId, accessToken, "campaigns", {
+    operations: [{ update: { resourceName: campaignResourceName, status }, updateMask: "status" }],
+  });
+  return { campaignResourceName, status };
+}
+
 /** Met en pause une campagne non rentable. */
 export async function googlePauseCampaign(
   customerId: string,
   accessToken: string,
   campaignResourceName: string,
 ) {
-  await mutate(customerId, accessToken, "campaigns", {
-    operations: [{ update: { resourceName: campaignResourceName, status: "PAUSED" }, updateMask: "status" }],
-  });
+  await googleSetCampaignStatus(customerId, accessToken, campaignResourceName, "PAUSED");
   return { campaignResourceName };
 }
 
@@ -186,7 +200,7 @@ export async function googleAddNegativeKeywords(
   campaignResourceName: string,
   keywords: string[],
 ) {
-  await mutate(customerId, accessToken, "campaignCriteria", {
+  const response = (await mutate(customerId, accessToken, "campaignCriteria", {
     operations: keywords.slice(0, 20).map((text) => ({
       create: {
         campaign: campaignResourceName,
@@ -194,8 +208,31 @@ export async function googleAddNegativeKeywords(
         keyword: { text, matchType: "PHRASE" },
       },
     })),
+  })) as { results?: Array<{ resourceName?: string }> };
+
+  // Nécessaire à l'annulation. On ne suppose RIEN de la forme de la réponse : on ne
+  // garde que des chaînes réellement présentes. Si la liste ressort vide, l'appelant
+  // en déduira que l'action n'est pas annulable, plutôt que de le promettre à tort.
+  const createdResourceNames = (response?.results ?? [])
+    .map((r) => r?.resourceName)
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
+
+  return { keywords, createdResourceNames };
+}
+
+/**
+ * Retire des critères de campagne. Annulation de `google_add_negative_keywords`.
+ * Les `resourceName` proviennent de la réponse de création.
+ */
+export async function googleRemoveCampaignCriteria(
+  customerId: string,
+  accessToken: string,
+  resourceNames: string[],
+) {
+  await mutate(customerId, accessToken, "campaignCriteria", {
+    operations: resourceNames.map((resourceName) => ({ remove: resourceName })),
   });
-  return { keywords };
+  return { removed: resourceNames.length };
 }
 
 /** Réécrit les titres et descriptions d'une annonce responsive. */

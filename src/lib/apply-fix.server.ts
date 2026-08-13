@@ -78,6 +78,12 @@ export type ApplyResult = {
   detail?: string;
   adminUrl?: string;
   channel?: "shopify" | "meta_ads" | "google_ads" | "none";
+  /**
+   * Réversibilité RÉELLE, constatée après l'écriture, et données nécessaires à
+   * l'annulation. `supported` ne vaut `true` que si l'information indispensable a
+   * effectivement été obtenue — jamais sur la foi d'une hypothèse.
+   */
+  revert?: { supported: boolean; data: Record<string, unknown> };
 };
 
 type Tool = {
@@ -898,6 +904,8 @@ async function writeValidated(
         summary: reason ?? "Fiche produit réécrite.",
         detail: `Produit mis à jour : « ${updated.title} »`,
         adminUrl: updated.adminUrl,
+        // L'ancien titre et l'ancienne description sont dans before_value.
+        revert: { supported: true, data: {} },
       };
     }
 
@@ -914,6 +922,10 @@ async function writeValidated(
         summary: reason ?? "Code promo créé.",
         detail: `Code promo créé : ${created.code} (−${v.discount.percentage} % pendant ${v.discount.days} jours)`,
         adminUrl: created.adminUrl,
+        revert: {
+          supported: Number.isInteger(created.priceRuleId) && created.priceRuleId > 0,
+          data: { price_rule_id: created.priceRuleId },
+        },
       };
     }
 
@@ -925,6 +937,8 @@ async function writeValidated(
         summary: reason ?? "Budget publicitaire ajusté.",
         detail: `Budget quotidien de « ${v.adset.name} » : ${v.adset.daily_budget_eur} € → ${v.budget} €`,
         adminUrl: metaAdsManagerUrl(ctx.meta!.accountId),
+        // guardDailyBudget garantit un budget antérieur connu et strictement positif.
+        revert: { supported: v.adset.daily_budget_eur != null, data: {} },
       };
     }
 
@@ -936,6 +950,8 @@ async function writeValidated(
         summary: reason ?? "Ensemble de publicités mis en pause.",
         detail: `« ${v.adset.name} » mis en pause : ${Math.round(v.evidence.spend)} € dépensés sur 30 jours pour un ROAS de ${v.evidence.roas.toFixed(2)}`,
         adminUrl: metaAdsManagerUrl(ctx.meta!.accountId),
+        // On ne sait rétablir que les statuts qu'on s'autorise à écrire.
+        revert: { supported: v.adset.status === "ACTIVE", data: {} },
       };
     }
 
@@ -952,11 +968,14 @@ async function writeValidated(
         summary: reason ?? "Ciblage ajusté.",
         detail: `Nouveau ciblage de « ${v.adset.name} » : ${r.targeting_summary}`,
         adminUrl: metaAdsManagerUrl(ctx.meta!.accountId),
+        // before_value ne contient qu'un résumé textuel du ciblage, pas l'objet
+        // complet : impossible de rétablir l'état exact. On ne le promet donc pas.
+        revert: { supported: false, data: {} },
       };
     }
 
     case "meta_update_creative": {
-      await metaUpdateAdCreative(v.ad.id, ctx.meta!.accountId, state.metaTok!, {
+      const r = await metaUpdateAdCreative(v.ad.id, ctx.meta!.accountId, state.metaTok!, {
         primary_text: v.args.primary_text,
         headline: v.args.headline,
         description: v.args.description,
@@ -967,6 +986,12 @@ async function writeValidated(
         summary: reason ?? "Création publicitaire réécrite.",
         detail: `Nouvelle création sur « ${v.ad.name} » — titre : « ${v.args.headline} »`,
         adminUrl: metaAdsManagerUrl(ctx.meta!.accountId),
+        // L'ancienne création est tracée, mais rien ne prouve qu'elle reste
+        // rattachable après détachement : on ne promet pas l'annulation.
+        revert: {
+          supported: false,
+          data: { previous_creative_id: r.previousCreativeId, new_creative_id: r.creativeId },
+        },
       };
     }
 
@@ -983,6 +1008,7 @@ async function writeValidated(
         summary: reason ?? "Budget publicitaire ajusté.",
         detail: `Budget quotidien de « ${v.campaign.name} » : ${v.campaign.daily_budget_eur} € → ${v.budget} €`,
         adminUrl: googleAdsUrl(ctx.google!.customerId),
+        revert: { supported: v.campaign.daily_budget_eur != null, data: {} },
       };
     }
 
@@ -994,11 +1020,12 @@ async function writeValidated(
         summary: reason ?? "Campagne mise en pause.",
         detail: `« ${v.campaign.name} » mise en pause : ${Math.round(v.evidence.cost)} € dépensés sur 30 jours pour 0 conversion`,
         adminUrl: googleAdsUrl(ctx.google!.customerId),
+        revert: { supported: v.campaign.status === "ENABLED", data: {} },
       };
     }
 
     case "google_add_negative_keywords": {
-      await googleAddNegativeKeywords(
+      const r = await googleAddNegativeKeywords(
         ctx.google!.customerId,
         state.googleTok!,
         v.campaign.resource_name,
@@ -1010,6 +1037,12 @@ async function writeValidated(
         summary: reason ?? "Mots-clés à exclure ajoutés.",
         detail: `Mots-clés exclus ajoutés sur « ${v.campaign.name} » : ${v.args.keywords.join(", ")}`,
         adminUrl: googleAdsUrl(ctx.google!.customerId),
+        // Réversible seulement si l'API nous a réellement rendu les références des
+        // critères créés. Liste vide = pas d'annulation promise.
+        revert: {
+          supported: r.createdResourceNames.length > 0,
+          data: { criteria_resource_names: r.createdResourceNames },
+        },
       };
     }
 
@@ -1026,6 +1059,8 @@ async function writeValidated(
         summary: reason ?? "Annonce réécrite.",
         detail: `Annonce de « ${d.targetLabel} » réécrite — ${r.headlines.length} titres, ${r.descriptions.length} descriptions`,
         adminUrl: googleAdsUrl(ctx.google!.customerId),
+        // La mutabilité d'une annonce servie n'est pas démontrée : pas de promesse.
+        revert: { supported: false, data: {} },
       };
     }
   }

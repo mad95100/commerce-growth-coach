@@ -17,24 +17,32 @@ export const CHANNEL_LABELS: Record<ActionChannel, string> = {
 export const PROPOSAL_TTL_MINUTES = 30;
 
 /**
- * Réversibilité — `true` uniquement quand l'annulation est techniquement certaine,
- * c'est-à-dire quand l'état antérieur suffit à rétablir la situation exacte.
+ * Réversibilité ANNONCÉE dans l'aperçu, avant l'écriture.
  *
- * Les `false` ci-dessous ne sont pas définitifs : ils deviendront `true` quand la
- * phase 3 capturera les identifiants manquants (id de price rule Shopify, ancien
- * creative Meta, resource names des critères Google). `google_update_rsa` reste à
- * `false` tant que la mutabilité d'une annonce servie n'est pas démontrée.
+ * C'est une estimation volontairement prudente : on ne promet `true` que si
+ * l'information nécessaire à l'annulation est connue d'avance et fiable. La
+ * réversibilité RÉELLE est constatée après l'appel API et réécrite dans
+ * `actions.revertible` — mieux vaut sous-promettre ici et confirmer ensuite.
+ *
+ * - `google_add_negative_keywords` reste `false` ici : l'annulation dépend des
+ *   `resourceName` renvoyés par la réponse de création, inconnus avant l'appel.
+ *   Elle passe à `true` après coup si ces références ont bien été obtenues.
+ * - `meta_update_targeting` : `before_value` ne contient qu'un résumé textuel du
+ *   ciblage, pas l'objet complet — l'état exact n'est pas rétablissable.
+ * - `meta_update_creative` : l'ancienne création est tracée, mais rien ne garantit
+ *   qu'une création détachée reste rattachable.
+ * - `google_update_rsa` : la mutabilité d'une annonce servie n'est pas démontrée.
  */
 export const REVERTIBLE_BY_TOOL: Record<string, boolean> = {
   update_product: true,
+  create_discount_code: true,
   meta_update_budget: true,
   meta_pause_adset: true,
   google_update_budget: true,
   google_pause_campaign: true,
-  create_discount_code: false,
+  google_add_negative_keywords: false,
   meta_update_targeting: false,
   meta_update_creative: false,
-  google_add_negative_keywords: false,
   google_update_rsa: false,
 };
 

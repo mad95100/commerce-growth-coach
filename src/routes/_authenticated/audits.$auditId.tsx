@@ -7,7 +7,12 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
 import { updateFindingStatus, generateFix } from "@/lib/audit.functions";
-import { proposeFix, confirmAction } from "@/lib/actions.functions";
+import {
+  proposeFix,
+  confirmAction,
+  revertAction,
+  listActionsForFindings,
+} from "@/lib/actions.functions";
 import { ActionPreview } from "@/components/ActionPreview";
 import type { ActionProposal } from "@/lib/action-plan";
 import { toast } from "sonner";
@@ -24,6 +29,7 @@ import {
   Wand2,
   Sparkles,
   ExternalLink,
+  Undo2,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -57,10 +63,28 @@ function AuditPage() {
   const generateFixFn = useServerFn(generateFix);
   const proposeFixFn = useServerFn(proposeFix);
   const confirmActionFn = useServerFn(confirmAction);
+  const revertActionFn = useServerFn(revertAction);
+  const listActionsFn = useServerFn(listActionsForFindings);
   const [fixingId, setFixingId] = useState<string | null>(null);
   const [proposingId, setProposingId] = useState<string | null>(null);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [revertingId, setRevertingId] = useState<string | null>(null);
   const [proposals, setProposals] = useState<Record<string, ActionProposal>>({});
+
+  /** Annule une correction déjà appliquée. Écriture, donc mêmes garde-fous serveur. */
+  async function handleRevert(findingId: string, actionId: string) {
+    setRevertingId(findingId);
+    try {
+      const res = await revertActionFn({ data: { actionId } });
+      qc.invalidateQueries({ queryKey: ["findings", auditId] });
+      qc.invalidateQueries({ queryKey: ["actions", auditId] });
+      toast.success(res.detail ?? "Correction annulée.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setRevertingId(null);
+    }
+  }
 
   /** Prépare la correction et affiche l'aperçu. N'écrit rien chez le partenaire. */
   async function handleProposeFix(findingId: string) {
@@ -144,6 +168,22 @@ function AuditPage() {
       return data as Finding[];
     },
   });
+
+  const findingIds = (findingsQ.data ?? []).map((f) => f.id);
+  const actionsQ = useQuery({
+    queryKey: ["actions", auditId, findingIds.join(",")],
+    enabled: findingIds.length > 0,
+    queryFn: () => listActionsFn({ data: { findingIds } }),
+  });
+
+  /** Dernière action encore appliquée par problème — c'est elle qui est annulable. */
+  const appliedActionByFinding = new Map<string, { id: string; revertible: boolean }>();
+  for (const a of actionsQ.data ?? []) {
+    if (a.status !== "applied" || !a.finding_id) continue;
+    if (!appliedActionByFinding.has(a.finding_id)) {
+      appliedActionByFinding.set(a.finding_id, { id: a.id, revertible: a.revertible });
+    }
+  }
 
   async function toggleDone(id: string, current: string) {
     const next = current === "done" ? "todo" : "done";
@@ -241,9 +281,12 @@ function AuditPage() {
                   onConfirmProposal={handleConfirmProposal}
                   onCancelProposal={handleCancelProposal}
                   proposal={proposals[f.id]}
+                  appliedAction={appliedActionByFinding.get(f.id)}
+                  onRevert={handleRevert}
                   fixing={fixingId === f.id}
                   proposing={proposingId === f.id}
                   applying={applyingId === f.id}
+                  reverting={revertingId === f.id}
                 />
               ))}
             </TabsContent>
@@ -270,9 +313,12 @@ function AuditPage() {
                           onConfirmProposal={handleConfirmProposal}
                           onCancelProposal={handleCancelProposal}
                           proposal={proposals[f.id]}
+                          appliedAction={appliedActionByFinding.get(f.id)}
+                          onRevert={handleRevert}
                           fixing={fixingId === f.id}
                           proposing={proposingId === f.id}
                           applying={applyingId === f.id}
+                          reverting={revertingId === f.id}
                           compact
                         />
                       ))}
@@ -331,10 +377,13 @@ function FindingCard({
   onProposeFix,
   onConfirmProposal,
   onCancelProposal,
+  onRevert,
   proposal,
+  appliedAction,
   fixing,
   proposing,
   applying,
+  reverting,
   compact,
 }: {
   finding: Finding;
@@ -343,10 +392,13 @@ function FindingCard({
   onProposeFix: (id: string) => void;
   onConfirmProposal: (findingId: string, actionId: string) => void;
   onCancelProposal: (findingId: string) => void;
+  onRevert: (findingId: string, actionId: string) => void;
   proposal?: ActionProposal;
+  appliedAction?: { id: string; revertible: boolean };
   fixing?: boolean;
   proposing?: boolean;
   applying?: boolean;
+  reverting?: boolean;
   compact?: boolean;
 }) {
   const sevColor = {
@@ -432,6 +484,32 @@ function FindingCard({
                   Voir dans Shopify <ExternalLink className="h-3 w-3" />
                 </a>
               )}
+              {appliedAction &&
+                (appliedAction.revertible ? (
+                  <div className="mt-3">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRevert(finding.id, appliedAction.id)}
+                      disabled={reverting}
+                    >
+                      {reverting ? (
+                        <>
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Annulation...
+                        </>
+                      ) : (
+                        <>
+                          <Undo2 className="mr-2 h-3 w-3" /> Annuler cette correction
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Cette action n'est pas annulable automatiquement : reviens en arrière depuis ton
+                    compte si besoin.
+                  </p>
+                ))}
             </div>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-2">

@@ -346,6 +346,67 @@ export function guardDiscount(input: {
   return allow({ percentage, days });
 }
 
+// ---------------------------------------------------------------------------
+// Annulation — validation de ce qui est relu depuis la table `actions`
+// ---------------------------------------------------------------------------
+
+/**
+ * `actions` est modifiable par le client via PostgREST : `before_value` et
+ * `after_value` sont des entrées non fiables. Une annulation de budget rejoue une
+ * ÉCRITURE, donc ces valeurs repassent par un schéma strict ici, puis par
+ * `guardDailyBudget` avant d'atteindre l'API.
+ *
+ * Les statuts sont restreints aux seules valeurs qu'on s'autorise à écrire : un
+ * ensemble archivé ou une campagne supprimée ne sont pas rétablis par nos soins.
+ */
+const REVERT_SCHEMAS = {
+  update_product: z.object({
+    before: z.object({ title: text(255), body_html: text() }),
+  }),
+  create_discount_code: z.object({
+    after: z.object({ price_rule_id: positiveId }),
+  }),
+  meta_update_budget: z.object({
+    before: z.object({ daily_budget_eur: numberish }),
+  }),
+  meta_pause_adset: z.object({
+    before: z.object({ status: z.enum(["ACTIVE", "PAUSED"]) }),
+  }),
+  google_update_budget: z.object({
+    before: z.object({ daily_budget_eur: numberish }),
+  }),
+  google_pause_campaign: z.object({
+    before: z.object({ status: z.enum(["ENABLED", "PAUSED"]) }),
+  }),
+  google_add_negative_keywords: z.object({
+    after: z.object({
+      criteria_resource_names: z.array(z.string().trim().min(1)).min(1),
+    }),
+  }),
+} as const;
+
+export type RevertableTool = keyof typeof REVERT_SCHEMAS;
+export type RevertPayload<N extends RevertableTool> = z.infer<(typeof REVERT_SCHEMAS)[N]>;
+
+export function isRevertableTool(name: string): name is RevertableTool {
+  return Object.prototype.hasOwnProperty.call(REVERT_SCHEMAS, name);
+}
+
+/** Valide les valeurs `before_value` / `after_value` nécessaires à une annulation. */
+export function parseRevertPayload<N extends RevertableTool>(
+  name: N,
+  payload: { before: unknown; after: unknown },
+): GuardResult<RevertPayload<N>> {
+  const parsed = REVERT_SCHEMAS[name].safeParse(payload);
+  if (parsed.success) return allow(parsed.data as RevertPayload<N>);
+  const detail = parsed.error.issues
+    .map((issue) => `${issue.path.join(".") || "(racine)"} : ${issue.message}`)
+    .join(" ; ");
+  return refuse(
+    `Les informations nécessaires à l'annulation sont incomplètes ou invalides (${name}) : ${detail}. Rien n'a été modifié.`,
+  );
+}
+
 /** Cible désignée par l'IA introuvable dans l'état réel du canal : on n'écrit pas à l'aveugle. */
 export function guardTargetExists<T>(target: T | null | undefined, label: string): GuardResult<T> {
   if (target == null) {

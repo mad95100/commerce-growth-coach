@@ -81,7 +81,7 @@ export async function createDiscountCode(
   shop: string,
   token: string,
   input: { title: string; code: string; percentage: number; days: number },
-): Promise<{ code: string; adminUrl: string }> {
+): Promise<{ code: string; adminUrl: string; priceRuleId: number }> {
   const { base, headers } = client(shop, token);
   const startsAt = new Date();
   const endsAt = new Date(startsAt.getTime() + input.days * 86400000);
@@ -122,5 +122,30 @@ export async function createDiscountCode(
   return {
     code: dc.discount_code.code,
     adminUrl: `https://${shop}/admin/discounts`,
+    // Nécessaire à l'annulation. Cet id a déjà servi à construire l'URL ci-dessus :
+    // si la création du code a réussi, c'est qu'il est bien renseigné.
+    priceRuleId: pr.price_rule.id,
   };
+}
+
+/**
+ * Supprime une règle de prix et, avec elle, les codes promo qui en dépendent.
+ * Annulation de `create_discount_code`.
+ *
+ * Un 404 signifie que la règle n'existe déjà plus : l'état visé est atteint, on
+ * le traite comme un succès plutôt que comme une erreur.
+ */
+export async function deletePriceRule(
+  shop: string,
+  token: string,
+  priceRuleId: number,
+): Promise<{ alreadyGone: boolean }> {
+  const { base, headers } = client(shop, token);
+  const res = await fetch(`${base}/price_rules/${priceRuleId}.json`, { method: "DELETE", headers });
+  if (res.status === 404) return { alreadyGone: true };
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Shopify: suppression de la promo refusée (${res.status}) ${t}`);
+  }
+  return { alreadyGone: false };
 }
