@@ -1,11 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
 import { ConnectionsPanel } from "@/components/ConnectionsPanel";
+import { StoreEconomicsFields } from "@/components/StoreEconomicsFields";
+import {
+  parseStoreEconomics,
+  storeEconomicsToForm,
+  type StoreSituation,
+} from "@/lib/store-profile";
 import { runAudit } from "@/lib/audit.functions";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -85,6 +91,10 @@ function StorePage() {
         <Stat label="CA mensuel" value={store.monthly_revenue ? `${store.monthly_revenue} €` : "—"} />
         <Stat label="Budget pub" value={store.monthly_ad_budget ? `${store.monthly_ad_budget} €` : "—"} />
         <Stat label="Objectif" value={store.goal || "—"} />
+      </div>
+
+      <div className="mt-8">
+        <StoreEconomicsCard key={store.id} store={store} />
       </div>
 
       <div className="mt-8">
@@ -174,6 +184,74 @@ function StorePage() {
         )}
       </div>
     </AppShell>
+  );
+}
+
+type EconomicsStore = {
+  id: string;
+  situation: StoreSituation | null;
+  revenue_goal: number | null;
+  avg_product_cost_ratio: number | null;
+  fixed_costs_monthly: number | null;
+};
+
+/** Édition du profil économique d'une boutique déjà créée. */
+function StoreEconomicsCard({ store }: { store: EconomicsStore }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState(() => storeEconomicsToForm(store));
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const parsed = parseStoreEconomics(form);
+    if (!parsed.ok) {
+      toast.error(parsed.message);
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("stores").update(parsed.payload).eq("id", store.id);
+      if (error) throw error;
+      await qc.invalidateQueries({ queryKey: ["store", store.id] });
+      await qc.invalidateQueries({ queryKey: ["cockpit", store.id] });
+      toast.success("Modèle économique enregistré.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card-elevated rounded-2xl p-6">
+      <h2 className="font-display text-lg font-bold">Ton modèle économique</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Ces informations servent à chiffrer ta marge, ton bénéfice et à orienter l'audit. Laisse
+        vide ce que tu ne connais pas encore.
+      </p>
+
+      <div className="mt-5">
+        <StoreEconomicsFields
+          idPrefix={`store-${store.id}`}
+          value={form}
+          onChange={setForm}
+          disabled={saving}
+        />
+      </div>
+
+      <Button
+        onClick={save}
+        disabled={saving}
+        className="mt-6 bg-gradient-primary text-primary-foreground"
+      >
+        {saving ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement...
+          </>
+        ) : (
+          "Enregistrer"
+        )}
+      </Button>
+    </div>
   );
 }
 

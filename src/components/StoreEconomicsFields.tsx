@@ -1,0 +1,121 @@
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  SITUATION_CHOICES,
+  type StoreEconomicsForm,
+  type StoreSituation,
+} from "@/lib/store-profile";
+
+/**
+ * Champs du profil économique d'une boutique, partagés entre l'onboarding et
+ * l'écran d'édition. Composant purement présentationnel : il n'écrit jamais en base.
+ * Tous les champs sont facultatifs — vide signifie « non renseigné » (stocké `null`).
+ */
+export function StoreEconomicsFields({
+  value,
+  onChange,
+  idPrefix,
+  disabled,
+}: {
+  value: StoreEconomicsForm;
+  onChange: (next: StoreEconomicsForm) => void;
+  idPrefix: string;
+  disabled?: boolean;
+}) {
+  function upd<K extends keyof StoreEconomicsForm>(key: K, next: StoreEconomicsForm[K]) {
+    onChange({ ...value, [key]: next });
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <Label>Où en es-tu aujourd'hui ?</Label>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Ça oriente l'audit vers ce qui te bloque vraiment.
+        </p>
+        <RadioGroup
+          className="mt-3 gap-2"
+          value={value.situation}
+          onValueChange={(next) => upd("situation", next as StoreSituation)}
+          disabled={disabled}
+        >
+          {SITUATION_CHOICES.map((choice) => (
+            <label
+              key={choice.value}
+              htmlFor={`${idPrefix}-situation-${choice.value}`}
+              className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/60 bg-background/40 p-3 transition-colors hover:border-primary/40"
+            >
+              <RadioGroupItem
+                id={`${idPrefix}-situation-${choice.value}`}
+                value={choice.value}
+                className="mt-0.5"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{choice.label}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  {choice.description}
+                </span>
+              </span>
+            </label>
+          ))}
+        </RadioGroup>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`${idPrefix}-revenue-goal`}>Objectif de CA (€/mois)</Label>
+          <Input
+            id={`${idPrefix}-revenue-goal`}
+            type="number"
+            min="0"
+            step="100"
+            inputMode="decimal"
+            value={value.revenueGoal}
+            onChange={(e) => upd("revenueGoal", e.target.value)}
+            placeholder="5000"
+            disabled={disabled}
+          />
+        </div>
+        <div>
+          <Label htmlFor={`${idPrefix}-fixed-costs`}>Charges fixes (€/mois)</Label>
+          <Input
+            id={`${idPrefix}-fixed-costs`}
+            type="number"
+            min="0"
+            step="10"
+            inputMode="decimal"
+            value={value.fixedCostsMonthly}
+            onChange={(e) => upd("fixedCostsMonthly", e.target.value)}
+            placeholder="300"
+            disabled={disabled}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Abonnements, outils, logistique — hors budget publicitaire.
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor={`${idPrefix}-cost-percent`}>Coût produit moyen (% du prix de vente)</Label>
+        <Input
+          id={`${idPrefix}-cost-percent`}
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          inputMode="numeric"
+          value={value.costPercent}
+          onChange={(e) => upd("costPercent", e.target.value)}
+          placeholder="40"
+          disabled={disabled}
+          className="max-w-40"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Ce que te coûte un produit, en % de son prix de vente. Un produit acheté 20 € et vendu 50
+          € = 40 %. C'est ce qui permet de calculer ta marge et ton bénéfice réel.
+        </p>
+      </div>
+    </div>
+  );
+}

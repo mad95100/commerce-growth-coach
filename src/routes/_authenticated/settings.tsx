@@ -5,6 +5,12 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  DEFAULT_EXPERIENCE_LEVEL,
+  EXPERIENCE_CHOICES,
+  type ExperienceLevel,
+} from "@/lib/store-profile";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -15,14 +21,20 @@ export const Route = createFileRoute("/_authenticated/settings")({
 function SettingsPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel>(DEFAULT_EXPERIENCE_LEVEL);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
       setEmail(u.user?.email ?? "");
-      const { data: p } = await supabase.from("profiles").select("full_name").eq("user_id", u.user?.id ?? "").maybeSingle();
+      const { data: p } = await supabase
+        .from("profiles")
+        .select("full_name, experience_level")
+        .eq("user_id", u.user?.id ?? "")
+        .maybeSingle();
       setFullName(p?.full_name ?? "");
+      setExperienceLevel(p?.experience_level ?? DEFAULT_EXPERIENCE_LEVEL);
     })();
   }, []);
 
@@ -30,7 +42,10 @@ function SettingsPage() {
     setLoading(true);
     try {
       const { data: u } = await supabase.auth.getUser();
-      const { error } = await supabase.from("profiles").update({ full_name: fullName }).eq("user_id", u.user!.id);
+      const { error } = await supabase
+        .from("profiles")
+        .update({ full_name: fullName, experience_level: experienceLevel })
+        .eq("user_id", u.user!.id);
       if (error) throw error;
       toast.success("Profil mis à jour");
     } catch (err) {
@@ -51,6 +66,38 @@ function SettingsPage() {
         <div>
           <Label htmlFor="name">Ton prénom</Label>
           <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        </div>
+        <div>
+          <Label>Ton niveau en e-commerce</Label>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Ça ajuste le ton et le niveau de détail de tes audits.
+          </p>
+          <RadioGroup
+            className="mt-3 gap-2"
+            value={experienceLevel}
+            onValueChange={(next) => setExperienceLevel(next as ExperienceLevel)}
+            disabled={loading}
+          >
+            {EXPERIENCE_CHOICES.map((choice) => (
+              <label
+                key={choice.value}
+                htmlFor={`experience-${choice.value}`}
+                className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/60 bg-background/40 p-3 transition-colors hover:border-primary/40"
+              >
+                <RadioGroupItem
+                  id={`experience-${choice.value}`}
+                  value={choice.value}
+                  className="mt-0.5"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium">{choice.label}</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {choice.description}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </RadioGroup>
         </div>
         <Button onClick={save} disabled={loading} className="bg-gradient-primary text-primary-foreground">
           Enregistrer
