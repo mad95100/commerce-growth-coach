@@ -75,7 +75,10 @@ export async function updateConnectionById(
   userSupabase: Db,
   storeId: string,
   connectionId: string,
-  patch: Record<string, unknown>,
+  // Forme restreinte volontairement : seuls le compte visé et son libellé sont
+  // modifiables par ce chemin. Un sac de clés ouvert permettrait d'écrire
+  // `access_token_ciphertext` depuis une fonction qui n'a pas à le faire.
+  patch: { account_id?: string | null; account_label?: string | null },
 ): Promise<void> {
   await assertOwnsStore(userSupabase, storeId);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

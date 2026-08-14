@@ -283,9 +283,27 @@ export const confirmAction = createServerFn({ method: "POST" })
     );
 
     // Double écriture temporaire : l'UI existante lit encore audit_findings.
+    //
+    // `result` porte un bloc `revert` dont les données sont typées
+    // `Record<string, unknown>` : le compilateur refuse de l'écrire dans une
+    // colonne `jsonb`, et il a raison — rien ne garantit que ce contenu soit
+    // sérialisable. On n'écrit donc que ce que cette colonne doit contenir,
+    // c'est-à-dire ce que l'interface affiche.
+    // Exactement les champs que l'écran d'audit lit — ni plus, ni moins.
+    const appliedResult = {
+      action: result.action,
+      summary: result.summary,
+      detail: result.detail ?? null,
+      adminUrl: result.adminUrl ?? null,
+      channel: result.channel ?? null,
+    };
     await supabase
       .from("audit_findings")
-      .update({ applied_at: new Date().toISOString(), applied_result: result, status: "done" })
+      .update({
+        applied_at: new Date().toISOString(),
+        applied_result: appliedResult,
+        status: "done",
+      })
       .eq("id", finding.id);
 
     const { recordFixBaseline } = await import("@/lib/tracking.server");
