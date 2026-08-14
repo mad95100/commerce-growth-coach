@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Db } from "@/lib/actions.server";
 import {
   captureStoreMetrics,
   computeDeltas,
@@ -7,7 +7,8 @@ import {
   type StoreMetrics,
 } from "@/lib/metrics.server";
 
-type Db = SupabaseClient<any, any, any>;
+// Même type de client que le journal des actions : le redéclarer
+// réintroduirait des `any` déjà assumés une fois ailleurs.
 
 /**
  * Récupère les identifiants chiffrés des canaux actifs d'une boutique.
@@ -37,10 +38,16 @@ export async function loadChannelCredentials(
     .eq("store_id", storeId)
     .eq("status", "active");
 
-  const active = conns ?? [];
-  const shopify = active.find((c: any) => c.provider === "shopify");
-  const meta = active.find((c: any) => c.provider === "meta_ads");
-  const google = active.find((c: any) => c.provider === "google_ads");
+  type ConnRow = {
+    provider: string;
+    account_id: string | null;
+    access_token_ciphertext: string | null;
+    refresh_token_ciphertext: string | null;
+  };
+  const active = (conns ?? []) as ConnRow[];
+  const shopify = active.find((c) => c.provider === "shopify");
+  const meta = active.find((c) => c.provider === "meta_ads");
+  const google = active.find((c) => c.provider === "google_ads");
 
   return {
     ...(shopify?.account_id && shopify.access_token_ciphertext
@@ -125,7 +132,15 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
   // l'appelant, donc filtrées par RLS sur ses propres boutiques.
   const { supabaseAdmin: journal } = await import("@/integrations/supabase/client.server");
 
-  for (const row of rows as any[]) {
+  // Forme exploitée d'une ligne de suivi, nommée plutôt que laissée en `any` :
+  // le compilateur signale alors toute colonne mal orthographiée.
+  type OutcomeRow = {
+    id: string;
+    baseline: StoreMetrics | null;
+    applied_at: string;
+    expected_gain_min: number | null;
+  };
+  for (const row of (rows ?? []) as OutcomeRow[]) {
     const baseline = (row.baseline ?? {}) as StoreMetrics;
     const deltas = computeDeltas(baseline, latest);
     const verdict = judgeOutcome(deltas, row.applied_at, row.expected_gain_min ?? null);

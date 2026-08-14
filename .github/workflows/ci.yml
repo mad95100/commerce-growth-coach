@@ -1,0 +1,119 @@
+name: CI
+
+# Sur chaque PR et chaque poussée sur main. Rien d'autre : le but est de tenir
+# les garanties, pas de consommer des minutes de calcul.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Une PR mise à jour annule la vérification précédente, devenue caduque.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Tests — délibérément indépendants de l'installation complète
+  # ---------------------------------------------------------------------------
+  # Les dépendances du projet incluent des paquets servis par un registre privé.
+  # Si celui-ci est indisponible, une installation complète échoue et l'on perd
+  # TOUT signal, y compris sur du code qui n'en dépend en rien.
+  #
+  # Les tests n'ont besoin que de `jiti` (chargement TypeScript) et de `zod`
+  # (schémas de validation exercés par les garde-fous), tous deux publics. Ils
+  # sont donc installés seuls : ce travail donne un verdict même quand le reste
+  # ne peut pas s'installer.
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Installer les seules dépendances nécessaires aux tests
+        run: npm install --no-save --no-audit --no-fund jiti@^2.6.1 zod@^3.24.2
+
+      - name: Suite complète
+        run: npm test
+
+  # ---------------------------------------------------------------------------
+  # Typage et style — nécessitent l'installation complète
+  # ---------------------------------------------------------------------------
+  quality:
+    name: Typage et style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Installer les dépendances
+        run: bun install --frozen-lockfile
+
+      - name: Typage
+        run: bun run typecheck
+
+      - name: Style
+        run: bun run lint
+
+  # ---------------------------------------------------------------------------
+  # Contrôles de sécurité structurels
+  # ---------------------------------------------------------------------------
+  # Ces vérifications ne peuvent pas être laissées à la seule relecture : elles
+  # portent sur des invariants qu'une modification bien intentionnée casse
+  # facilement, et dont la rupture ne se voit pas à l'exécution.
+  security:
+    name: Sécurité
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Aucun secret versionné
+        run: |
+          # `.env` est suivi par git et ne doit contenir que des valeurs
+          # publiques. Un secret serveur qui y atterrit part dans l'historique,
+          # d'où on ne le retire plus.
+          FORBIDDEN='SHOPIFY_CLIENT_SECRET|OAUTH_STATE_SECRET|DATA_CONNECTIONS_ENCRYPTION_KEY|SUPABASE_SERVICE_ROLE_KEY|LOVABLE_API_KEY|GOOGLE_CLIENT_SECRET|META_CLIENT_SECRET|GOOGLE_ADS_DEVELOPER_TOKEN'
+          if [ -f .env ] && grep -qE "^\s*(export\s+)?($FORBIDDEN)\s*=\s*\S" .env; then
+            echo "::error file=.env::Un secret serveur est renseigné dans .env, qui est versionné."
+            exit 1
+          fi
+          echo "Aucun secret serveur renseigné dans un fichier versionné."
+
+      - name: Les jetons partenaires ne sont pas exposés au navigateur
+        run: |
+          # Les colonnes de jetons ne doivent jamais figurer dans un droit de
+          # lecture accordé au rôle `authenticated`, ni être demandées par du
+          # code qui s'exécute dans le navigateur.
+          if grep -rn "access_token_ciphertext\|refresh_token_ciphertext" src/components src/routes/_authenticated 2>/dev/null; then
+            echo "::error::Une colonne de jeton est référencée par du code client."
+            exit 1
+          fi
+          echo "Aucune colonne de jeton référencée côté navigateur."
+
+      # L'invariant « toute écriture sensible passe par le rôle de service » est
+      # vérifié par la suite tests/security/rls.test.ts, qui analyse les sources
+      # en multiligne et sait distinguer un module recevant son client en
+      # paramètre. Le refaire ici en shell donnerait un contrôle plus faible et
+      # deux endroits à maintenir.
+
+      - name: L'inventaire des tests est intact
+        run: |
+          # Le lanceur vérifie déjà les effectifs à l'exécution. Ce contrôle-ci
+          # attrape le cas où l'inventaire lui-même serait vidé pour faire
+          # passer la CI.
+          COUNT=$(grep -c 'file: "' tests/expected.ts)
+          if [ "$COUNT" -lt 11 ]; then
+            echo "::error file=tests/expected.ts::L'inventaire ne déclare plus que $COUNT suites, 11 attendues."
+            exit 1
+          fi
+          echo "$COUNT suites déclarées dans l'inventaire."

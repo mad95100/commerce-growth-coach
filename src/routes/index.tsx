@@ -29,7 +29,9 @@ function Landing() {
           </Link>
           <div className="flex items-center gap-2">
             <Link to="/auth">
-              <Button variant="ghost" size="sm">Se connecter</Button>
+              <Button variant="ghost" size="sm">
+                Se connecter
+              </Button>
             </Link>
             <Link to="/auth" search={{ mode: "signup" }}>
               <Button size="sm" className="bg-gradient-primary text-primary-foreground">
@@ -48,16 +50,20 @@ function Landing() {
             Chaque jour sans audit = de l'argent qui part
           </div>
           <h1 className="mt-6 font-display text-5xl font-bold leading-tight md:text-7xl">
-            Ta boutique perd de l'argent.<br />
+            Ta boutique perd de l'argent.
+            <br />
             <span className="text-gradient-primary">On te dit exactement où.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
-            EcomPilot AI audite ta boutique en 2 minutes, chiffre chaque fuite en euros
-            et génère les corrections prêtes à coller. Pas de blabla. Que du cash à récupérer.
+            EcomPilot AI audite ta boutique en 2 minutes, chiffre chaque fuite en euros et génère
+            les corrections prêtes à coller. Pas de blabla. Que du cash à récupérer.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Link to="/auth" search={{ mode: "signup" }}>
-              <Button size="lg" className="bg-gradient-primary text-primary-foreground glow-primary">
+              <Button
+                size="lg"
+                className="bg-gradient-primary text-primary-foreground glow-primary"
+              >
                 Auditer ma boutique maintenant
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -70,11 +76,15 @@ function Landing() {
             <div className="flex flex-col items-center gap-6 md:flex-row md:text-left">
               <ScoreCircle score={42} />
               <div className="flex-1">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">Score global</div>
-                <div className="mt-1 font-display text-2xl font-bold">Tu laisses ~2 400 €/mois sur la table</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Score global
+                </div>
+                <div className="mt-1 font-display text-2xl font-bold">
+                  Tu laisses ~2 400 €/mois sur la table
+                </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  3 fuites majeures identifiées. Toutes réparables cette semaine
-                  avec les textes qu'on te génère.
+                  3 fuites majeures identifiées. Toutes réparables cette semaine avec les textes
+                  qu'on te génère.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Tag color="destructive">Page produit qui tue la vente</Tag>
@@ -90,7 +100,9 @@ function Landing() {
         <section className="mx-auto max-w-5xl px-6 py-24">
           <div className="text-center">
             <h2 className="font-display text-4xl font-bold">3 étapes. Cash récupéré.</h2>
-            <p className="mt-3 text-muted-foreground">Zéro compétence technique. Zéro tableau de bord à lire.</p>
+            <p className="mt-3 text-muted-foreground">
+              Zéro compétence technique. Zéro tableau de bord à lire.
+            </p>
           </div>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
@@ -151,13 +163,17 @@ function Landing() {
         <section className="mx-auto max-w-4xl px-6 py-24">
           <div className="card-elevated rounded-3xl p-12 text-center">
             <h2 className="font-display text-4xl font-bold">
-              Arrête de brûler ton budget. <span className="text-gradient-primary">Récupère ton cash.</span>
+              Arrête de brûler ton budget.{" "}
+              <span className="text-gradient-primary">Récupère ton cash.</span>
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
               Ton premier audit est gratuit. Aucune installation. Aucune CB. Résultats en 2 minutes.
             </p>
             <Link to="/auth" search={{ mode: "signup" }}>
-              <Button size="lg" className="mt-8 bg-gradient-primary text-primary-foreground glow-primary">
+              <Button
+                size="lg"
+                className="mt-8 bg-gradient-primary text-primary-foreground glow-primary"
+              >
                 Lancer mon audit gratuit
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -168,7 +184,8 @@ function Landing() {
 
       <footer className="border-t border-border/40 py-8">
         <div className="mx-auto max-w-6xl px-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} EcomPilot AI — Fait pour les entrepreneurs qui veulent enfin vendre.
+          © {new Date().getFullYear()} EcomPilot AI — Fait pour les entrepreneurs qui veulent enfin
+          vendre.
         </div>
       </footer>
     </div>
@@ -183,7 +200,14 @@ function ScoreCircle({ score }: { score: number }) {
   return (
     <div className="relative flex h-32 w-32 items-center justify-center">
       <svg className="h-32 w-32 -rotate-90" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r={radius} stroke="oklch(1 0 0 / 0.1)" strokeWidth="10" fill="none" />
+        <circle
+          cx="60"
+          cy="60"
+          r={radius}
+          stroke="oklch(1 0 0 / 0.1)"
+          strokeWidth="10"
+          fill="none"
+        />
         <circle
           cx="60"
           cy="60"
@@ -204,7 +228,13 @@ function ScoreCircle({ score }: { score: number }) {
   );
 }
 
-function Tag({ children, color }: { children: React.ReactNode; color: "destructive" | "warning" | "success" }) {
+function Tag({
+  children,
+  color,
+}: {
+  children: React.ReactNode;
+  color: "destructive" | "warning" | "success";
+}) {
   const cls = {
     destructive: "bg-destructive/15 text-destructive border-destructive/30",
     warning: "bg-warning/15 text-warning border-warning/30",
