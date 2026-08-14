@@ -75,8 +75,7 @@ export type ActionProposal = {
 
 /** Réponse d'une proposition : soit une action à confirmer, soit rien à faire. */
 export type ProposeOutcome =
-  | { kind: "proposal"; proposal: ActionProposal }
-  | { kind: "no_action"; reason: string };
+  { kind: "proposal"; proposal: ActionProposal } | { kind: "no_action"; reason: string };
 
 /**
  * Sérialisation déterministe : clés d'objet triées, ordre des tableaux préservé.

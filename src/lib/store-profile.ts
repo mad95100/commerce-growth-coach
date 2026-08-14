@@ -131,14 +131,12 @@ export const storeEconomicsSchema = z
     costPercent: optionalPercent,
     fixedCostsMonthly: optionalAmount("Charges fixes"),
   })
-  .transform(
-    (form): StoreEconomicsPayload => ({
-      situation: form.situation,
-      revenue_goal: form.revenueGoal,
-      avg_product_cost_ratio: form.costPercent === null ? null : percentToRatio(form.costPercent),
-      fixed_costs_monthly: form.fixedCostsMonthly,
-    }),
-  );
+  .transform((form): StoreEconomicsPayload => ({
+    situation: form.situation,
+    revenue_goal: form.revenueGoal,
+    avg_product_cost_ratio: form.costPercent === null ? null : percentToRatio(form.costPercent),
+    fixed_costs_monthly: form.fixedCostsMonthly,
+  }));
 
 /** Valide le formulaire et renvoie la charge utile Supabase, ou le premier message d'erreur. */
 export function parseStoreEconomics(

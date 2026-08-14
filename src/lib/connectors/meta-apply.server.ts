@@ -140,8 +140,7 @@ export async function fetchMetaSnapshot(accountId: string, token: string): Promi
 
   const ads: MetaAd[] = adsRes.data.map((a) => {
     const creative = a.creative as
-      | { body?: string; title?: string; object_story_spec?: Record<string, unknown> }
-      | undefined;
+      { body?: string; title?: string; object_story_spec?: Record<string, unknown> } | undefined;
     return {
       id: String(a.id),
       name: String(a.name),

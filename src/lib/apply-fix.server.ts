@@ -827,8 +827,7 @@ export type PlanOutcome =
     };
 
 export async function planFixAcrossChannels(ctx: ApplyContext): Promise<PlanOutcome> {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY manquant");
+  const { aiChatCompletion, aiModel } = await import("@/lib/ai-gateway.server");
 
   const state = await collectChannelState(ctx);
   const { tools, contextBlocks } = buildToolsAndContext(ctx, state);
@@ -848,18 +847,14 @@ ${contextBlocks.join("\n\n") || "(aucun canal connecté)"}
 
 Applique maintenant la correction en appelant l'outil le plus pertinent.`;
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: APPLY_MODEL,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-      tools,
-      tool_choice: "required",
-    }),
+  const res = await aiChatCompletion({
+    model: aiModel("fix"),
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    tools,
+    tool_choice: "required",
   });
 
   if (!res.ok) {

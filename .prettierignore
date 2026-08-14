@@ -6,3 +6,13 @@ pnpm-lock.yaml
 package-lock.json
 bun.lock
 routeTree.gen.ts
+
+# Fichiers générés : les reformater produit d'énormes diffs sans valeur, et la
+# prochaine génération les écrase de toute façon.
+src/integrations/supabase/types.ts
+
+# Documentation et notes de projet : le formatage automatique y ajoute du bruit
+# de revue sans rien apporter.
+AGENTS.md
+.lovable/
+src/routes/README.md

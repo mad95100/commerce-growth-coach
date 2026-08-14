@@ -185,8 +185,7 @@ export const generateFix = createServerFn({ method: "POST" })
       finding.audits as { stores: { name: string; url: string | null; niche: string | null } }
     ).stores;
 
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY manquant");
+    const { aiChatCompletion, aiModel } = await import("@/lib/ai-gateway.server");
 
     const userPrompt = `Boutique : ${store.name}
 Niche : ${store.niche || "(non précisée)"}
@@ -220,21 +219,14 @@ Génère la correction prête à copier-coller adaptée à ce problème et à ce
       },
     };
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: FIX_MODEL,
-        messages: [
-          { role: "system", content: FIX_SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
-        ],
-        tools: [tool],
-        tool_choice: { type: "function", function: { name: "submit_fix" } },
-      }),
+    const res = await aiChatCompletion({
+      model: aiModel("fix"),
+      messages: [
+        { role: "system", content: FIX_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      tools: [tool],
+      tool_choice: { type: "function", function: { name: "submit_fix" } },
     });
 
     if (!res.ok) {
