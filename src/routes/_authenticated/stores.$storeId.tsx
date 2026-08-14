@@ -61,10 +61,12 @@ function StorePage() {
 
   async function handleAudit() {
     setLaunching(true);
-    toast.info("Audit en cours... l'IA analyse ta boutique.");
     try {
+      // La demande ne fait plus que créer l'audit : elle rend la main tout de
+      // suite, et l'analyse se poursuit sur la page de l'audit. On y navigue
+      // sans attendre, au lieu de bloquer sur une requête qui pouvait expirer.
       const res = await runAuditFn({ data: { storeId } });
-      toast.success("Audit terminé !");
+      toast.info("Audit lancé, l'IA analyse ta boutique.");
       navigate({ to: "/audits/$auditId", params: { auditId: res.auditId } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur audit");

@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
-import { updateFindingStatus, generateFix } from "@/lib/audit.functions";
+import { updateFindingStatus, generateFix, processAudit, getAuditJob } from "@/lib/audit.functions";
 import {
   proposeFix,
   confirmAction,
@@ -60,6 +60,8 @@ type Finding = {
 function AuditPage() {
   const { auditId } = Route.useParams();
   const qc = useQueryClient();
+  const processFn = useServerFn(processAudit);
+  const getJobFn = useServerFn(getAuditJob);
   const updateStatusFn = useServerFn(updateFindingStatus);
   const generateFixFn = useServerFn(generateFix);
   const proposeFixFn = useServerFn(proposeFix);
@@ -155,6 +157,34 @@ function AuditPage() {
       if (error) throw error;
       return data;
     },
+    // Tant que l'audit tourne, la page se rafraîchit : l'analyse se termine
+    // ailleurs, rien ne préviendra cet onglet autrement.
+    refetchInterval: (q) =>
+      (q.state.data as { status?: string } | undefined)?.status === "running" ? 3000 : false,
+  });
+
+  // Fait avancer le travail, et le reprend s'il a été interrompu.
+  //
+  // Chaque appel n'exécute qu'une tranche bornée : la réclamation étant
+  // atomique, en déclencher plusieurs ne produit jamais deux analyses. C'est ce
+  // qui rend la reprise sûre depuis n'importe quel onglet, y compris après un
+  // rechargement de page.
+  const jobQ = useQuery({
+    queryKey: ["audit-job", auditId],
+    queryFn: async () => {
+      const job = await getJobFn({ data: { auditId } });
+      if (job.resumable) {
+        await processFn({ data: { auditId } });
+        await qc.invalidateQueries({ queryKey: ["audit", auditId] });
+        await qc.invalidateQueries({ queryKey: ["findings", auditId] });
+        return await getJobFn({ data: { auditId } });
+      }
+      return job;
+    },
+    refetchInterval: (q) => {
+      const state = (q.state.data as { state?: string } | undefined)?.state;
+      return state === "completed" || state === "failed" ? false : 3000;
+    },
   });
 
   const findingsQ = useQuery({
@@ -235,7 +265,15 @@ function AuditPage() {
         <div className="card-elevated flex flex-col items-center rounded-2xl p-12 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <h1 className="mt-4 font-display text-xl">L'IA analyse ta boutique...</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Ça prend 30 à 90 secondes.</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {jobQ.data?.label ?? "Ça prend 30 à 90 secondes."}
+          </p>
+          {jobQ.data?.lastError && jobQ.data.state === "queued" && (
+            <p className="mt-3 max-w-md text-xs text-muted-foreground">
+              Une première tentative a échoué ({jobQ.data.lastError}). L'audit est repris
+              automatiquement.
+            </p>
+          )}
         </div>
       ) : audit.status === "failed" ? (
         <div className="card-elevated rounded-2xl p-8">
