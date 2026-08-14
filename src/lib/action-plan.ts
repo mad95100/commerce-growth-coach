@@ -126,3 +126,36 @@ export function revertibilityNotice(tool: string): string {
     ? "Tu pourras annuler cette action et revenir à l'état précédent."
     : "Cette action ne pourra pas être annulée automatiquement : il faudra revenir en arrière à la main dans ton compte.";
 }
+
+/**
+ * Clés monétaires héritées, renommées quand les devises sont devenues explicites.
+ *
+ * `daily_budget_eur` supposait l'euro alors qu'aucune conversion n'avait jamais
+ * lieu : la valeur était déjà dans la devise du compte publicitaire. La clé
+ * s'appelle désormais `daily_budget`.
+ *
+ * Les lignes `actions` écrites avant ce changement portent encore l'ancienne
+ * clé. Elles doivent rester annulables et leur état rester comparable : sans
+ * cette normalisation, la vérification de fraîcheur comparerait
+ * `{daily_budget_eur: 20}` à `{daily_budget: 20}` et refuserait à tort.
+ *
+ * On lit les deux formes, on n'écrit plus que la nouvelle.
+ */
+const LEGACY_MONEY_KEYS: Record<string, string> = {
+  daily_budget_eur: "daily_budget",
+};
+
+export function normalizeLegacyStateKeys<T>(value: T): T {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(normalizeLegacyStateKeys) as unknown as T;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    const renamed = LEGACY_MONEY_KEYS[key];
+    // Une clé déjà présente sous son nom actuel n'est jamais écrasée par
+    // l'ancienne : la valeur récente fait foi.
+    if (renamed && renamed in (value as Record<string, unknown>)) continue;
+    out[renamed ?? key] = normalizeLegacyStateKeys(nested);
+  }
+  return out as T;
+}

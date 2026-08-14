@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 /**
  * Annulation d'une action automatique déjà appliquée.
  *
@@ -112,11 +113,11 @@ export async function executeRevert(
           `L'ensemble de publicités ${input.targetRef}`,
         ),
       );
-      const applied = (input.afterValue as { daily_budget_eur?: number } | null)?.daily_budget_eur;
+      const applied = (input.afterValue as { daily_budget?: number } | null)?.daily_budget;
       if (
         applied != null &&
-        adset.daily_budget_eur != null &&
-        Math.abs(adset.daily_budget_eur - applied) > BUDGET_EPSILON
+        adset.daily_budget != null &&
+        Math.abs(adset.daily_budget - applied) > BUDGET_EPSILON
       ) {
         throw changedSince(`Le budget de « ${adset.name} »`);
       }
@@ -124,14 +125,15 @@ export async function executeRevert(
       const budget = unwrapGuard(
         guardDailyBudget({
           targetLabel: `« ${adset.name} »`,
-          requestedEur: before.daily_budget_eur,
-          currentDailyBudgetEur: adset.daily_budget_eur,
+          currency: state.metaSnap.currency,
+          requested: before.daily_budget,
+          currentDailyBudget: adset.daily_budget,
         }),
       );
       await metaUpdateBudget(adset.id, state.metaTok, budget);
       return {
         tool: input.tool,
-        detail: `Budget quotidien de « ${adset.name} » rétabli à ${budget} €`,
+        detail: `Budget quotidien de « ${adset.name} » rétabli à ${formatMoney(budget, state.metaSnap.currency)}`,
         adminUrl: metaAdsManagerUrl(ctx.meta.accountId),
       };
     }
@@ -167,19 +169,20 @@ export async function executeRevert(
           "La campagne visée",
         ),
       );
-      const applied = (input.afterValue as { daily_budget_eur?: number } | null)?.daily_budget_eur;
+      const applied = (input.afterValue as { daily_budget?: number } | null)?.daily_budget;
       if (
         applied != null &&
-        campaign.daily_budget_eur != null &&
-        Math.abs(campaign.daily_budget_eur - applied) > BUDGET_EPSILON
+        campaign.daily_budget != null &&
+        Math.abs(campaign.daily_budget - applied) > BUDGET_EPSILON
       ) {
         throw changedSince(`Le budget de « ${campaign.name} »`);
       }
       const budget = unwrapGuard(
         guardDailyBudget({
           targetLabel: `« ${campaign.name} »`,
-          requestedEur: before.daily_budget_eur,
-          currentDailyBudgetEur: campaign.daily_budget_eur,
+          currency: state.googleSnap.currency,
+          requested: before.daily_budget,
+          currentDailyBudget: campaign.daily_budget,
         }),
       );
       await googleUpdateBudget(
@@ -190,7 +193,7 @@ export async function executeRevert(
       );
       return {
         tool: input.tool,
-        detail: `Budget quotidien de « ${campaign.name} » rétabli à ${budget} €`,
+        detail: `Budget quotidien de « ${campaign.name} » rétabli à ${formatMoney(budget, state.googleSnap.currency)}`,
         adminUrl: googleAdsUrl(ctx.google.customerId),
       };
     }

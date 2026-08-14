@@ -1,3 +1,4 @@
+import { currencyLabel } from "@/lib/currency";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { captureStoreMetrics, type StoreMetrics } from "@/lib/metrics.server";
 import { loadChannelCredentials } from "@/lib/tracking.server";
@@ -27,6 +28,22 @@ export async function captureAndStoreSnapshot(
 
   const snapshot: StoreSnapshot = { ...metrics, unavailable };
 
+  // Détection automatique de la devise de la boutique : Shopify fait autorité.
+  // On la recopie sur `stores.currency` à chaque instantané, pour qu'un
+  // changement de devise de la boutique soit suivi sans intervention. Un échec
+  // n'interrompt rien : la devise reste celle déjà connue.
+  if (metrics.shopify?.currency) {
+    try {
+      await supabase
+        .from("stores")
+        .update({ currency: metrics.shopify.currency })
+        .eq("id", storeId)
+        .neq("currency", metrics.shopify.currency);
+    } catch {
+      /* la devise sera rafraîchie au prochain instantané */
+    }
+  }
+
   try {
     await supabase.from("data_snapshots").insert({
       store_id: storeId,
@@ -34,7 +51,8 @@ export async function captureAndStoreSnapshot(
       period_days: 30,
       payload: snapshot,
       partial: unavailable.length > 0,
-      error_message: unavailable.length > 0 ? `Sources indisponibles : ${unavailable.join(", ")}` : null,
+      error_message:
+        unavailable.length > 0 ? `Sources indisponibles : ${unavailable.join(", ")}` : null,
     });
   } catch {
     /* l'historisation ne doit jamais faire échouer un audit */
@@ -63,30 +81,56 @@ export async function getSnapshotAround(
 }
 
 function num(v: number | null | undefined, suffix = ""): string {
-  return v == null || !Number.isFinite(v) ? "donnée indisponible" : `${Math.round(v * 100) / 100}${suffix}`;
+  return v == null || !Number.isFinite(v)
+    ? "donnée indisponible"
+    : `${Math.round(v * 100) / 100}${suffix}`;
 }
 
 /** Bloc texte injecté dans le prompt IA : uniquement des chiffres réels, jamais d'invention. */
 export function snapshotToPromptBlock(
   snap: StoreSnapshot,
   previous: StoreMetrics | null,
-  currency = "EUR",
+  // Devise de la boutique. Aucune valeur par défaut : une devise inconnue est
+  // annoncée comme telle au modèle, jamais remplacée par l'euro.
+  storeCurrency: string | null = null,
 ): string {
   const lines: string[] = [];
+
+  // Chaque canal annonce SA devise. Meta et Google facturent dans celle de leur
+  // compte, qui n'est pas nécessairement celle de la boutique. Le modèle doit le
+  // voir, sans quoi il additionnerait des montants incomparables dans ses
+  // recommandations chiffrées.
+  const metaCurrency = currencyLabel(snap.meta?.currency ?? null);
+  const googleCurrency = currencyLabel(snap.google?.currency ?? null);
+  const shopCurrency = currencyLabel(snap.shopify?.currency ?? storeCurrency);
+
+  const currencies = new Set(
+    [snap.shopify?.currency ?? storeCurrency, snap.meta?.currency, snap.google?.currency].filter(
+      (c): c is string => Boolean(c),
+    ),
+  );
+  if (currencies.size > 1) {
+    lines.push(
+      `AVERTISSEMENT DEVISES : les canaux ci-dessous sont libellés dans des devises
+différentes (${[...currencies].join(", ")}). N'additionne, ne soustrais et ne compare
+jamais deux montants de devises différentes, et ne convertis pas : aucun taux de
+change n'est disponible. Raisonne canal par canal.`,
+    );
+  }
 
   if (snap.shopify) {
     lines.push(
       `SHOPIFY (30 derniers jours, données réelles) :
-- Chiffre d'affaires : ${num(snap.shopify.revenue_30d)} ${currency}
+- Chiffre d'affaires : ${num(snap.shopify.revenue_30d)} ${shopCurrency}
 - Commandes payées : ${num(snap.shopify.orders_30d)}
-- Panier moyen : ${num(snap.shopify.aov)} ${currency}`,
+- Panier moyen : ${num(snap.shopify.aov)} ${shopCurrency}`,
     );
   }
 
   if (snap.meta) {
     lines.push(
       `META ADS (30 derniers jours, données réelles) :
-- Dépense : ${num(snap.meta.spend)} ${currency}
+- Dépense : ${num(snap.meta.spend)} ${metaCurrency}
 - Achats attribués : ${num(snap.meta.purchases)}
 - ROAS : ${num(snap.meta.roas)}
 - CTR : ${num(snap.meta.ctr, " %")}`,
@@ -96,7 +140,7 @@ export function snapshotToPromptBlock(
   if (snap.google) {
     lines.push(
       `GOOGLE ADS (30 derniers jours, données réelles) :
-- Dépense : ${num(snap.google.cost)} ${currency}
+- Dépense : ${num(snap.google.cost)} ${googleCurrency}
 - Clics : ${num(snap.google.clicks)}
 - Conversions : ${num(snap.google.conversions)}
 - CTR : ${num(snap.google.ctr != null ? snap.google.ctr * 100 : null, " %")}
@@ -109,7 +153,9 @@ export function snapshotToPromptBlock(
     const curRev = snap.shopify?.revenue_30d ?? null;
     if (prevRev != null && curRev != null && prevRev > 0) {
       const pct = ((curRev - prevRev) / prevRev) * 100;
-      lines.push(`TENDANCE : le CA a évolué de ${pct >= 0 ? "+" : ""}${pct.toFixed(1)} % depuis la mesure précédente.`);
+      lines.push(
+        `TENDANCE : le CA a évolué de ${pct >= 0 ? "+" : ""}${pct.toFixed(1)} % depuis la mesure précédente.`,
+      );
     }
   }
 

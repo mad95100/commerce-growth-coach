@@ -1,3 +1,4 @@
+import { formatMoney, normalizeCurrency } from "@/lib/currency";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -148,7 +149,7 @@ function AuditPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("audits")
-        .select("*, stores(id, name)")
+        .select("*, stores(id, name, currency)")
         .eq("id", auditId)
         .single();
       if (error) throw error;
@@ -195,10 +196,26 @@ function AuditPage() {
     }
   }
 
-  if (auditQ.isLoading) return <AppShell><div>Chargement...</div></AppShell>;
-  if (!auditQ.data) return <AppShell><div>Audit introuvable</div></AppShell>;
+  if (auditQ.isLoading)
+    return (
+      <AppShell>
+        <div>Chargement...</div>
+      </AppShell>
+    );
+  if (!auditQ.data)
+    return (
+      <AppShell>
+        <div>Audit introuvable</div>
+      </AppShell>
+    );
   const audit = auditQ.data;
   const findings = findingsQ.data ?? [];
+
+  // Les gains sont estimés dans la devise de la boutique. Inconnue, elle est
+  // annoncée comme telle plutôt que supposée.
+  const storeCurrency = normalizeCurrency(
+    (audit?.stores as { currency?: string | null } | undefined)?.currency,
+  );
 
   const totalGainMin = findings.reduce((s, f) => s + (Number(f.estimated_gain_min) || 0), 0);
   const totalGainMax = findings.reduce((s, f) => s + (Number(f.estimated_gain_max) || 0), 0);
@@ -240,7 +257,11 @@ function AuditPage() {
                 {totalGainMax > 0 && (
                   <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-2 text-sm text-success">
                     <Zap className="h-4 w-4" />
-                    Gain potentiel : <strong>{Math.round(totalGainMin)} – {Math.round(totalGainMax)} €/mois</strong>
+                    Gain potentiel :{" "}
+                    <strong>
+                      {formatMoney(totalGainMin, storeCurrency)} –{" "}
+                      {formatMoney(totalGainMax, storeCurrency)}/mois
+                    </strong>
                   </div>
                 )}
               </div>
@@ -275,6 +296,7 @@ function AuditPage() {
                 <FindingCard
                   key={f.id}
                   finding={f}
+                  storeCurrency={storeCurrency}
                   onToggle={toggleDone}
                   onGenerateFix={handleGenerateFix}
                   onProposeFix={handleProposeFix}
@@ -298,13 +320,26 @@ function AuditPage() {
                 return (
                   <div key={tf}>
                     <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-                      {tf === "today" && <><Clock className="h-4 w-4 text-destructive" /> À faire aujourd'hui</>}
-                      {tf === "this_week" && <><Calendar className="h-4 w-4 text-warning" /> Cette semaine</>}
-                      {tf === "this_month" && <><Calendar className="h-4 w-4 text-info" /> Ce mois-ci</>}
+                      {tf === "today" && (
+                        <>
+                          <Clock className="h-4 w-4 text-destructive" /> À faire aujourd'hui
+                        </>
+                      )}
+                      {tf === "this_week" && (
+                        <>
+                          <Calendar className="h-4 w-4 text-warning" /> Cette semaine
+                        </>
+                      )}
+                      {tf === "this_month" && (
+                        <>
+                          <Calendar className="h-4 w-4 text-info" /> Ce mois-ci
+                        </>
+                      )}
                     </div>
                     <div className="space-y-3">
                       {items.map((f) => (
                         <FindingCard
+                          storeCurrency={storeCurrency}
                           key={f.id}
                           finding={f}
                           onToggle={toggleDone}
@@ -372,6 +407,7 @@ function AuditPage() {
 
 function FindingCard({
   finding,
+  storeCurrency,
   onToggle,
   onGenerateFix,
   onProposeFix,
@@ -386,6 +422,8 @@ function FindingCard({
   reverting,
   compact,
 }: {
+  /** Devise de la boutique, pour chiffrer les gains estimés. `null` si inconnue. */
+  storeCurrency: string | null;
   finding: Finding;
   onToggle: (id: string, current: string) => void;
   onGenerateFix: (id: string) => void;
@@ -401,12 +439,13 @@ function FindingCard({
   reverting?: boolean;
   compact?: boolean;
 }) {
-  const sevColor = {
-    critical: "bg-destructive/15 text-destructive border-destructive/30",
-    high: "bg-warning/15 text-warning border-warning/30",
-    medium: "bg-info/15 text-info border-info/30",
-    low: "bg-muted text-muted-foreground border-border",
-  }[finding.severity] || "bg-muted";
+  const sevColor =
+    {
+      critical: "bg-destructive/15 text-destructive border-destructive/30",
+      high: "bg-warning/15 text-warning border-warning/30",
+      medium: "bg-info/15 text-info border-info/30",
+      low: "bg-muted text-muted-foreground border-border",
+    }[finding.severity] || "bg-muted";
   const steps = Array.isArray(finding.action_steps)
     ? (finding.action_steps as Array<{ text: string }>)
     : [];
@@ -432,8 +471,16 @@ function FindingCard({
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${sevColor}`}>
-              {finding.severity === "critical" ? "Critique" : finding.severity === "high" ? "Important" : finding.severity === "medium" ? "Moyen" : "Mineur"}
+            <span
+              className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${sevColor}`}
+            >
+              {finding.severity === "critical"
+                ? "Critique"
+                : finding.severity === "high"
+                  ? "Important"
+                  : finding.severity === "medium"
+                    ? "Moyen"
+                    : "Mineur"}
             </span>
             <span className="text-xs text-muted-foreground uppercase">{finding.category}</span>
           </div>
@@ -515,8 +562,9 @@ function FindingCard({
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {(finding.estimated_gain_max ?? 0) > 0 && (
               <div className="inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 text-sm text-success">
-                <Zap className="h-3 w-3" />
-                +{Math.round(Number(finding.estimated_gain_min))} à {Math.round(Number(finding.estimated_gain_max))} €/mois
+                <Zap className="h-3 w-3" />+
+                {formatMoney(Number(finding.estimated_gain_min), storeCurrency)} à{" "}
+                {formatMoney(Number(finding.estimated_gain_max), storeCurrency)}/mois
               </div>
             )}
             {!applied && !proposal && (
@@ -557,9 +605,13 @@ function FindingCard({
                 disabled={fixing}
               >
                 {fixing ? (
-                  <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> L'IA écrit...</>
+                  <>
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" /> L'IA écrit...
+                  </>
                 ) : (
-                  <><Wand2 className="mr-2 h-3 w-3" /> Générer le texte</>
+                  <>
+                    <Wand2 className="mr-2 h-3 w-3" /> Générer le texte
+                  </>
                 )}
               </Button>
             )}

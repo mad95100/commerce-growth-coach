@@ -1,3 +1,4 @@
+import { normalizeLegacyStateKeys } from "@/lib/action-plan";
 /**
  * Journal des actions automatiques (table `actions`).
  *
@@ -96,7 +97,15 @@ export async function loadProposal(supabase: Db, actionId: string): Promise<Prop
     .eq("id", actionId)
     .maybeSingle();
   if (error) throw error;
-  return (data as ProposalRow | null) ?? null;
+  const row = (data as ProposalRow | null) ?? null;
+  if (!row) return null;
+  // Point d'entrée unique des états stockés : les clés héritées y sont
+  // ramenées à leur nom actuel, une fois, pour tous les consommateurs.
+  return {
+    ...row,
+    before_value: normalizeLegacyStateKeys(row.before_value),
+    after_value: normalizeLegacyStateKeys(row.after_value),
+  };
 }
 
 /**

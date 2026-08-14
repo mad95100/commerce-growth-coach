@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { currencyLabel, normalizeCurrency } from "@/lib/currency";
 import { z } from "zod";
 import { extractJsonBlock } from "@/lib/audit-parse";
 import {
@@ -8,7 +9,6 @@ import {
   computePotential,
   computePriority,
 } from "@/lib/scoring";
-
 
 const AUDIT_INPUT = z.object({ storeId: z.string().uuid() });
 
@@ -87,12 +87,11 @@ export const runAudit = createServerFn({ method: "POST" })
     if (!key) throw new Error("LOVABLE_API_KEY manquant");
 
     // Données réelles de toutes les sources connectées (tolérant aux pannes)
-    const { captureAndStoreSnapshot, getSnapshotAround, snapshotToPromptBlock } = await import(
-      "@/lib/snapshots.server"
-    );
+    const { captureAndStoreSnapshot, getSnapshotAround, snapshotToPromptBlock } =
+      await import("@/lib/snapshots.server");
     const snapshot = await captureAndStoreSnapshot(supabase as never, store.id);
     const previous = await getSnapshotAround(supabase as never, store.id, 7);
-    const dataBlock = snapshotToPromptBlock(snapshot, previous, store.currency ?? "EUR");
+    const dataBlock = snapshotToPromptBlock(snapshot, previous, normalizeCurrency(store.currency));
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -118,16 +117,22 @@ export const runAudit = createServerFn({ method: "POST" })
               ? "Situation : DU CA MAIS PAS RENTABLE. Priorise marge, coût d'acquisition, ROAS minimum rentable."
               : "Situation non précisée.";
 
+    // Les montants déclarés par l'utilisateur sont dans la devise de sa
+    // boutique. Le modèle doit la connaître : sans elle il raisonnerait en
+    // euros par habitude et chiffrerait ses recommandations dans la mauvaise unité.
+    const storeCurrency = normalizeCurrency(store.currency);
+
     const userPrompt = `Voici les infos de la boutique à auditer :
 
 - Nom : ${store.name}
 - URL : ${store.url || "(non fournie)"}
 - Niche : ${store.niche || "(non précisée)"}
-- Chiffre d'affaires déclaré : ${store.monthly_revenue ? `${store.monthly_revenue} €/mois` : "(non renseigné)"}
-- Budget pub déclaré : ${store.monthly_ad_budget ? `${store.monthly_ad_budget} €/mois` : "(non renseigné)"}
-- Objectif de CA : ${store.revenue_goal ? `${store.revenue_goal} €/mois` : store.goal || "(non précisé)"}
+- Devise de la boutique : ${currencyLabel(storeCurrency)}
+- Chiffre d'affaires déclaré : ${store.monthly_revenue ? `${store.monthly_revenue} ${currencyLabel(storeCurrency)}/mois` : "(non renseigné)"}
+- Budget pub déclaré : ${store.monthly_ad_budget ? `${store.monthly_ad_budget} ${currencyLabel(storeCurrency)}/mois` : "(non renseigné)"}
+- Objectif de CA : ${store.revenue_goal ? `${store.revenue_goal} ${currencyLabel(storeCurrency)}/mois` : store.goal || "(non précisé)"}
 - Coût produit moyen : ${store.avg_product_cost_ratio ? `${Math.round(store.avg_product_cost_ratio * 100)} % du prix de vente` : "(non renseigné)"}
-- Charges fixes : ${store.fixed_costs_monthly ? `${store.fixed_costs_monthly} €/mois` : "(non renseignées)"}
+- Charges fixes : ${store.fixed_costs_monthly ? `${store.fixed_costs_monthly} ${currencyLabel(storeCurrency)}/mois` : "(non renseignées)"}
 
 ${levelHint}
 ${situationHint}
@@ -223,7 +228,6 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
                   "confidence",
                   "evidence",
                 ],
-
               },
             },
           },
@@ -358,10 +362,12 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
 export const updateFindingStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
-    z.object({
-      findingId: z.string().uuid(),
-      status: z.enum(["todo", "in_progress", "done"]),
-    }).parse(input),
+    z
+      .object({
+        findingId: z.string().uuid(),
+        status: z.enum(["todo", "in_progress", "done"]),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
@@ -394,9 +400,7 @@ RÈGLES :
 
 export const generateFix = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) =>
-    z.object({ findingId: z.string().uuid() }).parse(input),
-  )
+  .inputValidator((input: unknown) => z.object({ findingId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
 
@@ -407,7 +411,9 @@ export const generateFix = createServerFn({ method: "POST" })
       .single();
     if (fErr || !finding) throw new Error("Problème introuvable");
 
-    const store = (finding.audits as { stores: { name: string; url: string | null; niche: string | null } }).stores;
+    const store = (
+      finding.audits as { stores: { name: string; url: string | null; niche: string | null } }
+    ).stores;
 
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("LOVABLE_API_KEY manquant");
@@ -464,7 +470,8 @@ Génère la correction prête à copier-coller adaptée à ce problème et à ce
     if (!res.ok) {
       const errText = await res.text();
       if (res.status === 429) throw new Error("Trop de demandes, réessaie dans une minute.");
-      if (res.status === 402) throw new Error("Crédits IA épuisés — passe à l'offre Pro pour continuer.");
+      if (res.status === 402)
+        throw new Error("Crédits IA épuisés — passe à l'offre Pro pour continuer.");
       throw new Error(`AI Gateway ${res.status}: ${errText}`);
     }
 

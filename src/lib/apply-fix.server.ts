@@ -1,3 +1,4 @@
+import { currencyLabel, formatMoney } from "@/lib/currency";
 import {
   createDiscountCode,
   getToken,
@@ -68,14 +69,15 @@ RÈGLES Shopify :
 
 RÈGLES Meta Ads :
 - Ne coupe un ensemble de pubs que s'il a dépensé sans conversions (ROAS < 1 sur dépense significative).
-- Budget : variation raisonnable (-50% à +100% du budget actuel), jamais sous 5 € / jour.
+- Budget : variation raisonnable (-50% à +100% du budget actuel), jamais sous 5 / jour
+  dans la devise du compte publicitaire indiquée ci-dessous.
 - Créa : texte principal accrocheur (max 125 caractères idéalement), titre max 40 caractères, français impeccable, bénéfice + preuve + appel à l'action.
 - Ciblage : n'élargis/resserre que si les données le justifient (CTR faible, CPC élevé).
 
 RÈGLES Google Ads :
 - Titres RSA max 30 caractères, descriptions max 90 caractères, au moins 5 titres et 2 descriptions.
 - Mots-clés à exclure : uniquement des requêtes clairement non acheteuses (gratuit, occasion, emploi, avis, pdf...).
-- Budget : jamais sous 5 € / jour.`;
+- Budget : jamais sous 5 / jour, dans la devise du compte publicitaire indiquée ci-dessous.`;
 
 export type ApplyResult = {
   action: string;
@@ -216,17 +218,20 @@ function buildToolsAndContext(
 
   const metaSnap = state.metaSnap;
   if (ctx.meta && metaSnap) {
+    // La devise du compte accompagne chaque montant : le modèle propose des
+    // budgets chiffrés, il doit savoir dans quelle unité il raisonne.
+    const metaCur = currencyLabel(metaSnap.currency);
     contextBlocks.push(
-      `META ADS (${ctx.meta.accountId}) — ensembles de pubs (30j) :\n` +
+      `META ADS (${ctx.meta.accountId}, devise ${metaCur}) — ensembles de pubs (30j) :\n` +
         (metaSnap.adsets.length
           ? metaSnap.adsets
               .map(
                 (a) =>
-                  `- adset ${a.id} | "${a.name}" | ${a.status} | budget/j ${a.daily_budget_eur ?? "?"}€ | dépense ${
+                  `- adset ${a.id} | "${a.name}" | ${a.status} | budget/j ${a.daily_budget ?? "?"} ${metaCur} | dépense ${
                     a.spend ?? 0
-                  }€ | achats ${a.purchases ?? 0} | ROAS ${a.roas ?? 0} | CTR ${a.ctr ?? 0}% | CPC ${
+                  } ${metaCur} | achats ${a.purchases ?? 0} | ROAS ${a.roas ?? 0} | CTR ${a.ctr ?? 0}% | CPC ${
                     a.cpc ?? 0
-                  }€ | ciblage : ${a.targeting_summary}`,
+                  } ${metaCur} | ciblage : ${a.targeting_summary}`,
               )
               .join("\n")
           : "(aucun ensemble de pubs)") +
@@ -246,8 +251,8 @@ function buildToolsAndContext(
       tool(
         "meta_update_budget",
         "Change le budget quotidien d'un ensemble de publicités Meta",
-        { adset_id: S, daily_budget_eur: N, summary: S },
-        ["adset_id", "daily_budget_eur", "summary"],
+        { adset_id: S, daily_budget: N, summary: S },
+        ["adset_id", "daily_budget", "summary"],
       ),
       tool(
         "meta_pause_adset",
@@ -279,15 +284,16 @@ function buildToolsAndContext(
 
   const googleSnap = state.googleSnap;
   if (ctx.google && googleSnap) {
+    const googleCur = currencyLabel(googleSnap.currency);
     contextBlocks.push(
-      `GOOGLE ADS (${ctx.google.customerId}) — campagnes (30j) :\n` +
+      `GOOGLE ADS (${ctx.google.customerId}, devise ${googleCur}) — campagnes (30j) :\n` +
         (googleSnap.campaigns.length
           ? googleSnap.campaigns
               .map(
                 (c) =>
                   `- campagne ${c.resource_name} | "${c.name}" | ${c.status} | ${c.channel} | budget ${
                     c.budget_resource_name ?? "?"
-                  } (${c.daily_budget_eur ?? "?"}€/j) | coût ${c.cost_30d}€ | clics ${c.clicks_30d} | conversions ${
+                  } (${c.daily_budget ?? "?"} ${googleCur}/j) | coût ${c.cost_30d} ${googleCur} | clics ${c.clicks_30d} | conversions ${
                     c.conversions_30d
                   } | CTR ${c.ctr_30d}`,
               )
@@ -309,8 +315,8 @@ function buildToolsAndContext(
       tool(
         "google_update_budget",
         "Change le budget quotidien d'une campagne Google Ads",
-        { budget_resource_name: S, daily_budget_eur: N, summary: S },
-        ["budget_resource_name", "daily_budget_eur", "summary"],
+        { budget_resource_name: S, daily_budget: N, summary: S },
+        ["budget_resource_name", "daily_budget", "summary"],
       ),
       tool(
         "google_pause_campaign",
@@ -367,12 +373,16 @@ type ValidatedAction =
       args: ToolArgs<"meta_update_budget">;
       adset: MetaAdSet;
       budget: number;
+      /** Devise du compte publicitaire, pour formater les montants en aval. */
+      currency: string | null;
     }
   | {
       kind: "meta_pause_adset";
       args: ToolArgs<"meta_pause_adset">;
       adset: MetaAdSet;
       evidence: { spend: number; roas: number };
+      /** Devise du compte publicitaire, pour formater les montants en aval. */
+      currency: string | null;
     }
   | { kind: "meta_update_targeting"; args: ToolArgs<"meta_update_targeting">; adset: MetaAdSet }
   | { kind: "meta_update_creative"; args: ToolArgs<"meta_update_creative">; ad: MetaAd }
@@ -381,12 +391,16 @@ type ValidatedAction =
       args: ToolArgs<"google_update_budget">;
       campaign: GoogleCampaign;
       budget: number;
+      /** Devise du compte publicitaire, pour formater les montants en aval. */
+      currency: string | null;
     }
   | {
       kind: "google_pause_campaign";
       args: ToolArgs<"google_pause_campaign">;
       campaign: GoogleCampaign;
       evidence: { cost: number; conversions: number };
+      /** Devise du compte publicitaire, pour formater les montants en aval. */
+      currency: string | null;
     }
   | {
       kind: "google_add_negative_keywords";
@@ -437,11 +451,14 @@ export function validateAgainstState(
       const budget = unwrapGuard(
         guardDailyBudget({
           targetLabel: `« ${adset.name} »`,
-          requestedEur: args.daily_budget_eur,
-          currentDailyBudgetEur: adset.daily_budget_eur,
+          // Les seuils s'appliquent aux montants tels que Meta les renvoie,
+          // donc dans la devise du compte publicitaire.
+          currency: state.metaSnap.currency,
+          requested: args.daily_budget,
+          currentDailyBudget: adset.daily_budget,
         }),
       );
-      return { kind: toolName, args, adset, budget };
+      return { kind: toolName, args, adset, budget, currency: state.metaSnap.currency };
     }
 
     case "meta_pause_adset": {
@@ -454,9 +471,14 @@ export function validateAgainstState(
         ),
       );
       const evidence = unwrapGuard(
-        guardMetaPause({ targetLabel: `« ${adset.name} »`, spend: adset.spend, roas: adset.roas }),
+        guardMetaPause({
+          targetLabel: `« ${adset.name} »`,
+          currency: state.metaSnap.currency,
+          spend: adset.spend,
+          roas: adset.roas,
+        }),
       );
-      return { kind: toolName, args, adset, evidence };
+      return { kind: toolName, args, adset, evidence, currency: state.metaSnap.currency };
     }
 
     case "meta_update_targeting": {
@@ -498,11 +520,12 @@ export function validateAgainstState(
       const budget = unwrapGuard(
         guardDailyBudget({
           targetLabel: `« ${campaign.name} »`,
-          requestedEur: args.daily_budget_eur,
-          currentDailyBudgetEur: campaign.daily_budget_eur,
+          currency: state.googleSnap.currency,
+          requested: args.daily_budget,
+          currentDailyBudget: campaign.daily_budget,
         }),
       );
-      return { kind: toolName, args, campaign, budget };
+      return { kind: toolName, args, campaign, budget, currency: state.googleSnap.currency };
     }
 
     case "google_pause_campaign": {
@@ -519,11 +542,12 @@ export function validateAgainstState(
       const evidence = unwrapGuard(
         guardGooglePause({
           targetLabel: `« ${campaign.name} »`,
+          currency: state.googleSnap.currency,
           cost30d: campaign.cost_30d,
           conversions30d: campaign.conversions_30d,
         }),
       );
-      return { kind: toolName, args, campaign, evidence };
+      return { kind: toolName, args, campaign, evidence, currency: state.googleSnap.currency };
     }
 
     case "google_add_negative_keywords": {
@@ -631,13 +655,13 @@ export function describeValidated(v: ValidatedAction): ActionDescription {
         title: "Changer le budget quotidien",
         targetRef: v.adset.id,
         targetLabel: `Ensemble de publicités « ${v.adset.name} »`,
-        beforeValue: { daily_budget_eur: v.adset.daily_budget_eur },
-        afterValue: { daily_budget_eur: v.budget },
+        beforeValue: { daily_budget: v.adset.daily_budget },
+        afterValue: { daily_budget: v.budget },
         lines: [
           {
             label: "Budget quotidien",
-            before: `${v.adset.daily_budget_eur} €`,
-            after: `${v.budget} €`,
+            before: formatMoney(v.adset.daily_budget, v.currency),
+            after: formatMoney(v.budget, v.currency),
           },
         ],
       };
@@ -655,7 +679,7 @@ export function describeValidated(v: ValidatedAction): ActionDescription {
           {
             label: "Justification mesurée",
             before: null,
-            after: `${Math.round(v.evidence.spend)} € dépensés sur 30 jours, ROAS ${v.evidence.roas.toFixed(2)}`,
+            after: `${formatMoney(v.evidence.spend, v.currency)} dépensés sur 30 jours, ROAS ${v.evidence.roas.toFixed(2)}`,
           },
         ],
       };
@@ -719,13 +743,13 @@ export function describeValidated(v: ValidatedAction): ActionDescription {
         title: "Changer le budget quotidien",
         targetRef: v.args.budget_resource_name,
         targetLabel: `Campagne « ${v.campaign.name} »`,
-        beforeValue: { daily_budget_eur: v.campaign.daily_budget_eur },
-        afterValue: { daily_budget_eur: v.budget },
+        beforeValue: { daily_budget: v.campaign.daily_budget },
+        afterValue: { daily_budget: v.budget },
         lines: [
           {
             label: "Budget quotidien",
-            before: `${v.campaign.daily_budget_eur} €`,
-            after: `${v.budget} €`,
+            before: formatMoney(v.campaign.daily_budget, v.currency),
+            after: formatMoney(v.budget, v.currency),
           },
         ],
       };
@@ -743,7 +767,7 @@ export function describeValidated(v: ValidatedAction): ActionDescription {
           {
             label: "Justification mesurée",
             before: null,
-            after: `${Math.round(v.evidence.cost)} € dépensés sur 30 jours, 0 conversion`,
+            after: `${formatMoney(v.evidence.cost, v.currency)} dépensés sur 30 jours, 0 conversion`,
           },
         ],
       };
@@ -940,10 +964,10 @@ async function writeValidated(
         action: v.kind,
         channel: "meta_ads",
         summary: reason ?? "Budget publicitaire ajusté.",
-        detail: `Budget quotidien de « ${v.adset.name} » : ${v.adset.daily_budget_eur} € → ${v.budget} €`,
+        detail: `Budget quotidien de « ${v.adset.name} » : ${formatMoney(v.adset.daily_budget, v.currency)} → ${formatMoney(v.budget, v.currency)}`,
         adminUrl: metaAdsManagerUrl(ctx.meta!.accountId),
         // guardDailyBudget garantit un budget antérieur connu et strictement positif.
-        revert: { supported: v.adset.daily_budget_eur != null, data: {} },
+        revert: { supported: v.adset.daily_budget != null, data: {} },
       };
     }
 
@@ -953,7 +977,7 @@ async function writeValidated(
         action: v.kind,
         channel: "meta_ads",
         summary: reason ?? "Ensemble de publicités mis en pause.",
-        detail: `« ${v.adset.name} » mis en pause : ${Math.round(v.evidence.spend)} € dépensés sur 30 jours pour un ROAS de ${v.evidence.roas.toFixed(2)}`,
+        detail: `« ${v.adset.name} » mis en pause : ${formatMoney(v.evidence.spend, v.currency)} dépensés sur 30 jours pour un ROAS de ${v.evidence.roas.toFixed(2)}`,
         adminUrl: metaAdsManagerUrl(ctx.meta!.accountId),
         // On ne sait rétablir que les statuts qu'on s'autorise à écrire.
         revert: { supported: v.adset.status === "ACTIVE", data: {} },
@@ -1011,9 +1035,9 @@ async function writeValidated(
         action: v.kind,
         channel: "google_ads",
         summary: reason ?? "Budget publicitaire ajusté.",
-        detail: `Budget quotidien de « ${v.campaign.name} » : ${v.campaign.daily_budget_eur} € → ${v.budget} €`,
+        detail: `Budget quotidien de « ${v.campaign.name} » : ${formatMoney(v.campaign.daily_budget, v.currency)} → ${formatMoney(v.budget, v.currency)}`,
         adminUrl: googleAdsUrl(ctx.google!.customerId),
-        revert: { supported: v.campaign.daily_budget_eur != null, data: {} },
+        revert: { supported: v.campaign.daily_budget != null, data: {} },
       };
     }
 
@@ -1023,7 +1047,7 @@ async function writeValidated(
         action: v.kind,
         channel: "google_ads",
         summary: reason ?? "Campagne mise en pause.",
-        detail: `« ${v.campaign.name} » mise en pause : ${Math.round(v.evidence.cost)} € dépensés sur 30 jours pour 0 conversion`,
+        detail: `« ${v.campaign.name} » mise en pause : ${formatMoney(v.evidence.cost, v.currency)} dépensés sur 30 jours pour 0 conversion`,
         adminUrl: googleAdsUrl(ctx.google!.customerId),
         revert: { supported: v.campaign.status === "ENABLED", data: {} },
       };

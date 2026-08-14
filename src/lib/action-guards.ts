@@ -12,20 +12,35 @@
  *
  * Module pur : aucune I/O, aucun accès base, aucun appel réseau.
  */
+import { formatMoney } from "@/lib/currency";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
 // Bornes (arbitrées avec le porteur du produit)
 // ---------------------------------------------------------------------------
 
-/** Budget quotidien minimum, tous canaux publicitaires. */
-export const BUDGET_FLOOR_EUR = 5;
-/** Plafond absolu d'une AUGMENTATION de budget quotidien. */
-export const BUDGET_ABSOLUTE_CAP_EUR = 100;
-/** Une augmentation ne peut jamais dépasser ce multiple du budget actuel. */
+/**
+ * DEVISE DES SEUILS CI-DESSOUS.
+ *
+ * Ces bornes s'appliquent aux montants tels que la plateforme publicitaire les
+ * renvoie, donc DANS LA DEVISE DU COMPTE PUBLICITAIRE. Elles portaient le
+ * suffixe `_EUR`, ce qui laissait croire à une conversion inexistante : aucune
+ * conversion n'a jamais eu lieu, la comparaison se faisait déjà sur le nombre
+ * brut, quelle que soit la devise du compte.
+ *
+ * Le suffixe est donc retiré et la devise remontée jusqu'aux messages, pour que
+ * l'utilisateur lise « minimum 5 USD » et non un montant sans unité. Convertir
+ * ces seuils demanderait un taux de change, dont le produit ne dispose pas.
+ */
+
+/** Budget quotidien minimum, tous canaux publicitaires, dans la devise du compte. */
+export const BUDGET_FLOOR = 5;
+/** Plafond absolu d'une AUGMENTATION de budget quotidien, dans la devise du compte. */
+export const BUDGET_ABSOLUTE_CAP = 100;
+/** Une augmentation ne peut jamais dépasser ce multiple du budget actuel. Sans unité. */
 export const BUDGET_MAX_MULTIPLIER = 2;
-/** Dépense minimale sur 30 jours en dessous de laquelle une mise en pause est refusée. */
-export const PAUSE_MIN_SPEND_EUR = 50;
+/** Dépense minimale sur 30 jours sous laquelle une pause est refusée, dans la devise du compte. */
+export const PAUSE_MIN_SPEND = 50;
 
 export const DISCOUNT_MIN_PERCENT = 5;
 export const DISCOUNT_MAX_PERCENT = 25;
@@ -107,7 +122,7 @@ const TOOL_SCHEMAS = {
   }),
   meta_update_budget: z.object({
     adset_id: ref,
-    daily_budget_eur: numberish,
+    daily_budget: numberish,
     summary,
   }),
   meta_pause_adset: z.object({
@@ -131,7 +146,7 @@ const TOOL_SCHEMAS = {
   }),
   google_update_budget: z.object({
     budget_resource_name: ref,
-    daily_budget_eur: numberish,
+    daily_budget: numberish,
     summary,
   }),
   google_pause_campaign: z.object({
@@ -186,8 +201,14 @@ export function parseToolArgs<N extends ToolName>(name: N, raw: unknown): GuardR
 // Garde-fous métier
 // ---------------------------------------------------------------------------
 
-function eur(value: number): string {
-  return `${Math.round(value * 100) / 100} €`;
+/**
+ * Formate un montant dans la devise du compte concerné.
+ *
+ * Devise inconnue : le montant est affiché suivi de la mention explicite, pour
+ * qu'aucun message ne laisse croire à une devise qui n'a pas été constatée.
+ */
+function amount(value: number, currency: string | null): string {
+  return formatMoney(value, currency);
 }
 
 /**
@@ -199,50 +220,43 @@ function eur(value: number): string {
  */
 export function guardDailyBudget(input: {
   targetLabel: string;
-  requestedEur: number;
-  currentDailyBudgetEur: number | null | undefined;
+  /** Devise du compte publicitaire, code ISO 4217, ou `null` si indéterminée. */
+  currency: string | null;
+  requested: number;
+  currentDailyBudget: number | null | undefined;
 }): GuardResult<number> {
-  const { targetLabel, requestedEur, currentDailyBudgetEur } = input;
+  const { targetLabel, requested, currentDailyBudget, currency } = input;
 
-  if (!Number.isFinite(requestedEur)) {
+  if (!Number.isFinite(requested)) {
     return refuse(`Budget proposé illisible pour ${targetLabel}. Rien n'a été modifié.`);
   }
 
   if (
-    currentDailyBudgetEur == null ||
-    !Number.isFinite(currentDailyBudgetEur) ||
-    currentDailyBudgetEur <= 0
+    currentDailyBudget == null ||
+    !Number.isFinite(currentDailyBudget) ||
+    currentDailyBudget <= 0
   ) {
     return refuse(
       `Je ne connais pas le budget quotidien actuel de ${targetLabel} : je ne modifie pas un budget à l'aveugle. Rien n'a été modifié.`,
     );
   }
 
-  if (requestedEur < BUDGET_FLOOR_EUR) {
+  if (requested < BUDGET_FLOOR) {
     return refuse(
-      `Budget proposé trop bas pour ${targetLabel} (${eur(requestedEur)}/jour, minimum ${eur(
-        BUDGET_FLOOR_EUR,
-      )}). Rien n'a été modifié.`,
+      `Budget proposé trop bas pour ${targetLabel} (${amount(requested, currency)}/jour, minimum ${amount(BUDGET_FLOOR, currency)}). Rien n'a été modifié.`,
     );
   }
 
-  const increaseCap = Math.min(
-    currentDailyBudgetEur * BUDGET_MAX_MULTIPLIER,
-    BUDGET_ABSOLUTE_CAP_EUR,
-  );
-  const cap = Math.max(currentDailyBudgetEur, increaseCap);
+  const increaseCap = Math.min(currentDailyBudget * BUDGET_MAX_MULTIPLIER, BUDGET_ABSOLUTE_CAP);
+  const cap = Math.max(currentDailyBudget, increaseCap);
 
-  if (requestedEur > cap) {
+  if (requested > cap) {
     return refuse(
-      `Hausse de budget refusée sur ${targetLabel} : ${eur(requestedEur)}/jour demandés alors que le budget actuel est de ${eur(
-        currentDailyBudgetEur,
-      )}/jour. Le maximum autorisé est ${eur(cap)}/jour (×${BUDGET_MAX_MULTIPLIER} du budget actuel, plafonné à ${eur(
-        BUDGET_ABSOLUTE_CAP_EUR,
-      )}). Rien n'a été modifié.`,
+      `Hausse de budget refusée sur ${targetLabel} : ${amount(requested, currency)}/jour demandés alors que le budget actuel est de ${amount(currentDailyBudget, currency)}/jour. Le maximum autorisé est ${amount(cap, currency)}/jour (×${BUDGET_MAX_MULTIPLIER} du budget actuel, plafonné à ${amount(BUDGET_ABSOLUTE_CAP, currency)}). Rien n'a été modifié.`,
     );
   }
 
-  return allow(requestedEur);
+  return allow(requested);
 }
 
 /**
@@ -255,10 +269,12 @@ export function guardDailyBudget(input: {
  */
 export function guardMetaPause(input: {
   targetLabel: string;
+  /** Devise du compte publicitaire, code ISO 4217, ou `null` si indéterminée. */
+  currency: string | null;
   spend: number | null | undefined;
   roas: number | null | undefined;
 }): GuardResult<{ spend: number; roas: number }> {
-  const { targetLabel, spend, roas } = input;
+  const { targetLabel, spend, roas, currency } = input;
 
   if (spend == null || !Number.isFinite(spend)) {
     return refuse(
@@ -266,11 +282,9 @@ export function guardMetaPause(input: {
     );
   }
 
-  if (spend < PAUSE_MIN_SPEND_EUR) {
+  if (spend < PAUSE_MIN_SPEND) {
     return refuse(
-      `${targetLabel} n'a dépensé que ${eur(spend)} sur 30 jours : c'est trop peu pour conclure. Il faut au moins ${eur(
-        PAUSE_MIN_SPEND_EUR,
-      )} de dépense avant de couper. Rien n'a été modifié.`,
+      `${targetLabel} n'a dépensé que ${amount(spend, currency)} sur 30 jours : c'est trop peu pour conclure. Il faut au moins ${amount(PAUSE_MIN_SPEND, currency)} de dépense avant de couper. Rien n'a été modifié.`,
     );
   }
 
@@ -290,10 +304,12 @@ export function guardMetaPause(input: {
 /** Mise en pause d'une campagne Google Ads : coût significatif ET aucune conversion. */
 export function guardGooglePause(input: {
   targetLabel: string;
+  /** Devise du compte publicitaire, code ISO 4217, ou `null` si indéterminée. */
+  currency: string | null;
   cost30d: number | null | undefined;
   conversions30d: number | null | undefined;
 }): GuardResult<{ cost: number; conversions: number }> {
-  const { targetLabel, cost30d, conversions30d } = input;
+  const { targetLabel, cost30d, conversions30d, currency } = input;
 
   if (cost30d == null || !Number.isFinite(cost30d)) {
     return refuse(
@@ -307,11 +323,9 @@ export function guardGooglePause(input: {
     );
   }
 
-  if (cost30d < PAUSE_MIN_SPEND_EUR) {
+  if (cost30d < PAUSE_MIN_SPEND) {
     return refuse(
-      `${targetLabel} n'a coûté que ${eur(cost30d)} sur 30 jours : c'est trop peu pour conclure. Il faut au moins ${eur(
-        PAUSE_MIN_SPEND_EUR,
-      )} avant de couper. Rien n'a été modifié.`,
+      `${targetLabel} n'a coûté que ${amount(cost30d, currency)} sur 30 jours : c'est trop peu pour conclure. Il faut au moins ${amount(PAUSE_MIN_SPEND, currency)} avant de couper. Rien n'a été modifié.`,
     );
   }
 
@@ -367,13 +381,13 @@ const REVERT_SCHEMAS = {
     after: z.object({ price_rule_id: positiveId }),
   }),
   meta_update_budget: z.object({
-    before: z.object({ daily_budget_eur: numberish }),
+    before: z.object({ daily_budget: numberish }),
   }),
   meta_pause_adset: z.object({
     before: z.object({ status: z.enum(["ACTIVE", "PAUSED"]) }),
   }),
   google_update_budget: z.object({
-    before: z.object({ daily_budget_eur: numberish }),
+    before: z.object({ daily_budget: numberish }),
   }),
   google_pause_campaign: z.object({
     before: z.object({ status: z.enum(["ENABLED", "PAUSED"]) }),
