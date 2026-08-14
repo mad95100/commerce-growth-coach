@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { normalizeCurrency } from "@/lib/currency";
 import { z } from "zod";
 
 export type CockpitPriority = {
@@ -18,7 +19,10 @@ export type CockpitPriority = {
 
 export type Cockpit = {
   storeId: string;
-  currency: string;
+  /** Devise de la boutique, code ISO 4217, ou `null` si indéterminée. */
+  currency: string | null;
+  /** Devise de la dépense publicitaire, qui peut différer de celle de la boutique. */
+  adSpendCurrency: string | null;
   revenue: number | null;
   revenueGoal: number | null;
   orders: number | null;
@@ -66,14 +70,68 @@ export const getCockpit = createServerFn({ method: "POST" })
     const revenue = snap?.shopify?.revenue_30d ?? store.monthly_revenue ?? null;
     const orders = snap?.shopify?.orders_30d ?? null;
     const aov = snap?.shopify?.aov ?? (revenue && orders ? revenue / orders : null);
-    const adSpend =
-      (snap?.meta?.spend ?? 0) + (snap?.google?.cost ?? 0) || store.monthly_ad_budget || null;
-    const roas = snap?.meta?.roas ?? (revenue && adSpend ? revenue / adSpend : null);
+
+    // La devise de référence est celle de la boutique. Les montants saisis par
+    // l'utilisateur (objectif, charges fixes, budget publicitaire) sont exprimés
+    // dans cette même devise : c'est celle que l'interface affiche à la saisie.
+    const currency = normalizeCurrency(store.currency);
+
+    // Les comptes publicitaires ont leur propre devise, qui n'est pas forcément
+    // celle de la boutique. Additionner Meta et Google, ou retrancher la dépense
+    // du chiffre d'affaires, n'a de sens que si tout coïncide. Sinon on ne
+    // calcule rien : un nombre faux serait pire qu'une absence.
+    const spendParts: Array<{ amount: number; currency: string | null }> = [];
+    if (snap?.meta?.spend != null) {
+      spendParts.push({ amount: snap.meta.spend, currency: normalizeCurrency(snap.meta.currency) });
+    }
+    if (snap?.google?.cost != null) {
+      spendParts.push({
+        amount: snap.google.cost,
+        currency: normalizeCurrency(snap.google.currency),
+      });
+    }
+
+    const unavailable: string[] = [...((snap?.unavailable as string[]) ?? [])];
+
+    let adSpend: number | null = null;
+    let adSpendCurrency: string | null = null;
+    if (spendParts.length > 0) {
+      const currencies = new Set(spendParts.map((p) => p.currency));
+      if (currencies.size === 1 && spendParts[0].currency !== null) {
+        adSpend = spendParts.reduce((sum, p) => sum + p.amount, 0);
+        adSpendCurrency = spendParts[0].currency;
+      } else {
+        unavailable.push(
+          currencies.has(null)
+            ? "Dépenses publicitaires : devise d'un compte non déterminée, total non calculé."
+            : `Dépenses publicitaires en devises différentes (${[...currencies].join(", ")}) : total non calculé, aucune conversion disponible.`,
+        );
+      }
+    } else if (store.monthly_ad_budget != null) {
+      // Budget déclaré par l'utilisateur : exprimé dans la devise de la boutique.
+      adSpend = store.monthly_ad_budget;
+      adSpendCurrency = currency;
+    }
+
+    const spendComparable =
+      adSpend != null && adSpendCurrency !== null && adSpendCurrency === currency;
+    if (adSpend != null && !spendComparable) {
+      unavailable.push(
+        `Rentabilité non calculée : la dépense publicitaire (${adSpendCurrency ?? "devise inconnue"}) et le chiffre d'affaires (${currency ?? "devise inconnue"}) ne sont pas dans la même devise.`,
+      );
+    }
+
+    const roas =
+      snap?.meta?.roas ?? (revenue && adSpend && spendComparable ? revenue / adSpend : null);
 
     const costRatio = store.avg_product_cost_ratio ?? null;
+    // La marge est un pourcentage du chiffre d'affaires : elle reste dans sa devise.
     const margin = revenue != null && costRatio != null ? revenue * (1 - costRatio) : null;
+    // Le bénéfice retranche la dépense publicitaire : il exige la même devise.
     const profit =
-      margin != null ? margin - (adSpend ?? 0) - (store.fixed_costs_monthly ?? 0) : null;
+      margin != null && spendComparable
+        ? margin - (adSpend ?? 0) - (store.fixed_costs_monthly ?? 0)
+        : null;
 
     const { data: audit } = await supabase
       .from("audits")
@@ -113,7 +171,8 @@ export const getCockpit = createServerFn({ method: "POST" })
 
     return {
       storeId: store.id,
-      currency: store.currency ?? "EUR",
+      currency,
+      adSpendCurrency,
       revenue,
       revenueGoal: store.revenue_goal ?? null,
       orders,
@@ -127,7 +186,7 @@ export const getCockpit = createServerFn({ method: "POST" })
       potentialMin: audit?.potential_gain_min ?? null,
       potentialMax: audit?.potential_gain_max ?? null,
       lastSyncAt: snapRow?.fetched_at ?? null,
-      unavailable: (snap?.unavailable as string[]) ?? [],
+      unavailable,
       priorities,
     };
   });

@@ -118,7 +118,7 @@ function Onboarding() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="revenue">CA actuel (€/mois)</Label>
+              <Label htmlFor="revenue">CA actuel (par mois)</Label>
               <Input
                 id="revenue"
                 type="number"
@@ -129,7 +129,7 @@ function Onboarding() {
               />
             </div>
             <div>
-              <Label htmlFor="budget">Budget pub (€/mois)</Label>
+              <Label htmlFor="budget">Budget pub (par mois)</Label>
               <Input
                 id="budget"
                 type="number"
@@ -162,7 +162,7 @@ function Onboarding() {
               id="goal"
               value={form.goal}
               onChange={(e) => upd("goal", e.target.value)}
-              placeholder="Ex: atteindre 5000€/mois de CA d'ici 3 mois"
+              placeholder="Ex: atteindre 5000/mois de CA d'ici 3 mois"
               rows={3}
             />
           </div>

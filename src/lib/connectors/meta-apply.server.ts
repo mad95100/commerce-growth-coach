@@ -1,4 +1,5 @@
 import { decryptToken } from "@/lib/crypto.server";
+import { normalizeCurrency } from "@/lib/currency";
 
 const V = "v21.0";
 const GRAPH = `https://graph.facebook.com/${V}`;
@@ -8,7 +9,7 @@ export type MetaAdSet = {
   name: string;
   status: string;
   campaign_name?: string;
-  daily_budget_eur: number | null;
+  daily_budget: number | null;
   targeting_summary: string;
   spend?: number;
   purchases?: number;
@@ -37,14 +38,22 @@ export function metaToken(encrypted: string): string {
   return decryptToken(encrypted);
 }
 
-async function graph<T>(path: string, token: string, params: Record<string, string> = {}): Promise<T> {
+async function graph<T>(
+  path: string,
+  token: string,
+  params: Record<string, string> = {},
+): Promise<T> {
   const qs = new URLSearchParams({ ...params, access_token: token }).toString();
   const res = await fetch(`${GRAPH}${path}?${qs}`);
   if (!res.ok) throw new Error(`Meta API ${res.status}: ${await res.text()}`);
   return (await res.json()) as T;
 }
 
-async function graphPost<T>(path: string, token: string, body: Record<string, unknown>): Promise<T> {
+async function graphPost<T>(
+  path: string,
+  token: string,
+  body: Record<string, unknown>,
+): Promise<T> {
   const res = await fetch(`${GRAPH}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -59,17 +68,37 @@ function summarizeTargeting(t: Record<string, unknown> | undefined): string {
   const parts: string[] = [];
   if (t.age_min || t.age_max) parts.push(`âge ${t.age_min ?? "?"}-${t.age_max ?? "?"}`);
   const genders = t.genders as number[] | undefined;
-  if (genders?.length) parts.push(genders.includes(1) && genders.includes(2) ? "tous genres" : genders.includes(1) ? "hommes" : "femmes");
+  if (genders?.length)
+    parts.push(
+      genders.includes(1) && genders.includes(2)
+        ? "tous genres"
+        : genders.includes(1)
+          ? "hommes"
+          : "femmes",
+    );
   const geo = t.geo_locations as { countries?: string[] } | undefined;
   if (geo?.countries?.length) parts.push(`pays ${geo.countries.join(",")}`);
-  const interests = (t.flexible_spec as { interests?: { name: string }[] }[] | undefined)?.[0]?.interests;
-  if (interests?.length) parts.push(`intérêts ${interests.map((i) => i.name).slice(0, 5).join(", ")}`);
+  const interests = (t.flexible_spec as { interests?: { name: string }[] }[] | undefined)?.[0]
+    ?.interests;
+  if (interests?.length)
+    parts.push(
+      `intérêts ${interests
+        .map((i) => i.name)
+        .slice(0, 5)
+        .join(", ")}`,
+    );
   return parts.length ? parts.join(" | ") : "large (aucun ciblage précis)";
 }
 
 /** Instantané du compte publicitaire Meta sur 30 jours. */
 export async function fetchMetaSnapshot(accountId: string, token: string): Promise<MetaSnapshot> {
-  const [adsetsRes, adsRes, insightsRes] = await Promise.all([
+  const [accountRes, adsetsRes, adsRes, insightsRes] = await Promise.all([
+    // La devise du compte publicitaire. Elle était codée à `null`, ce qui
+    // laissait supposer l'euro partout en aval. Un échec ici laisse la devise
+    // indéterminée — jamais une valeur devinée.
+    graph<{ currency?: string }>(`/${accountId}`, token, { fields: "currency" }).catch(
+      (): { currency?: string } => ({}),
+    ),
     graph<{ data: Array<Record<string, unknown>> }>(`/${accountId}/adsets`, token, {
       fields: "id,name,status,daily_budget,targeting,campaign{name}",
       limit: "25",
@@ -99,7 +128,7 @@ export async function fetchMetaSnapshot(accountId: string, token: string): Promi
       name: String(a.name),
       status: String(a.status),
       campaign_name: (a.campaign as { name?: string } | undefined)?.name,
-      daily_budget_eur: a.daily_budget ? Number(a.daily_budget) / 100 : null,
+      daily_budget: a.daily_budget ? Number(a.daily_budget) / 100 : null,
       targeting_summary: summarizeTargeting(a.targeting as Record<string, unknown> | undefined),
       spend: ins?.spend ? Number(ins.spend) : undefined,
       purchases: purchases ? Number(purchases.value) : undefined,
@@ -123,7 +152,7 @@ export async function fetchMetaSnapshot(accountId: string, token: string): Promi
     };
   });
 
-  return { accountId, currency: null, adsets, ads };
+  return { accountId, currency: normalizeCurrency(accountRes.currency), adsets, ads };
 }
 
 export function metaAdsManagerUrl(accountId: string): string {
@@ -131,9 +160,9 @@ export function metaAdsManagerUrl(accountId: string): string {
 }
 
 /** Change le budget quotidien d'un ensemble de publicités. */
-export async function metaUpdateBudget(adsetId: string, token: string, dailyBudgetEur: number) {
-  await graphPost(`/${adsetId}`, token, { daily_budget: Math.round(dailyBudgetEur * 100) });
-  return { dailyBudgetEur };
+export async function metaUpdateBudget(adsetId: string, token: string, dailyBudget: number) {
+  await graphPost(`/${adsetId}`, token, { daily_budget: Math.round(dailyBudget * 100) });
+  return { dailyBudget };
 }
 
 /** Statuts d'un ensemble de publicités que l'on s'autorise à écrire. */
@@ -188,7 +217,9 @@ export async function metaUpdateAdCreative(
   token: string,
   copy: { primary_text?: string; headline?: string; description?: string },
 ) {
-  const ad = await graph<{ creative?: { id: string } }>(`/${adId}`, token, { fields: "creative{id}" });
+  const ad = await graph<{ creative?: { id: string } }>(`/${adId}`, token, {
+    fields: "creative{id}",
+  });
   if (!ad.creative?.id) throw new Error("Publicité sans création exploitable");
 
   const creative = await graph<{
@@ -197,7 +228,10 @@ export async function metaUpdateAdCreative(
     degrees_of_freedom_spec?: unknown;
   }>(`/${ad.creative.id}`, token, { fields: "name,object_story_spec" });
 
-  const spec = JSON.parse(JSON.stringify(creative.object_story_spec ?? {})) as Record<string, unknown>;
+  const spec = JSON.parse(JSON.stringify(creative.object_story_spec ?? {})) as Record<
+    string,
+    unknown
+  >;
   const linkData = spec.link_data as Record<string, unknown> | undefined;
   const videoData = spec.video_data as Record<string, unknown> | undefined;
   const target = linkData ?? videoData;

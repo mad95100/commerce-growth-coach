@@ -1,4 +1,5 @@
 import { decryptToken } from "@/lib/crypto.server";
+import { normalizeCurrency } from "@/lib/currency";
 
 const V = "v18";
 const BASE = `https://googleads.googleapis.com/${V}`;
@@ -10,7 +11,7 @@ export type GoogleCampaign = {
   status: string;
   channel: string;
   budget_resource_name: string | null;
-  daily_budget_eur: number | null;
+  daily_budget: number | null;
   cost_30d: number | null;
   clicks_30d: number | null;
   conversions_30d: number | null;
@@ -95,7 +96,10 @@ export async function fetchGoogleSnapshot(
   const campaignRows = await search(
     customerId,
     accessToken,
-    `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type,
+    // `customer.currency_code` accompagne chaque ligne : c'est la devise du
+    // compte, jusqu'ici jamais lue, ce qui laissait supposer l'euro en aval.
+    `SELECT customer.currency_code,
+            campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type,
             campaign_budget.resource_name, campaign_budget.amount_micros,
             metrics.cost_micros, metrics.clicks, metrics.conversions, metrics.ctr
      FROM campaign
@@ -110,7 +114,9 @@ export async function fetchGoogleSnapshot(
     status: r.campaign.status,
     channel: r.campaign.advertisingChannelType ?? "UNKNOWN",
     budget_resource_name: r.campaignBudget?.resourceName ?? null,
-    daily_budget_eur: r.campaignBudget?.amountMicros ? Number(r.campaignBudget.amountMicros) / MICROS : null,
+    daily_budget: r.campaignBudget?.amountMicros
+      ? Number(r.campaignBudget.amountMicros) / MICROS
+      : null,
     cost_30d: r.metrics?.costMicros ? Number(r.metrics.costMicros) / MICROS : 0,
     clicks_30d: r.metrics?.clicks ? Number(r.metrics.clicks) : 0,
     conversions_30d: r.metrics?.conversions ? Number(r.metrics.conversions) : 0,
@@ -142,7 +148,11 @@ export async function fetchGoogleSnapshot(
     ads = [];
   }
 
-  return { customerId, currency: null, campaigns, ads };
+  // Toutes les lignes portent la même devise de compte ; la première suffit.
+  // Absente ou invalide, elle reste indéterminée — jamais devinée.
+  const currency = normalizeCurrency(campaignRows[0]?.customer?.currencyCode);
+
+  return { customerId, currency, campaigns, ads };
 }
 
 export function googleAdsUrl(customerId: string): string {
@@ -154,17 +164,20 @@ export async function googleUpdateBudget(
   customerId: string,
   accessToken: string,
   budgetResourceName: string,
-  dailyBudgetEur: number,
+  dailyBudget: number,
 ) {
   await mutate(customerId, accessToken, "campaignBudgets", {
     operations: [
       {
-        update: { resourceName: budgetResourceName, amountMicros: String(Math.round(dailyBudgetEur * MICROS)) },
+        update: {
+          resourceName: budgetResourceName,
+          amountMicros: String(Math.round(dailyBudget * MICROS)),
+        },
         updateMask: "amount_micros",
       },
     ],
   });
-  return { dailyBudgetEur };
+  return { dailyBudget };
 }
 
 /** Statuts de campagne que l'on s'autorise à écrire. `REMOVED` est volontairement exclu. */

@@ -1,3 +1,4 @@
+import { UNDETERMINED_CURRENCY_LABEL, formatMoney } from "@/lib/currency";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
@@ -9,7 +10,6 @@ import {
   CATEGORY_LABELS,
   CONFIDENCE_LABELS,
   DIFFICULTY_LABELS,
-  formatEur,
   formatMinutes,
   type Category,
   type Confidence,
@@ -64,7 +64,7 @@ export function Cockpit({ storeId }: { storeId: string }) {
             </div>
             <p className="mt-1 max-w-md text-sm text-muted-foreground">
               {c.potentialMin != null && c.potentialMax != null
-                ? `Potentiel identifié : ${formatEur(c.potentialMin)} à ${formatEur(c.potentialMax)} par mois.`
+                ? `Potentiel identifié : ${formatMoney(c.potentialMin, c.currency)} à ${formatMoney(c.potentialMax, c.currency)} par mois.`
                 : "Lance un diagnostic pour connaître ton potentiel."}
             </p>
           </div>
@@ -75,7 +75,8 @@ export function Cockpit({ storeId }: { storeId: string }) {
           <div className="mt-5">
             <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
-                <Target className="h-3 w-3" /> Objectif {formatEur(c.revenueGoal)}/mois
+                <Target className="h-3 w-3" /> Objectif {formatMoney(c.revenueGoal, c.currency)}
+                /mois
               </span>
               <span>{goalPct} %</span>
             </div>
@@ -84,17 +85,39 @@ export function Cockpit({ storeId }: { storeId: string }) {
         )}
       </div>
 
+      {c.currency === null && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          {UNDETERMINED_CURRENCY_LABEL} pour cette boutique. Les montants sont affichés sans unité
+          tant que Shopify ne l'a pas renvoyée — aucune devise n'est supposée.
+        </p>
+      )}
+      {c.adSpendCurrency !== null && c.currency !== null && c.adSpendCurrency !== c.currency && (
+        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          Les dépenses publicitaires sont en {c.adSpendCurrency} alors que la boutique est en{" "}
+          {c.currency}. Rentabilité et ROAS ne sont pas calculés : aucune conversion n'est
+          disponible.
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi label="CA 30 j" value={formatEur(c.revenue)} />
+        <Kpi label="CA 30 j" value={formatMoney(c.revenue, c.currency)} />
         <Kpi label="Commandes" value={c.orders != null ? String(c.orders) : "—"} />
-        <Kpi label="Panier moyen" value={formatEur(c.aov)} />
-        <Kpi label="Dépenses pub" value={formatEur(c.adSpend)} />
+        <Kpi label="Panier moyen" value={formatMoney(c.aov, c.currency)} />
+        <Kpi label="Dépenses pub" value={formatMoney(c.adSpend, c.adSpendCurrency)} />
         <Kpi label="ROAS" value={c.roas != null ? `${c.roas.toFixed(2)}x` : "—"} />
-        <Kpi label="Marge estimée" value={formatEur(c.margin)} hint="Après coût produit" />
-        <Kpi label="Bénéfice estimé" value={formatEur(c.profit)} hint="Marge − pub − charges" />
+        <Kpi
+          label="Marge estimée"
+          value={formatMoney(c.margin, c.currency)}
+          hint="Après coût produit"
+        />
+        <Kpi
+          label="Bénéfice estimé"
+          value={formatMoney(c.profit, c.currency)}
+          hint="Marge − pub − charges"
+        />
         <Kpi
           label="Potentiel"
-          value={c.potentialMax != null ? `+${formatEur(c.potentialMax)}` : "—"}
+          value={c.potentialMax != null ? `+${formatMoney(c.potentialMax, c.currency)}` : "—"}
           hint="par mois"
         />
       </div>
@@ -122,7 +145,8 @@ export function Cockpit({ storeId }: { storeId: string }) {
                     <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1 text-primary">
                         <TrendingUp className="h-3 w-3" />
-                        Impact : +{formatEur(p.impact_min)} à +{formatEur(p.impact_max)}/mois
+                        Impact : +{formatMoney(p.impact_min, c.currency)} à +
+                        {formatMoney(p.impact_max, c.currency)}/mois
                       </span>
                       <span className="flex items-center gap-1">
                         <Gauge className="h-3 w-3" />

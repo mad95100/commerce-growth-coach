@@ -144,16 +144,11 @@ export function computeGlobalScore(categoryScores: Record<Category, number>): nu
   return Math.round(total / weights);
 }
 
-/** Potentiel total identifié (€/mois), plafonné pour rester crédible. */
+/** Potentiel total identifié par mois, dans la devise de la boutique, plafonné pour rester crédible. */
 export function computePotential(findings: ScorableFinding[]): { min: number; max: number } {
   const min = findings.reduce((s, f) => s + (f.estimated_gain_min ?? 0), 0);
   const max = findings.reduce((s, f) => s + (f.estimated_gain_max ?? f.estimated_gain_min ?? 0), 0);
   return { min: Math.round(min), max: Math.round(max) };
-}
-
-export function formatEur(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  return `${Math.round(value).toLocaleString("fr-FR")} €`;
 }
 
 export function formatMinutes(min: number | null | undefined): string {

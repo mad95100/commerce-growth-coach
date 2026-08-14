@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -15,7 +16,15 @@ import {
 import { runAudit } from "@/lib/audit.functions";
 import { toast } from "sonner";
 import { useState } from "react";
-import { Sparkles, Loader2, ExternalLink, ArrowRight, Clock, CheckCircle2, XCircle } from "lucide-react";
+import {
+  Sparkles,
+  Loader2,
+  ExternalLink,
+  ArrowRight,
+  Clock,
+  CheckCircle2,
+  XCircle,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/stores/$storeId")({
   head: () => ({ meta: [{ title: "Boutique — EcomPilot AI" }] }),
@@ -64,14 +73,26 @@ function StorePage() {
     }
   }
 
-  if (storeQ.isLoading) return <AppShell><div>Chargement...</div></AppShell>;
-  if (!storeQ.data) return <AppShell><div>Boutique introuvable</div></AppShell>;
+  if (storeQ.isLoading)
+    return (
+      <AppShell>
+        <div>Chargement...</div>
+      </AppShell>
+    );
+  if (!storeQ.data)
+    return (
+      <AppShell>
+        <div>Boutique introuvable</div>
+      </AppShell>
+    );
   const store = storeQ.data;
 
   return (
     <AppShell>
       <div className="mb-8">
-        <div className="text-xs uppercase tracking-wider text-muted-foreground">{store.niche || "Boutique"}</div>
+        <div className="text-xs uppercase tracking-wider text-muted-foreground">
+          {store.niche || "Boutique"}
+        </div>
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="font-display text-3xl font-bold">{store.name}</h1>
           {store.url && (
@@ -88,8 +109,8 @@ function StorePage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Stat label="CA mensuel" value={store.monthly_revenue ? `${store.monthly_revenue} €` : "—"} />
-        <Stat label="Budget pub" value={store.monthly_ad_budget ? `${store.monthly_ad_budget} €` : "—"} />
+        <Stat label="CA mensuel" value={formatMoney(store.monthly_revenue, store.currency)} />
+        <Stat label="Budget pub" value={formatMoney(store.monthly_ad_budget, store.currency)} />
         <Stat label="Objectif" value={store.goal || "—"} />
       </div>
 
@@ -105,7 +126,8 @@ function StorePage() {
         <div>
           <h2 className="font-display text-lg font-bold">Suivi des gains (avant / après)</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Vérifie si les corrections appliquées ont vraiment fait monter la conversion, le CTR et le ROAS.
+            Vérifie si les corrections appliquées ont vraiment fait monter la conversion, le CTR et
+            le ROAS.
           </p>
         </div>
         <Button asChild variant="outline">
@@ -114,7 +136,6 @@ function StorePage() {
           </Link>
         </Button>
       </div>
-
 
       <div className="mt-8 card-elevated rounded-2xl p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -131,9 +152,13 @@ function StorePage() {
             size="lg"
           >
             {launching ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyse en cours...</>
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyse en cours...
+              </>
             ) : (
-              <><Sparkles className="mr-2 h-4 w-4" /> Lancer l'audit</>
+              <>
+                <Sparkles className="mr-2 h-4 w-4" /> Lancer l'audit
+              </>
             )}
           </Button>
         </div>
@@ -188,6 +213,8 @@ function StorePage() {
 }
 
 type EconomicsStore = {
+  /** Devise de la boutique, code ISO 4217, ou `null` si Shopify ne l'a pas encore renvoyée. */
+  currency: string | null;
   id: string;
   situation: StoreSituation | null;
   revenue_goal: number | null;
@@ -231,6 +258,7 @@ function StoreEconomicsCard({ store }: { store: EconomicsStore }) {
 
       <div className="mt-5">
         <StoreEconomicsFields
+          currency={store.currency}
           idPrefix={`store-${store.id}`}
           value={form}
           onChange={setForm}

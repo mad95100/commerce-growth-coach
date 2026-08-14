@@ -6,6 +6,7 @@ import {
   type StoreEconomicsForm,
   type StoreSituation,
 } from "@/lib/store-profile";
+import { currencyLabel } from "@/lib/currency";
 
 /**
  * Champs du profil économique d'une boutique, partagés entre l'onboarding et
@@ -17,12 +18,19 @@ export function StoreEconomicsFields({
   onChange,
   idPrefix,
   disabled,
+  currency,
 }: {
   value: StoreEconomicsForm;
   onChange: (next: StoreEconomicsForm) => void;
   idPrefix: string;
   disabled?: boolean;
+  /**
+   * Devise de la boutique, code ISO 4217. `null` tant qu'elle n'est pas connue :
+   * les libellés l'annoncent alors explicitement plutôt que d'afficher « € ».
+   */
+  currency?: string | null;
 }) {
+  const unit = currencyLabel(currency ?? null);
   function upd<K extends keyof StoreEconomicsForm>(key: K, next: StoreEconomicsForm[K]) {
     onChange({ ...value, [key]: next });
   }
@@ -64,7 +72,7 @@ export function StoreEconomicsFields({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor={`${idPrefix}-revenue-goal`}>Objectif de CA (€/mois)</Label>
+          <Label htmlFor={`${idPrefix}-revenue-goal`}>Objectif de CA ({unit}/mois)</Label>
           <Input
             id={`${idPrefix}-revenue-goal`}
             type="number"
@@ -78,7 +86,7 @@ export function StoreEconomicsFields({
           />
         </div>
         <div>
-          <Label htmlFor={`${idPrefix}-fixed-costs`}>Charges fixes (€/mois)</Label>
+          <Label htmlFor={`${idPrefix}-fixed-costs`}>Charges fixes ({unit}/mois)</Label>
           <Input
             id={`${idPrefix}-fixed-costs`}
             type="number"
@@ -112,8 +120,9 @@ export function StoreEconomicsFields({
           className="max-w-40"
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          Ce que te coûte un produit, en % de son prix de vente. Un produit acheté 20 € et vendu 50
-          € = 40 %. C'est ce qui permet de calculer ta marge et ton bénéfice réel.
+          Ce que te coûte un produit, en % de son prix de vente. Un produit acheté 20 et vendu 50 =
+          40 %. Un pourcentage ne dépend d'aucune devise. C'est ce qui permet de calculer ta marge
+          et ton bénéfice réel.
         </p>
       </div>
     </div>

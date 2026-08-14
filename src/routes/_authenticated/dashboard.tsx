@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/currency";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -70,7 +71,15 @@ function Dashboard() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {storesQ.data.map((store) => {
-            const latest = (store.audits as Array<{ id: string; score: number | null; status: string; verdict: string | null; created_at: string }>)
+            const latest = (
+              store.audits as Array<{
+                id: string;
+                score: number | null;
+                status: string;
+                verdict: string | null;
+                created_at: string;
+              }>
+            )
               ?.filter((a) => a.status === "completed")
               .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
             return (
@@ -105,7 +114,9 @@ function Dashboard() {
                 <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <TrendingUp className="h-3 w-3" />
-                    {store.monthly_revenue ? `${store.monthly_revenue} €/mois` : "CA à définir"}
+                    {store.monthly_revenue
+                      ? `${formatMoney(store.monthly_revenue, store.currency)}/mois`
+                      : "CA à définir"}
                   </span>
                   <span className="flex items-center gap-1 text-primary group-hover:translate-x-1 transition-transform">
                     Ouvrir <ArrowRight className="h-3 w-3" />
