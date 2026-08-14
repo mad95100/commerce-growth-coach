@@ -1,6 +1,22 @@
 import { decryptToken } from "@/lib/crypto.server";
 
-const API_VERSION = "2024-10";
+/**
+ * Version de l'API Admin Shopify.
+ *
+ * `2024-10` était codée en dur et n'est PLUS SUPPORTÉE : l'API ne renvoie que
+ * 2025-10, 2026-01, 2026-04 et 2026-07 (vérifié via publicApiVersions sur la
+ * boutique réelle). Tous les appels Shopify échouaient donc.
+ *
+ * La valeur est exportée pour rester unique — elle était dupliquée dans
+ * `shopify.server.ts`, ce qui garantissait la dérive au prochain changement.
+ *
+ * À réviser chaque trimestre : Shopify ne supporte que 4 versions glissantes.
+ * La sortie durable est la migration vers l'API GraphQL Admin, REST étant en
+ * legacy depuis le 1er octobre 2024.
+ */
+export const SHOPIFY_API_VERSION = "2026-01";
+
+const API_VERSION = SHOPIFY_API_VERSION;
 
 export type ShopifyProduct = {
   id: number;
