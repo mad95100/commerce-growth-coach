@@ -92,16 +92,8 @@ export const startShopifyConnect = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (existing?.status !== "active") {
-      await supabase.from("data_connections").upsert(
-        {
-          store_id: store.id,
-          provider: "shopify",
-          status: "pending",
-          account_id: shop,
-          account_label: shop,
-        },
-        { onConflict: "store_id,provider" },
-      );
+      const { upsertPendingConnection } = await import("@/lib/connectors/connection-writes.server");
+      await upsertPendingConnection(supabase as never, store.id, "shopify", shop);
     }
 
     const params = new URLSearchParams({
@@ -118,11 +110,7 @@ export const disconnectShopify = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ storeId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("data_connections")
-      .delete()
-      .eq("store_id", data.storeId)
-      .eq("provider", "shopify");
-    if (error) throw error;
+    const { deleteConnection } = await import("@/lib/connectors/connection-writes.server");
+    await deleteConnection(context.supabase as never, data.storeId, "shopify");
     return { ok: true };
   });

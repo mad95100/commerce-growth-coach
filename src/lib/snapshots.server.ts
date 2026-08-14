@@ -44,8 +44,13 @@ export async function captureAndStoreSnapshot(
     }
   }
 
+  // `data_snapshots` n'est plus modifiable par le navigateur : ces chiffres
+  // nourrissent l'audit, les laisser réécrire par le client reviendrait à lui
+  // laisser choisir les données sur lesquelles l'IA raisonne.
+  const { supabaseAdmin: writer } = await import("@/integrations/supabase/client.server");
+
   try {
-    await supabase.from("data_snapshots").insert({
+    await writer.from("data_snapshots").insert({
       store_id: storeId,
       kind: "composite",
       period_days: 30,

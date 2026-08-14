@@ -38,12 +38,8 @@ export const startMetaConnect = createServerFn({ method: "POST" })
       nonce: crypto.randomUUID(),
     });
 
-    await supabase
-      .from("data_connections")
-      .upsert(
-        { store_id: store.id, provider: "meta_ads", status: "pending" },
-        { onConflict: "store_id,provider" },
-      );
+    const { upsertPendingConnection } = await import("@/lib/connectors/connection-writes.server");
+    await upsertPendingConnection(supabase as never, store.id, "meta_ads", "");
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -81,10 +77,10 @@ export const selectMetaAdAccount = createServerFn({ method: "POST" })
     const match = accounts.find((a) => a.id === data.accountId);
     if (!match) throw new Error("Compte publicitaire introuvable");
 
-    const { error: uErr } = await supabase
-      .from("data_connections")
-      .update({ account_id: match.id, account_label: match.name })
-      .eq("id", conn.id);
-    if (uErr) throw uErr;
+    const { updateConnectionById } = await import("@/lib/connectors/connection-writes.server");
+    await updateConnectionById(supabase as never, data.storeId, conn.id, {
+      account_id: match.id,
+      account_label: match.name,
+    });
     return { ok: true };
   });

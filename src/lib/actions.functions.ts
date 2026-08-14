@@ -29,7 +29,19 @@ type FindingInfo = {
 
 /** Canaux actifs de la boutique, sous la forme attendue par le moteur d'application. */
 async function loadChannels(supabase: Db, storeId: string) {
-  const { data: conns } = await supabase
+  // La boutique est lue avec le client de l'appelant : RLS ne renvoie rien
+  // s'il ne la possède pas, et aucun jeton n'est alors chargé.
+  const { data: owned } = await supabase
+    .from("stores")
+    .select("id")
+    .eq("id", storeId)
+    .maybeSingle();
+  if (!owned) return {};
+
+  // Les colonnes de jetons ne sont plus lisibles par `authenticated` : elles ne
+  // doivent jamais être servies à un navigateur. Lecture par le rôle de service.
+  const { supabaseAdmin: secrets } = await import("@/integrations/supabase/client.server");
+  const { data: conns } = await secrets
     .from("data_connections")
     .select("provider, account_id, access_token_ciphertext, refresh_token_ciphertext, status")
     .eq("store_id", storeId)
@@ -145,7 +157,13 @@ export const proposeFix = createServerFn({ method: "POST" })
     const d = plan.description;
 
     const { insertProposal } = await import("@/lib/actions.server");
-    const row = await insertProposal(supabase as never, {
+    // Le journal `actions` n'est plus modifiable depuis le navigateur : ses
+    // écritures passent par le rôle de service. L'appartenance reste garantie
+    // par les lectures qui précèdent, elles, soumises à RLS avec le client de
+    // l'utilisateur — une action qu'il ne possède pas n'est jamais lue, donc
+    // jamais écrite.
+    const { supabaseAdmin: journal } = await import("@/integrations/supabase/client.server");
+    const row = await insertProposal(journal as never, {
       storeId,
       findingId: finding.id,
       channel: d.channel,
@@ -198,7 +216,15 @@ export const confirmAction = createServerFn({ method: "POST" })
 
     const { loadProposal, claimProposal, markFailed, finalizeApplied } =
       await import("@/lib/actions.server");
+    // Le journal `actions` n'est plus modifiable depuis le navigateur : ses
+    // écritures passent par le rôle de service. L'appartenance reste garantie
+    // par les lectures qui précèdent, elles, soumises à RLS avec le client de
+    // l'utilisateur — une action qu'il ne possède pas n'est jamais lue, donc
+    // jamais écrite.
+    const { supabaseAdmin: journal } = await import("@/integrations/supabase/client.server");
 
+    // Lecture avec le client de l'utilisateur : c'est elle qui prouve
+    // l'appartenance, RLS refusant toute action d'une autre boutique.
     const proposal = await loadProposal(supabase as never, data.actionId);
     if (!proposal) throw new Error("Cette proposition est introuvable.");
     if (proposal.status !== "proposed") {
@@ -220,7 +246,7 @@ export const confirmAction = createServerFn({ method: "POST" })
     const channels = await loadChannels(supabase, storeId);
 
     // Verrou d'idempotence : une seule confirmation peut réserver la proposition.
-    const claimed = await claimProposal(supabase as never, data.actionId);
+    const claimed = await claimProposal(journal as never, data.actionId);
     if (!claimed)
       throw new Error("Cette correction vient d'être appliquée. Rien n'a été fait deux fois.");
 
@@ -238,14 +264,14 @@ export const confirmAction = createServerFn({ method: "POST" })
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await markFailed(supabase as never, data.actionId, message);
+      await markFailed(journal as never, data.actionId, message);
       throw err;
     }
 
     // Réversibilité constatée après coup, jamais présumée.
     const revert = result.revert ?? { supported: false, data: {} };
     await finalizeApplied(
-      supabase as never,
+      journal as never,
       data.actionId,
       {
         ...(proposal.after_value ?? {}),
@@ -297,7 +323,14 @@ export const revertAction = createServerFn({ method: "POST" })
     const { supabase } = context;
     const { loadProposal, claimRevert, restoreAfterFailedRevert } =
       await import("@/lib/actions.server");
+    // Le journal `actions` n'est plus modifiable depuis le navigateur : ses
+    // écritures passent par le rôle de service. L'appartenance reste garantie
+    // par les lectures qui précèdent, elles, soumises à RLS avec le client de
+    // l'utilisateur — une action qu'il ne possède pas n'est jamais lue, donc
+    // jamais écrite.
+    const { supabaseAdmin: journal } = await import("@/integrations/supabase/client.server");
 
+    // Lecture avec le client de l'utilisateur : elle prouve l'appartenance.
     const action = await loadProposal(supabase as never, data.actionId);
     if (!action) throw new Error("Cette action est introuvable.");
     if (action.status !== "applied") {
@@ -313,7 +346,7 @@ export const revertAction = createServerFn({ method: "POST" })
     const channels = await loadChannels(supabase, storeId);
 
     // Verrou d'idempotence : une seule annulation peut réserver l'action.
-    const claimed = await claimRevert(supabase as never, data.actionId);
+    const claimed = await claimRevert(journal as never, data.actionId);
     if (!claimed) {
       throw new Error("Cette correction vient d'être annulée, ou n'est pas annulable.");
     }
@@ -333,7 +366,7 @@ export const revertAction = createServerFn({ method: "POST" })
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await restoreAfterFailedRevert(supabase as never, data.actionId, message);
+      await restoreAfterFailedRevert(journal as never, data.actionId, message);
       throw err;
     }
 
