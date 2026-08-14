@@ -108,15 +108,30 @@ export const proposeFix = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => FINDING_INPUT.parse(input))
   .handler(async ({ data, context }): Promise<ProposeOutcome> => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
 
     const { finding, store, storeId } = await loadFindingContext(supabase, data.findingId);
     const channels = await loadChannels(supabase, storeId);
 
+    // Décompté avant l'appel au modèle, qui est la partie payante.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { consumeQuota, refundQuota } = await import("@/lib/billing.server");
+    await consumeQuota(supabaseAdmin, userId, "fixes");
+
     const { planFixAcrossChannels } = await import("@/lib/apply-fix.server");
-    const plan = await planFixAcrossChannels({ store, finding, ...channels });
+    let plan;
+    try {
+      plan = await planFixAcrossChannels({ store, finding, ...channels });
+    } catch (err) {
+      // L'appel a échoué : rien n'a été livré, l'unité est rendue.
+      await refundQuota(supabaseAdmin, userId, "fixes");
+      throw err;
+    }
 
     if (plan.kind === "no_action") {
+      // Le modèle n'a rien trouvé à corriger : facturer ce non-résultat
+      // reviendrait à faire payer une réponse vide.
+      await refundQuota(supabaseAdmin, userId, "fixes");
       return { kind: "no_action", reason: plan.reason };
     }
 
@@ -369,4 +384,24 @@ export const listActionsForFindings = createServerFn({ method: "POST" })
       revertible: boolean;
       error_message: string | null;
     }>;
+  });
+
+/**
+ * Plan et quotas de l'utilisateur connecté, pour affichage.
+ *
+ * Lecture seule : l'interface montre le solde, elle ne le décide pas. La
+ * décision reste prise côté serveur au moment d'agir, où elle est opposable.
+ */
+export const getEntitlements = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { loadEntitlements } = await import("@/lib/billing.server");
+    const e = await loadEntitlements(supabaseAdmin, context.userId);
+    return {
+      tier: e.tier,
+      periodStart: e.periodStart,
+      used: e.used,
+      remaining: e.remaining,
+    };
   });
