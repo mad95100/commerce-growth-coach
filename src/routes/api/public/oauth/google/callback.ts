@@ -31,7 +31,7 @@ export const Route = createFileRoute("/api/public/oauth/google/callback")({
 
           // Doit être STRICTEMENT identique au redirect_uri de l'autorisation.
           const { oauthCallbackUrl } = await import("@/lib/public-origin.server");
-          const redirectUri = oauthCallbackUrl(request, "google");
+          const redirectUri = oauthCallbackUrl("google");
 
           const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
             method: "POST",

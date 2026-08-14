@@ -26,9 +26,8 @@ export const startGoogleAdsConnect = createServerFn({ method: "POST" })
     }
 
     const { signOAuthState } = await import("@/lib/crypto.server");
-    const { getRequest } = await import("@tanstack/react-start/server");
     const { oauthCallbackUrl } = await import("@/lib/public-origin.server");
-    const redirectUri = oauthCallbackUrl(getRequest(), "google");
+    const redirectUri = oauthCallbackUrl("google");
 
     const state = signOAuthState({
       userId,

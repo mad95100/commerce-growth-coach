@@ -28,9 +28,8 @@ export const startMetaConnect = createServerFn({ method: "POST" })
     }
 
     const { signOAuthState } = await import("@/lib/crypto.server");
-    const { getRequest } = await import("@tanstack/react-start/server");
     const { oauthCallbackUrl } = await import("@/lib/public-origin.server");
-    const redirectUri = oauthCallbackUrl(getRequest(), "meta");
+    const redirectUri = oauthCallbackUrl("meta");
 
     const state = signOAuthState({
       userId,

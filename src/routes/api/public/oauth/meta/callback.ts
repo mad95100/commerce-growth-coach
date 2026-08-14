@@ -31,7 +31,7 @@ export const Route = createFileRoute("/api/public/oauth/meta/callback")({
 
           // Doit être STRICTEMENT identique au redirect_uri de l'autorisation.
           const { oauthCallbackUrl } = await import("@/lib/public-origin.server");
-          const redirectUri = oauthCallbackUrl(request, "meta");
+          const redirectUri = oauthCallbackUrl("meta");
 
           const shortRes = await fetch(
             `https://graph.facebook.com/${META_API_VERSION}/oauth/access_token?` +

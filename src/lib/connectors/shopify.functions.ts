@@ -82,9 +82,8 @@ export const startShopifyConnect = createServerFn({ method: "POST" })
     const clientId = process.env.SHOPIFY_CLIENT_ID as string;
 
     const { signOAuthState } = await import("@/lib/crypto.server");
-    const { getRequest } = await import("@tanstack/react-start/server");
     const { oauthCallbackUrl } = await import("@/lib/public-origin.server");
-    const redirectUri = oauthCallbackUrl(getRequest(), "shopify");
+    const redirectUri = oauthCallbackUrl("shopify");
 
     const state = signOAuthState({
       userId,
