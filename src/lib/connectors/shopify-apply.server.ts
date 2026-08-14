@@ -39,6 +39,35 @@ export function getToken(encrypted: string): string {
   return decryptToken(encrypted);
 }
 
+/**
+ * Permissions réellement accordées au jeton.
+ *
+ * C'est le premier appel effectué avec un jeton fraîchement obtenu : il vaut
+ * donc contrôle de bon fonctionnement autant que relevé de permissions. Un
+ * échec ici signifie que le jeton est inexploitable, ce qu'il vaut mieux
+ * découvrir à la connexion qu'au premier audit.
+ *
+ * Pourquoi ce contrôle existe : la réponse d'échange du code renvoie un `scope`
+ * vide pour les apps à installation gérée, où les permissions viennent de la
+ * configuration de l'app et non de l'URL d'autorisation. La colonne `scope`
+ * ne reflétait alors rien.
+ *
+ * L'endpoint n'est pas versionné : il vit sous `/admin/oauth/`, pas sous
+ * `/admin/api/{version}/`.
+ */
+export async function fetchGrantedScopes(shop: string, token: string): Promise<string[]> {
+  const res = await fetch(`https://${shop}/admin/oauth/access_scopes.json`, {
+    headers: { "X-Shopify-Access-Token": token },
+  });
+  if (!res.ok) {
+    throw new Error(`Shopify: lecture des permissions refusée (${res.status})`);
+  }
+  const json = (await res.json()) as { access_scopes?: Array<{ handle?: string }> };
+  return (json.access_scopes ?? [])
+    .map((entry) => entry.handle)
+    .filter((handle): handle is string => Boolean(handle));
+}
+
 /** Liste les produits (limité) pour que l'IA choisisse quoi corriger. */
 export async function listProducts(
   shop: string,
