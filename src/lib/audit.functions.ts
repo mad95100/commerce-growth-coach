@@ -63,6 +63,13 @@ export const runAudit = createServerFn({ method: "POST" })
       .single();
     if (storeErr || !store) throw new Error("Boutique introuvable");
 
+    // Quota décompté AVANT la création de l'audit et l'appel au modèle : un
+    // audit refusé ne doit laisser ni ligne en base ni facture chez le
+    // fournisseur d'IA.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { consumeQuota } = await import("@/lib/billing.server");
+    await consumeQuota(supabaseAdmin, userId, "audits");
+
     // Create audit row
     const { data: audit, error: auditErr } = await supabase
       .from("audits")
@@ -402,7 +409,11 @@ export const generateFix = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ findingId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { consumeQuota } = await import("@/lib/billing.server");
+    await consumeQuota(supabaseAdmin, userId, "fixes");
 
     const { data: finding, error: fErr } = await supabase
       .from("audit_findings")

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
+import { PlanUsageCard } from "@/components/PlanUsageCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,6 +59,10 @@ function SettingsPage() {
   return (
     <AppShell>
       <h1 className="mb-8 font-display text-3xl font-bold">Paramètres</h1>
+
+      <div className="mb-8">
+        <PlanUsageCard />
+      </div>
       <div className="card-elevated max-w-lg space-y-4 rounded-2xl p-6">
         <div>
           <Label htmlFor="email">Email</Label>
@@ -99,7 +104,11 @@ function SettingsPage() {
             ))}
           </RadioGroup>
         </div>
-        <Button onClick={save} disabled={loading} className="bg-gradient-primary text-primary-foreground">
+        <Button
+          onClick={save}
+          disabled={loading}
+          className="bg-gradient-primary text-primary-foreground"
+        >
           Enregistrer
         </Button>
       </div>
