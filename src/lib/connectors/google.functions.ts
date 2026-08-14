@@ -36,12 +36,8 @@ export const startGoogleAdsConnect = createServerFn({ method: "POST" })
       nonce: crypto.randomUUID(),
     });
 
-    await supabase
-      .from("data_connections")
-      .upsert(
-        { store_id: store.id, provider: "google_ads", status: "pending" },
-        { onConflict: "store_id,provider" },
-      );
+    const { upsertPendingConnection } = await import("@/lib/connectors/connection-writes.server");
+    await upsertPendingConnection(supabase as never, store.id, "google_ads", "");
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -80,11 +76,11 @@ export const selectGoogleAdsAccount = createServerFn({ method: "POST" })
     const customers = (conn.metadata as { customers?: string[] })?.customers ?? [];
     if (!customers.includes(data.customerId)) throw new Error("Compte Google Ads introuvable");
 
-    const { error: uErr } = await supabase
-      .from("data_connections")
-      .update({ account_id: data.customerId, account_label: formatCustomerId(data.customerId) })
-      .eq("id", conn.id);
-    if (uErr) throw uErr;
+    const { updateConnectionById } = await import("@/lib/connectors/connection-writes.server");
+    await updateConnectionById(supabase as never, data.storeId, conn.id, {
+      account_id: data.customerId,
+      account_label: formatCustomerId(data.customerId),
+    });
     return { ok: true };
   });
 

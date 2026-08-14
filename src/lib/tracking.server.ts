@@ -9,9 +9,29 @@ import {
 
 type Db = SupabaseClient<any, any, any>;
 
-/** Récupère les identifiants chiffrés des canaux actifs d'une boutique. */
-export async function loadChannelCredentials(supabase: Db, storeId: string): Promise<ChannelCredentials> {
-  const { data: conns } = await supabase
+/**
+ * Récupère les identifiants chiffrés des canaux actifs d'une boutique.
+ *
+ * Les colonnes de jetons ne sont plus lisibles par le rôle `authenticated` :
+ * elles ne doivent jamais être servies à un navigateur. La lecture passe donc
+ * par le rôle de service, qui contourne RLS — l'appartenance de la boutique est
+ * donc vérifiée explicitement ici, et non déléguée à la base.
+ */
+export async function loadChannelCredentials(
+  supabase: Db,
+  storeId: string,
+): Promise<ChannelCredentials> {
+  // La boutique est lue avec le client de l'appelant : si celui-ci ne la
+  // possède pas, RLS ne renvoie rien et aucun jeton n'est chargé.
+  const { data: owned } = await supabase
+    .from("stores")
+    .select("id")
+    .eq("id", storeId)
+    .maybeSingle();
+  if (!owned) return {};
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: conns } = await supabaseAdmin
     .from("data_connections")
     .select("provider, account_id, access_token_ciphertext, refresh_token_ciphertext")
     .eq("store_id", storeId)
@@ -30,7 +50,12 @@ export async function loadChannelCredentials(supabase: Db, storeId: string): Pro
       ? { meta: { accountId: meta.account_id, encryptedToken: meta.access_token_ciphertext } }
       : {}),
     ...(google?.account_id && google.refresh_token_ciphertext
-      ? { google: { customerId: google.account_id, encryptedRefreshToken: google.refresh_token_ciphertext } }
+      ? {
+          google: {
+            customerId: google.account_id,
+            encryptedRefreshToken: google.refresh_token_ciphertext,
+          },
+        }
       : {}),
   };
 }
@@ -55,7 +80,8 @@ export async function recordFixBaseline(
 ): Promise<void> {
   try {
     const baseline = params.baseline ?? (await captureStoreMetrics(params.creds));
-    await supabase.from("fix_outcomes").upsert(
+    const { supabaseAdmin: journal } = await import("@/integrations/supabase/client.server");
+    await journal.from("fix_outcomes").upsert(
       {
         finding_id: params.findingId,
         store_id: params.storeId,
@@ -87,16 +113,23 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
 
   const creds = await loadChannelCredentials(supabase, storeId);
   if (!creds.shopify && !creds.meta && !creds.google) {
-    throw new Error("Connecte au moins Shopify, Meta Ads ou Google Ads pour mesurer l'impact des corrections.");
+    throw new Error(
+      "Connecte au moins Shopify, Meta Ads ou Google Ads pour mesurer l'impact des corrections.",
+    );
   }
 
   const latest = await captureStoreMetrics(creds);
+
+  // `fix_outcomes` n'est plus modifiable par le navigateur : les mesures sont
+  // écrites par le serveur. Les lignes viennent d'être lues avec le client de
+  // l'appelant, donc filtrées par RLS sur ses propres boutiques.
+  const { supabaseAdmin: journal } = await import("@/integrations/supabase/client.server");
 
   for (const row of rows as any[]) {
     const baseline = (row.baseline ?? {}) as StoreMetrics;
     const deltas = computeDeltas(baseline, latest);
     const verdict = judgeOutcome(deltas, row.applied_at, row.expected_gain_min ?? null);
-    await supabase
+    await journal
       .from("fix_outcomes")
       .update({
         latest,
