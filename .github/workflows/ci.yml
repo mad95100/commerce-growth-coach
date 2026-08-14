@@ -37,6 +37,11 @@ jobs:
         with:
           node-version: "22"
 
+      # `jiti` et `zod` sont installés explicitement plutôt que déclarés dans
+      # package.json : les déclarer modifierait bun.lock, que l'environnement de
+      # développement ne peut pas régénérer (le registre privé du projet y est
+      # injoignable). `--frozen-lockfile` du travail suivant refuserait alors
+      # l'installation — ce qu'il a fait, et c'est bien son rôle.
       - name: Installer les seules dépendances nécessaires aux tests
         run: npm install --no-save --no-audit --no-fund jiti@^2.6.1 zod@^3.24.2
 
