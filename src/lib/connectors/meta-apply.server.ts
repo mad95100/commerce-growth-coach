@@ -136,9 +136,22 @@ export async function metaUpdateBudget(adsetId: string, token: string, dailyBudg
   return { dailyBudgetEur };
 }
 
+/** Statuts d'un ensemble de publicités que l'on s'autorise à écrire. */
+export type MetaAdSetWritableStatus = "ACTIVE" | "PAUSED";
+
+/** Change le statut d'un ensemble de publicités. Sert à la pause comme à son annulation. */
+export async function metaSetAdSetStatus(
+  adsetId: string,
+  token: string,
+  status: MetaAdSetWritableStatus,
+) {
+  await graphPost(`/${adsetId}`, token, { status });
+  return { adsetId, status };
+}
+
 /** Met en pause un ensemble de publicités qui brûle du budget. */
 export async function metaPauseAdSet(adsetId: string, token: string) {
-  await graphPost(`/${adsetId}`, token, { status: "PAUSED" });
+  await metaSetAdSetStatus(adsetId, token, "PAUSED");
   return { adsetId };
 }
 
@@ -203,5 +216,8 @@ export async function metaUpdateAdCreative(
   });
 
   await graphPost(`/${adId}`, token, { creative: { creative_id: created.id } });
-  return { creativeId: created.id };
+  // `previousCreativeId` est conservé pour tracer ce qui a été remplacé. Il n'est
+  // pas promis comme réversible : rien ne garantit qu'une création détachée reste
+  // rattachable, et nous n'avons pas pu le vérifier contre l'API.
+  return { creativeId: created.id, previousCreativeId: ad.creative.id };
 }

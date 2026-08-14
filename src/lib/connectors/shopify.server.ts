@@ -1,4 +1,5 @@
 import { decryptToken } from "@/lib/crypto.server";
+import { SHOPIFY_API_VERSION } from "@/lib/connectors/shopify-apply.server";
 
 export type ShopifySnapshot = {
   shopName: string;
@@ -20,7 +21,7 @@ export async function fetchShopifySnapshot(
 ): Promise<ShopifySnapshot | null> {
   try {
     const token = decryptToken(encryptedToken);
-    const base = `https://${shop}/admin/api/2024-10`;
+    const base = `https://${shop}/admin/api/${SHOPIFY_API_VERSION}`;
     const headers = { "X-Shopify-Access-Token": token, "Content-Type": "application/json" };
 
     const shopRes = await fetch(`${base}/shop.json`, { headers });
@@ -46,7 +47,9 @@ export async function fetchShopifySnapshot(
       const { orders } = (await ordersRes.json()) as {
         orders: { total_price: string; financial_status: string | null }[];
       };
-      const paid = orders.filter((o) => o.financial_status === "paid" || o.financial_status === "partially_paid");
+      const paid = orders.filter(
+        (o) => o.financial_status === "paid" || o.financial_status === "partially_paid",
+      );
       ordersLast30d = paid.length;
       revenueLast30d = paid.reduce((s, o) => s + parseFloat(o.total_price || "0"), 0);
     }

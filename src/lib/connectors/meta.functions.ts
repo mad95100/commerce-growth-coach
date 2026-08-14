@@ -29,8 +29,8 @@ export const startMetaConnect = createServerFn({ method: "POST" })
 
     const { signOAuthState } = await import("@/lib/crypto.server");
     const { getRequest } = await import("@tanstack/react-start/server");
-    const origin = new URL(getRequest().url).origin;
-    const redirectUri = `${origin}/api/public/oauth/meta/callback`;
+    const { oauthCallbackUrl } = await import("@/lib/public-origin.server");
+    const redirectUri = oauthCallbackUrl(getRequest(), "meta");
 
     const state = signOAuthState({
       userId,
@@ -39,10 +39,12 @@ export const startMetaConnect = createServerFn({ method: "POST" })
       nonce: crypto.randomUUID(),
     });
 
-    await supabase.from("data_connections").upsert(
-      { store_id: store.id, provider: "meta_ads", status: "pending" },
-      { onConflict: "store_id,provider" },
-    );
+    await supabase
+      .from("data_connections")
+      .upsert(
+        { store_id: store.id, provider: "meta_ads", status: "pending" },
+        { onConflict: "store_id,provider" },
+      );
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -75,7 +77,8 @@ export const selectMetaAdAccount = createServerFn({ method: "POST" })
       .single();
     if (error || !conn) throw new Error("Connexion Meta introuvable");
 
-    const accounts = ((conn.metadata as { accounts?: { id: string; name: string }[] })?.accounts) ?? [];
+    const accounts =
+      (conn.metadata as { accounts?: { id: string; name: string }[] })?.accounts ?? [];
     const match = accounts.find((a) => a.id === data.accountId);
     if (!match) throw new Error("Compte publicitaire introuvable");
 

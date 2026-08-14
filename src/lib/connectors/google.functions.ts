@@ -27,8 +27,8 @@ export const startGoogleAdsConnect = createServerFn({ method: "POST" })
 
     const { signOAuthState } = await import("@/lib/crypto.server");
     const { getRequest } = await import("@tanstack/react-start/server");
-    const origin = new URL(getRequest().url).origin;
-    const redirectUri = `${origin}/api/public/oauth/google/callback`;
+    const { oauthCallbackUrl } = await import("@/lib/public-origin.server");
+    const redirectUri = oauthCallbackUrl(getRequest(), "google");
 
     const state = signOAuthState({
       userId,
@@ -37,10 +37,12 @@ export const startGoogleAdsConnect = createServerFn({ method: "POST" })
       nonce: crypto.randomUUID(),
     });
 
-    await supabase.from("data_connections").upsert(
-      { store_id: store.id, provider: "google_ads", status: "pending" },
-      { onConflict: "store_id,provider" },
-    );
+    await supabase
+      .from("data_connections")
+      .upsert(
+        { store_id: store.id, provider: "google_ads", status: "pending" },
+        { onConflict: "store_id,provider" },
+      );
 
     const params = new URLSearchParams({
       client_id: clientId,
@@ -76,7 +78,7 @@ export const selectGoogleAdsAccount = createServerFn({ method: "POST" })
       .single();
     if (error || !conn) throw new Error("Connexion Google Ads introuvable");
 
-    const customers = ((conn.metadata as { customers?: string[] })?.customers) ?? [];
+    const customers = (conn.metadata as { customers?: string[] })?.customers ?? [];
     if (!customers.includes(data.customerId)) throw new Error("Compte Google Ads introuvable");
 
     const { error: uErr } = await supabase

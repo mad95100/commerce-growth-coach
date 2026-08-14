@@ -35,7 +35,13 @@ export async function loadChannelCredentials(supabase: Db, storeId: string): Pro
   };
 }
 
-/** Enregistre l'instantané « avant » juste après l'application d'une correction. */
+/**
+ * Enregistre l'instantané « avant » d'une correction.
+ *
+ * `baseline` permet de fournir une photo prise AVANT l'écriture (au moment de la
+ * proposition) : c'est la seule façon d'avoir un vrai « avant ». Sans elle, la
+ * mesure est prise à l'instant de l'appel.
+ */
 export async function recordFixBaseline(
   supabase: Db,
   params: {
@@ -44,10 +50,11 @@ export async function recordFixBaseline(
     expectedGainMin: number | null;
     expectedGainMax: number | null;
     creds: ChannelCredentials;
+    baseline?: StoreMetrics | null;
   },
 ): Promise<void> {
   try {
-    const baseline = await captureStoreMetrics(params.creds);
+    const baseline = params.baseline ?? (await captureStoreMetrics(params.creds));
     await supabase.from("fix_outcomes").upsert(
       {
         finding_id: params.findingId,

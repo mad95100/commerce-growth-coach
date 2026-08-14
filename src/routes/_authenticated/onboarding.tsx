@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
+import { StoreEconomicsFields } from "@/components/StoreEconomicsFields";
+import { EMPTY_STORE_ECONOMICS, parseStoreEconomics } from "@/lib/store-profile";
 import { Loader2, Rocket } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
@@ -27,6 +29,7 @@ function Onboarding() {
     monthly_revenue: "",
     goal: "",
   });
+  const [economics, setEconomics] = useState(EMPTY_STORE_ECONOMICS);
 
   function upd<K extends keyof typeof form>(k: K, v: string) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -36,6 +39,11 @@ function Onboarding() {
     e.preventDefault();
     setLoading(true);
     try {
+      const parsed = parseStoreEconomics(economics);
+      if (!parsed.ok) {
+        toast.error(parsed.message);
+        return;
+      }
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Non connecté");
       const { data, error } = await supabase
@@ -48,6 +56,7 @@ function Onboarding() {
           monthly_ad_budget: form.monthly_ad_budget ? Number(form.monthly_ad_budget) : null,
           monthly_revenue: form.monthly_revenue ? Number(form.monthly_revenue) : null,
           goal: form.goal || null,
+          ...parsed.payload,
         })
         .select()
         .single();
@@ -131,6 +140,22 @@ function Onboarding() {
               />
             </div>
           </div>
+          <div className="border-t border-border/60 pt-5">
+            <h2 className="font-display text-lg font-bold">Ton modèle économique</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Facultatif, mais c'est ce qui permet à l'audit de chiffrer ta marge et ton bénéfice
+              réel. Tu pourras compléter plus tard.
+            </p>
+            <div className="mt-5">
+              <StoreEconomicsFields
+                idPrefix="onboarding"
+                value={economics}
+                onChange={setEconomics}
+                disabled={loading}
+              />
+            </div>
+          </div>
+
           <div>
             <Label htmlFor="goal">Ton objectif principal</Label>
             <Textarea

@@ -17,15 +17,21 @@ export const Route = createFileRoute("/api/public/oauth/google/callback")({
 
         try {
           const { verifyOAuthState, encryptToken } = await import("@/lib/crypto.server");
-          const payload = verifyOAuthState<{ userId: string; storeId: string; provider: string }>(state);
-          if (payload.provider !== "google_ads") return htmlResponse("État OAuth ne correspond pas.", 400);
+          const payload = verifyOAuthState<{ userId: string; storeId: string; provider: string }>(
+            state,
+          );
+          if (payload.provider !== "google_ads")
+            return htmlResponse("État OAuth ne correspond pas.", 400);
 
           const clientId = process.env.GOOGLE_CLIENT_ID;
           const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
           const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
-          if (!clientId || !clientSecret) return htmlResponse("Google OAuth non configuré côté serveur.", 500);
+          if (!clientId || !clientSecret)
+            return htmlResponse("Google OAuth non configuré côté serveur.", 500);
 
-          const redirectUri = `${url.origin}/api/public/oauth/google/callback`;
+          // Doit être STRICTEMENT identique au redirect_uri de l'autorisation.
+          const { oauthCallbackUrl } = await import("@/lib/public-origin.server");
+          const redirectUri = oauthCallbackUrl(request, "google");
 
           const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
             method: "POST",
@@ -38,7 +44,8 @@ export const Route = createFileRoute("/api/public/oauth/google/callback")({
               grant_type: "authorization_code",
             }).toString(),
           });
-          if (!tokenRes.ok) return htmlResponse(`Échange du code échoué : ${await tokenRes.text()}`, 502);
+          if (!tokenRes.ok)
+            return htmlResponse(`Échange du code échoué : ${await tokenRes.text()}`, 502);
           const tokenJson = (await tokenRes.json()) as {
             access_token: string;
             refresh_token?: string;
@@ -98,7 +105,10 @@ export const Route = createFileRoute("/api/public/oauth/google/callback")({
             }</p><script>setTimeout(()=>{window.location.href="/stores/${payload.storeId}"},1500)</script>`,
           );
         } catch (err) {
-          return htmlResponse(`Erreur OAuth : ${err instanceof Error ? err.message : String(err)}`, 500);
+          return htmlResponse(
+            `Erreur OAuth : ${err instanceof Error ? err.message : String(err)}`,
+            500,
+          );
         }
       },
     },

@@ -10,21 +10,28 @@ export const Route = createFileRoute("/api/public/oauth/meta/callback")({
         const url = new URL(request.url);
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state");
-        const oauthError = url.searchParams.get("error_description") || url.searchParams.get("error");
+        const oauthError =
+          url.searchParams.get("error_description") || url.searchParams.get("error");
 
         if (oauthError) return htmlResponse(`Autorisation refusée : ${oauthError}`, 400);
         if (!code || !state) return htmlResponse("Paramètres OAuth manquants.", 400);
 
         try {
           const { verifyOAuthState, encryptToken } = await import("@/lib/crypto.server");
-          const payload = verifyOAuthState<{ userId: string; storeId: string; provider: string }>(state);
-          if (payload.provider !== "meta_ads") return htmlResponse("État OAuth ne correspond pas.", 400);
+          const payload = verifyOAuthState<{ userId: string; storeId: string; provider: string }>(
+            state,
+          );
+          if (payload.provider !== "meta_ads")
+            return htmlResponse("État OAuth ne correspond pas.", 400);
 
           const clientId = process.env.META_CLIENT_ID;
           const clientSecret = process.env.META_CLIENT_SECRET;
-          if (!clientId || !clientSecret) return htmlResponse("Meta OAuth non configuré côté serveur.", 500);
+          if (!clientId || !clientSecret)
+            return htmlResponse("Meta OAuth non configuré côté serveur.", 500);
 
-          const redirectUri = `${url.origin}/api/public/oauth/meta/callback`;
+          // Doit être STRICTEMENT identique au redirect_uri de l'autorisation.
+          const { oauthCallbackUrl } = await import("@/lib/public-origin.server");
+          const redirectUri = oauthCallbackUrl(request, "meta");
 
           const shortRes = await fetch(
             `https://graph.facebook.com/${META_API_VERSION}/oauth/access_token?` +
@@ -35,7 +42,8 @@ export const Route = createFileRoute("/api/public/oauth/meta/callback")({
                 code,
               }).toString(),
           );
-          if (!shortRes.ok) return htmlResponse(`Échange du code échoué : ${await shortRes.text()}`, 502);
+          if (!shortRes.ok)
+            return htmlResponse(`Échange du code échoué : ${await shortRes.text()}`, 502);
           const shortJson = (await shortRes.json()) as { access_token: string };
 
           // Token longue durée (60 jours)
@@ -62,7 +70,11 @@ export const Route = createFileRoute("/api/public/oauth/meta/callback")({
               }).toString(),
           );
           const accounts = accountsRes.ok
-            ? ((await accountsRes.json()) as { data: { id: string; name: string; currency: string }[] }).data
+            ? (
+                (await accountsRes.json()) as {
+                  data: { id: string; name: string; currency: string }[];
+                }
+              ).data
             : [];
 
           const primary = accounts[0];
@@ -94,7 +106,10 @@ export const Route = createFileRoute("/api/public/oauth/meta/callback")({
             }</p><script>setTimeout(()=>{window.location.href="/stores/${payload.storeId}"},1500)</script>`,
           );
         } catch (err) {
-          return htmlResponse(`Erreur OAuth : ${err instanceof Error ? err.message : String(err)}`, 500);
+          return htmlResponse(
+            `Erreur OAuth : ${err instanceof Error ? err.message : String(err)}`,
+            500,
+          );
         }
       },
     },
