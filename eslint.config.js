@@ -6,7 +6,18 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi"] },
+  {
+    ignores: [
+      "dist",
+      ".output",
+      ".vinxi",
+      // Code généré, marqué « do not edit » en tête de fichier : le reformater
+      // serait écrasé à la prochaine génération.
+      "src/integrations/**",
+      // Composants shadcn repris tels quels, non maintenus ici.
+      "src/components/ui/**",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
@@ -37,4 +48,11 @@ export default tseslint.config(
     },
   },
   eslintPluginPrettier,
+  {
+    // Les doublures de test imitent des clients externes non typés : leur
+    // imposer un typage complet reviendrait à réécrire les types de PostgREST
+    // pour des objets qui n'existent que le temps d'un contrôle.
+    files: ["tests/**/*.ts"],
+    rules: { "@typescript-eslint/no-explicit-any": "off" },
+  },
 );

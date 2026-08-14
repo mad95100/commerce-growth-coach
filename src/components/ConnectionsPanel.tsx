@@ -5,7 +5,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { CheckCircle2, Link2, Loader2, ShoppingBag, Facebook, Chrome, BarChart3 } from "lucide-react";
+import {
+  CheckCircle2,
+  Link2,
+  Loader2,
+  ShoppingBag,
+  Facebook,
+  Chrome,
+  BarChart3,
+} from "lucide-react";
 import { startShopifyConnect } from "@/lib/connectors/shopify.functions";
 import { startMetaConnect } from "@/lib/connectors/meta.functions";
 import { startGoogleAdsConnect } from "@/lib/connectors/google.functions";
@@ -19,7 +27,13 @@ type Connection = {
   connected_at: string | null;
 };
 
-export function ConnectionsPanel({ storeId, storeUrl }: { storeId: string; storeUrl: string | null }) {
+export function ConnectionsPanel({
+  storeId,
+  storeUrl,
+}: {
+  storeId: string;
+  storeUrl: string | null;
+}) {
   const qc = useQueryClient();
   const startShopify = useServerFn(startShopifyConnect);
   const disconnect = useServerFn(disconnectProvider);
@@ -128,7 +142,9 @@ export function ConnectionsPanel({ storeId, storeUrl }: { storeId: string; store
               </div>
               {shopifyConn ? (
                 <>
-                  <div className="mt-0.5 text-xs text-muted-foreground">{shopifyConn.account_label}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {shopifyConn.account_label}
+                  </div>
                   <Button
                     size="sm"
                     variant="outline"
@@ -154,7 +170,9 @@ export function ConnectionsPanel({ storeId, storeUrl }: { storeId: string; store
                     className="bg-gradient-primary text-primary-foreground"
                   >
                     {busy === "shopify" ? (
-                      <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Redirection...</>
+                      <>
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Redirection...
+                      </>
                     ) : (
                       "Connecter"
                     )}
@@ -221,9 +239,7 @@ function AdsRow({
               </span>
             )}
           </div>
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            {conn?.account_label ?? hint}
-          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">{conn?.account_label ?? hint}</div>
           <Button
             size="sm"
             variant={conn ? "outline" : "default"}
@@ -232,7 +248,9 @@ function AdsRow({
             className={conn ? "mt-3" : "mt-3 bg-gradient-primary text-primary-foreground"}
           >
             {busy ? (
-              <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Patiente...</>
+              <>
+                <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Patiente...
+              </>
             ) : conn ? (
               "Déconnecter"
             ) : (

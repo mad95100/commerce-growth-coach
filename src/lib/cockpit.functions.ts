@@ -3,6 +3,16 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { normalizeCurrency } from "@/lib/currency";
 import { z } from "zod";
 
+/**
+ * Valeur issue d'un instantané stocké en `jsonb`.
+ *
+ * La forme exacte varie selon les canaux connectés : la décrire entièrement
+ * figerait un contrat que la base ne garantit pas. `any` est ici assumé pour
+ * cette raison précise, et cantonné à ce seul alias plutôt que dispersé.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CockpitSnapshotValue = any;
+
 export type CockpitPriority = {
   id: string;
   title: string;
@@ -63,7 +73,7 @@ export const getCockpit = createServerFn({ method: "POST" })
       .limit(1);
 
     const snapRow = (snapRows ?? [])[0] as
-      | { payload: Record<string, any>; fetched_at: string }
+      | { payload: Record<string, CockpitSnapshotValue>; fetched_at: string }
       | undefined;
     const snap = snapRow?.payload ?? null;
 
@@ -154,7 +164,7 @@ export const getCockpit = createServerFn({ method: "POST" })
         .order("priority_score", { ascending: false })
         .limit(3);
 
-      priorities = (findings ?? []).map((f: any) => ({
+      priorities = (findings ?? []).map((f: Record<string, CockpitSnapshotValue>) => ({
         id: f.id,
         title: f.title,
         category: f.category,

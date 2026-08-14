@@ -1,6 +1,16 @@
 import { decryptToken } from "@/lib/crypto.server";
 import { normalizeCurrency } from "@/lib/currency";
 
+/**
+ * Ligne renvoyée par une requête GAQL.
+ *
+ * Google renvoie une structure profonde dont les champs dépendent du SELECT :
+ * la décrire entièrement figerait un contrat qui change à chaque requête. `any`
+ * est assumé ici, et cantonné à cet alias.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type GaqlRow = Record<string, any>;
+
 const V = "v18";
 const BASE = `https://googleads.googleapis.com/${V}`;
 
@@ -73,7 +83,7 @@ async function search(customerId: string, accessToken: string, query: string) {
     body: JSON.stringify({ query, pageSize: 50 }),
   });
   if (!res.ok) throw new Error(`Google Ads API ${res.status}: ${await res.text()}`);
-  return ((await res.json()) as { results?: Record<string, any>[] }).results ?? [];
+  return ((await res.json()) as { results?: GaqlRow[] }).results ?? [];
 }
 
 async function mutate(customerId: string, accessToken: string, endpoint: string, body: unknown) {
@@ -141,8 +151,12 @@ export async function fetchGoogleSnapshot(
       resource_name: r.adGroupAd.resourceName,
       campaign_name: r.campaign?.name ?? "",
       ad_group_name: r.adGroup?.name ?? "",
-      headlines: (r.adGroupAd.ad.responsiveSearchAd?.headlines ?? []).map((h: any) => h.text),
-      descriptions: (r.adGroupAd.ad.responsiveSearchAd?.descriptions ?? []).map((d: any) => d.text),
+      headlines: (r.adGroupAd.ad.responsiveSearchAd?.headlines ?? []).map(
+        (h: { text: string }) => h.text,
+      ),
+      descriptions: (r.adGroupAd.ad.responsiveSearchAd?.descriptions ?? []).map(
+        (d: { text: string }) => d.text,
+      ),
     }));
   } catch {
     ads = [];

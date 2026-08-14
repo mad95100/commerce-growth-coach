@@ -8,10 +8,13 @@ export function ScoreRing({ score, size = 128 }: { score: number; size?: number 
     clamped < 40
       ? "oklch(0.65 0.24 25)"
       : clamped < 70
-      ? "oklch(0.78 0.17 60)"
-      : "oklch(0.78 0.17 155)";
+        ? "oklch(0.78 0.17 60)"
+        : "oklch(0.78 0.17 155)";
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+    <div
+      className="relative inline-flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
         <circle
           cx={size / 2}
@@ -39,7 +42,9 @@ export function ScoreRing({ score, size = 128 }: { score: number; size?: number 
           {clamped}
         </div>
         {size >= 96 && (
-          <div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">/100</div>
+          <div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            /100
+          </div>
         )}
       </div>
     </div>

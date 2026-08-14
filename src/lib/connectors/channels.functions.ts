@@ -15,8 +15,8 @@ export const getApplyChannels = createServerFn({ method: "POST" })
 
     const active = rows ?? [];
     return {
-      shopify: active.some((r) => r.provider === "shopify"),
-      meta_ads: active.some((r) => r.provider === "meta_ads"),
-      google_ads: active.some((r) => r.provider === "google_ads"),
+      shopify: active.some((r: { provider: string }) => r.provider === "shopify"),
+      meta_ads: active.some((r: { provider: string }) => r.provider === "meta_ads"),
+      google_ads: active.some((r: { provider: string }) => r.provider === "google_ads"),
     };
   });

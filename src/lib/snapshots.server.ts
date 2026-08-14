@@ -1,9 +1,10 @@
+import type { Db } from "@/lib/actions.server";
 import { currencyLabel } from "@/lib/currency";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { captureStoreMetrics, type StoreMetrics } from "@/lib/metrics.server";
 import { loadChannelCredentials } from "@/lib/tracking.server";
 
-type Db = SupabaseClient<any, any, any>;
+// Même type de client que le journal des actions : le redéclarer
+// réintroduirait des `any` déjà assumés une fois ailleurs.
 
 export type StoreSnapshot = StoreMetrics & {
   /** Canaux qui n'ont pas répondu — l'audit continue quand même. */
