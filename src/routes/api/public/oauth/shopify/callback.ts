@@ -33,6 +33,46 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
         }
 
         try {
+          const clientId = process.env.SHOPIFY_CLIENT_ID;
+          const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
+          if (!clientId || !clientSecret) {
+            return htmlResponse(
+              errorBody(
+                "Configuration serveur incomplète",
+                "SHOPIFY_CLIENT_ID ou SHOPIFY_CLIENT_SECRET manque côté serveur.",
+              ),
+              500,
+            );
+          }
+
+          // Contrôles exigés par Shopify, avant toute exploitation des paramètres.
+          // Le `hmac` authentifie la requête entière ; il se vérifie donc en premier,
+          // et sur la chaîne de requête d'origine, avant tout retrait de paramètre.
+          const { verifyShopifyHmac, isValidShopHostname } =
+            await import("@/lib/shopify-hmac.server");
+
+          if (!verifyShopifyHmac(url.searchParams, clientSecret)) {
+            return htmlResponse(
+              errorBody(
+                "Retour Shopify non authentifié",
+                "La signature de la requête ne correspond pas. Relance la connexion depuis l'application ; si le problème persiste, vérifie que SHOPIFY_CLIENT_SECRET correspond bien à l'app Shopify utilisée.",
+              ),
+              401,
+            );
+          }
+
+          // `shop` sert à construire les URL d'API : on s'assure que c'est bien un
+          // nom d'hôte de boutique, et rien d'autre.
+          if (!isValidShopHostname(shop)) {
+            return htmlResponse(
+              errorBody(
+                "Boutique Shopify invalide",
+                "Le domaine renvoyé par Shopify n'est pas un nom d'hôte de boutique valide.",
+              ),
+              400,
+            );
+          }
+
           const { verifyOAuthState, encryptToken } = await import("@/lib/crypto.server");
           const payload = verifyOAuthState<{
             userId: string;
@@ -48,18 +88,6 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
                 "La demande ne correspond pas à la boutique attendue. Relance la connexion depuis l'application.",
               ),
               400,
-            );
-          }
-
-          const clientId = process.env.SHOPIFY_CLIENT_ID;
-          const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
-          if (!clientId || !clientSecret) {
-            return htmlResponse(
-              errorBody(
-                "Configuration serveur incomplète",
-                "SHOPIFY_CLIENT_ID ou SHOPIFY_CLIENT_SECRET manque côté serveur.",
-              ),
-              500,
             );
           }
 
