@@ -113,6 +113,32 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
           }
           const tokenJson = (await tokenRes.json()) as { access_token: string; scope: string };
 
+          // Premier appel avec le jeton neuf : il vérifie qu'il fonctionne et
+          // relève les permissions réellement accordées. `tokenJson.scope` est
+          // vide pour les apps à installation gérée, où les permissions
+          // viennent de la configuration de l'app.
+          //
+          // Un échec ici n'annule pas la connexion — l'échange du code a
+          // réussi, le jeton est valide. On l'enregistre et on consigne la
+          // raison, plutôt que de renvoyer l'utilisateur à la case départ pour
+          // un contrôle secondaire.
+          const { fetchGrantedScopes } = await import("@/lib/connectors/shopify-apply.server");
+          const { missingScopes } = await import("@/lib/connectors/shopify-scopes");
+
+          let grantedScopes: string[] | null = null;
+          let scopeWarning: string | null = null;
+          try {
+            grantedScopes = await fetchGrantedScopes(shop, tokenJson.access_token);
+            const missing = missingScopes(grantedScopes);
+            if (missing.length > 0) {
+              scopeWarning = `Permissions manquantes : ${missing.join(", ")}. Les fonctionnalités qui en dépendent échoueront.`;
+            }
+          } catch (scopeErr) {
+            const detail = scopeErr instanceof Error ? scopeErr.message : String(scopeErr);
+            console.error("[Shopify OAuth] relevé des permissions impossible :", scopeErr);
+            scopeWarning = `Permissions non vérifiables à la connexion : ${detail}`;
+          }
+
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { error } = await supabaseAdmin.from("data_connections").upsert(
             {
@@ -122,16 +148,21 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
               access_token_ciphertext: encryptToken(tokenJson.access_token),
               account_id: shop,
               account_label: shop,
-              scope: tokenJson.scope,
+              // Les permissions relevées sur le jeton, et non le `scope` de la
+              // réponse d'échange, qui peut être vide.
+              scope: grantedScopes ? grantedScopes.join(",") : tokenJson.scope || null,
               connected_at: new Date().toISOString(),
-              last_error: null,
+              last_error: scopeWarning,
             },
             { onConflict: "store_id,provider" },
           );
           if (error) throw error;
 
           return htmlResponse(
-            `<h1>Shopify connecté !</h1><p>Ta boutique est reliée. On te ramène à l'application…</p>` +
+            `<h1>Shopify connecté !</h1>` +
+              (scopeWarning
+                ? `<p>Ta boutique est reliée, avec une réserve : ${escapeHtml(scopeWarning)}</p>`
+                : `<p>Ta boutique est reliée. On te ramène à l'application…</p>`) +
               `<p><a href="/stores/${payload.storeId}">Continuer maintenant</a></p>`,
             200,
             `/stores/${payload.storeId}`,

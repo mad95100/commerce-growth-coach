@@ -1,18 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { SHOPIFY_SCOPE_PARAM } from "@/lib/connectors/shopify-scopes";
 import { z } from "zod";
-
-const SHOPIFY_SCOPES = [
-  "read_products",
-  "write_products",
-  "read_orders",
-  "read_customers",
-  "read_analytics",
-  "read_price_rules",
-  "write_price_rules",
-  "read_discounts",
-  "write_discounts",
-].join(",");
 
 function normalizeShop(shopInput: string): string {
   const cleaned = shopInput
@@ -117,7 +106,7 @@ export const startShopifyConnect = createServerFn({ method: "POST" })
 
     const params = new URLSearchParams({
       client_id: clientId,
-      scope: SHOPIFY_SCOPES,
+      scope: SHOPIFY_SCOPE_PARAM,
       redirect_uri: redirectUri,
       state,
     });
