@@ -127,12 +127,21 @@ async function considerStore(
     .from("audits")
     .select("id, status, created_at")
     .eq("store_id", storeId)
+    // Dix et non cinq : au-delà de cinq échecs d'affilée, le dernier audit
+    // terminé sortait de la fenêtre et tous les verdicts repassaient pour neufs.
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(10);
 
   type AuditRow = { id: string; status: string; created_at: string };
   const recent = (audits ?? []) as AuditRow[];
   const lastCompleted = recent.find((a) => a.status === "completed") ?? null;
+  // Échecs d'affilée depuis le dernier diagnostic terminé. Un audit en cours
+  // interrompt le décompte : son sort n'est pas encore connu.
+  let consecutiveFailures = 0;
+  for (const audit of recent) {
+    if (audit.status === "failed") consecutiveFailures += 1;
+    else break;
+  }
 
   // Seuls comptent les verdicts obtenus APRÈS le dernier diagnostic : ceux
   // d'avant y sont déjà intégrés.
@@ -148,7 +157,11 @@ async function considerStore(
     storeId,
     verdictsSinceAudit,
     lastAuditAt: lastCompleted?.created_at ?? null,
+    // La tentative la plus récente, quel qu'en soit le sort : c'est elle qui a
+    // coûté un quota, et c'est donc elle qui règle la cadence.
+    lastAttemptAt: recent[0]?.created_at ?? null,
     auditRunning: recent.some((a) => a.status === "running"),
+    consecutiveFailures,
     quotaRemaining: entitlements.remaining.audits,
     promptedAt: store.reaudit_prompted_at ?? null,
   };

@@ -122,9 +122,9 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/reaudit.test.ts",
-    minChecks: 42,
+    minChecks: 57,
     covers:
-      "Relance du diagnostic : jamais deux audits concurrents, jamais de relance sans verdict nouveau, et surtout jamais de quota compté dépensé sans l'accord du marchand — sur un plan limité le diagnostic est proposé, pas lancé.",
+      "Relance du diagnostic : jamais deux audits concurrents, jamais de relance sans verdict nouveau, jamais de quota compté dépensé sans l'accord du marchand, et jamais de boucle payante sur une boutique dont les diagnostics échouent — la cadence se règle sur la dernière tentative, pas sur le dernier succès.",
   },
   {
     file: "audits/robustness.test.ts",

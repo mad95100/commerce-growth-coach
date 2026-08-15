@@ -42,15 +42,42 @@ export const MIN_DAYS_BETWEEN_AUDITS = 3;
  */
 export const REAUDIT_PROMPT_COOLDOWN_DAYS = 7;
 
+/**
+ * Diagnostics ratés d'affilée au-delà desquels on cesse d'en relancer seul.
+ *
+ * LE DÉFAUT QUE CELA CORRIGE, avec `lastAttemptAt`. Un audit qui échoue ne
+ * termine pas, donc ne devient jamais « le dernier diagnostic ». Les verdicts
+ * qui l'avaient justifié restaient donc éternellement « nouveaux », et le délai
+ * minimal, calculé sur le dernier audit TERMINÉ, ne s'appliquait pas davantage.
+ * Chaque passage relançait un diagnostic et décomptait un quota, indéfiniment,
+ * sur une boutique dont les audits ne pouvaient de toute façon pas aboutir.
+ *
+ * Deux échecs consécutifs suffisent à conclure que le problème ne vient pas du
+ * hasard. Le marchand peut toujours relancer à la main : c'est lui qui décide
+ * de dépenser, pas une boucle automatique.
+ */
+export const MAX_CONSECUTIVE_AUDIT_FAILURES = 2;
+
 /** Ce qu'on sait d'une boutique au moment de décider. */
 export type ReauditSignal = {
   storeId: string;
   /** Verdicts obtenus DEPUIS le dernier diagnostic. */
   verdictsSinceAudit: string[];
-  /** Date du dernier diagnostic, `null` si la boutique n'en a jamais eu. */
+  /** Date du dernier diagnostic TERMINÉ, `null` si la boutique n'en a jamais eu. */
   lastAuditAt: string | null;
+  /**
+   * Date du dernier diagnostic CRÉÉ, quel qu'en soit le sort.
+   *
+   * Distincte de `lastAuditAt` : un audit qui échoue n'intègre aucun verdict,
+   * mais il a bien coûté un appel et un quota. La cadence se règle donc sur les
+   * tentatives, pas sur les succès — sinon une boutique dont les audits ratent
+   * en redemande un à chaque passage.
+   */
+  lastAttemptAt?: string | null;
   /** Un diagnostic est-il déjà en cours ? */
   auditRunning: boolean;
+  /** Diagnostics ratés d'affilée depuis le dernier terminé. */
+  consecutiveFailures?: number;
   /** Audits restants ce mois-ci. `null` = illimité. */
   quotaRemaining: number | null;
   /** Dernière fois qu'un diagnostic a été proposé, pour ne pas insister. */
@@ -73,6 +100,15 @@ function millis(value: string | null | undefined): number | null {
   if (!value) return null;
   const time = new Date(value).getTime();
   return Number.isFinite(time) ? time : null;
+}
+
+/** La plus récente de deux dates, en ignorant celles qui sont illisibles. */
+function mostRecent(a: string | null | undefined, b: string | null | undefined): string | null {
+  const ta = millis(a);
+  const tb = millis(b);
+  if (ta === null) return tb === null ? null : (b as string);
+  if (tb === null) return a as string;
+  return ta >= tb ? (a as string) : (b as string);
 }
 
 function daysSince(value: string | null | undefined, now: Date): number | null {
@@ -109,7 +145,19 @@ export function decideReaudit(signal: ReauditSignal, now: Date = new Date()): Re
     );
   }
 
-  const sinceAudit = daysSince(signal.lastAuditAt, now);
+  // Des diagnostics qui échouent en série ne sont pas un signal à réessayer :
+  // relancer coûte un quota à chaque fois et ne dit rien de plus.
+  if ((signal.consecutiveFailures ?? 0) >= MAX_CONSECUTIVE_AUDIT_FAILURES) {
+    return wait(
+      `Les ${signal.consecutiveFailures} derniers diagnostics de cette boutique ont échoué. Je n'en relance pas un de plus tout seul : relance-le à la main quand tu veux, pour qu'un quota ne parte pas dans le vide.`,
+    );
+  }
+
+  // La cadence porte sur la dernière TENTATIVE, réussie ou non. S'en tenir au
+  // dernier audit terminé laissait une boutique dont les audits échouent en
+  // relancer un à chaque passage, sans jamais atteindre le délai minimal.
+  const lastTouch = mostRecent(signal.lastAuditAt, signal.lastAttemptAt);
+  const sinceAudit = daysSince(lastTouch, now);
   if (sinceAudit !== null && sinceAudit < MIN_DAYS_BETWEEN_AUDITS) {
     const remaining = Math.ceil(MIN_DAYS_BETWEEN_AUDITS - sinceAudit);
     return wait(

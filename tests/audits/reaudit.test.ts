@@ -6,6 +6,7 @@ import {
   REAUDIT_PROMPT_COOLDOWN_DAYS,
   decideReaudit,
   describeLearning,
+  MAX_CONSECUTIVE_AUDIT_FAILURES,
   type ReauditSignal,
 } from "../../src/lib/reaudit";
 import { defineSuite } from "../harness";
@@ -236,6 +237,108 @@ export default defineSuite("Audits — relance du diagnostic", (t) => {
     "le marchand est prévenu dans les deux cas",
     (server.match(/from\("notifications"\)/g) ?? []).length,
     2,
+  );
+
+  // =========================================================================
+  // LA BOUCLE PAYANTE SUR UNE BOUTIQUE DONT LES AUDITS ÉCHOUENT
+  // =========================================================================
+  // Un audit qui échoue ne TERMINE pas : il ne devient donc jamais « le dernier
+  // diagnostic ». Les verdicts qui l'avaient justifié restaient éternellement
+  // neufs, et le délai minimal — calculé sur le dernier audit terminé — ne
+  // s'appliquait pas non plus. Chaque passage relançait un diagnostic et
+  // décomptait un quota, indéfiniment, sur une boutique dont les audits ne
+  // pouvaient de toute façon pas aboutir.
+
+  const failedYesterday = decideReaudit(
+    signal({ lastAuditAt: ago(30), lastAttemptAt: ago(1), consecutiveFailures: 1 }),
+    NOW,
+  );
+  t.check(
+    "un diagnostic raté hier ne s'en fait pas relancer un aujourd'hui",
+    failedYesterday.action,
+    "attendre",
+  );
+  t.check(
+    "et la raison invoquée est bien le délai, pas l'absence de nouveauté",
+    failedYesterday.reason.includes(String(MIN_DAYS_BETWEEN_AUDITS)),
+    true,
+  );
+  t.check(
+    "la cadence se règle sur la tentative même quand aucun audit n'a jamais abouti",
+    decideReaudit(signal({ lastAuditAt: null, lastAttemptAt: ago(1) }), NOW).action,
+    "attendre",
+  );
+  t.check(
+    "et une tentative ancienne ne bloque plus rien",
+    decideReaudit(signal({ lastAuditAt: ago(30), lastAttemptAt: ago(10) }), NOW).action !==
+      "attendre",
+    true,
+  );
+  t.check(
+    "la plus récente des deux dates fait foi",
+    decideReaudit(signal({ lastAuditAt: ago(1), lastAttemptAt: ago(30) }), NOW).action,
+    "attendre",
+  );
+  t.check(
+    "une date de tentative illisible n'annule pas le délai connu",
+    decideReaudit(signal({ lastAuditAt: ago(1), lastAttemptAt: "pas une date" }), NOW).action,
+    "attendre",
+  );
+  t.check(
+    "sans aucune date, la boutique reste éligible",
+    decideReaudit(signal({ lastAuditAt: null, lastAttemptAt: null }), NOW).action !== "attendre",
+    true,
+  );
+
+  // Le garde-fou de dernier recours : au bout de deux échecs d'affilée, on
+  // cesse de dépenser tout seul.
+  const repeated = decideReaudit(
+    signal({
+      lastAuditAt: ago(30),
+      lastAttemptAt: ago(20),
+      consecutiveFailures: MAX_CONSECUTIVE_AUDIT_FAILURES,
+    }),
+    NOW,
+  );
+  t.check("deux échecs d'affilée arrêtent la relance automatique", repeated.action, "attendre");
+  t.check("et le marchand garde la main", repeated.reason.includes("relance-le à la main"), true);
+  t.check(
+    "un seul échec ne suffit pas à bloquer",
+    decideReaudit(
+      signal({ lastAuditAt: ago(30), lastAttemptAt: ago(20), consecutiveFailures: 1 }),
+      NOW,
+    ).action !== "attendre",
+    true,
+  );
+  t.check(
+    "le blocage prime sur le quota illimité, qui sinon lancerait",
+    decideReaudit(
+      signal({
+        quotaRemaining: null,
+        lastAttemptAt: ago(20),
+        consecutiveFailures: MAX_CONSECUTIVE_AUDIT_FAILURES + 3,
+      }),
+      NOW,
+    ).action,
+    "attendre",
+  );
+
+  // Et le serveur alimente réellement ces deux signaux.
+  t.check(
+    "la dernière tentative est lue, quel qu'en soit le sort",
+    server.includes("lastAttemptAt: recent[0]?.created_at"),
+    true,
+  );
+  t.check("les échecs d'affilée sont comptés", server.includes("consecutiveFailures"), true);
+  t.check(
+    "un audit en cours interrompt le décompte des échecs",
+    /if \(audit\.status === "failed"\) consecutiveFailures \+= 1;\s*\n\s*else break;/.test(server),
+    true,
+  );
+  t.check(
+    "la fenêtre d'audits lus dépasse le seuil d'échecs consécutifs",
+    server.includes(".limit(10)"),
+    true,
   );
 
   const migration = read("supabase/migrations/20260815210000_reaudit.sql");
