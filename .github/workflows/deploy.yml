@@ -69,13 +69,19 @@ jobs:
           # renseigner — et le piège est réel : ces deux valeurs se placent dans
           # les secrets du DÉPÔT GITHUB, pas dans l'interface Cloudflare, qui ne
           # sert qu'à l'exécution du Worker.
-          manquants=""
-          [ -n "$CLOUDFLARE_API_TOKEN" ] || manquants="$manquants CLOUDFLARE_API_TOKEN"
-          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || manquants="$manquants CLOUDFLARE_ACCOUNT_ID"
-          if [ -n "$manquants" ]; then
-            echo "::error::Secret(s) absent(s) des secrets du dépôt GitHub :$manquants"
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Secret(s) absent(s) des secrets du dépôt GitHub : CLOUDFLARE_API_TOKEN"
             echo "::error::À ajouter dans Settings → Secrets and variables → Actions → New repository secret."
             exit 1
+          fi
+
+          # L'identifiant de compte est FACULTATIF : wrangler le déduit seul
+          # quand le token ne donne accès qu'à un compte, ce qui est le cas
+          # courant. Ne pas en faire un blocage évite d'immobiliser un
+          # déploiement pour une valeur que la plateforme sait retrouver.
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice::CLOUDFLARE_ACCOUNT_ID non renseigné — wrangler déduira le compte depuis le token."
+            echo "::notice::À renseigner seulement si le token porte sur plusieurs comptes."
           fi
           echo "Identifiants de déploiement présents."
 
@@ -90,16 +96,21 @@ jobs:
           test -d .output/public || { echo "::error::.output/public absent"; exit 1; }
 
       - name: Déployer sur Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_ENV: ${{ (github.event.inputs.environment == 'preview') && '--env preview' || '--env=""' }}
+        run: |
+          # Appel direct plutôt que `cloudflare/wrangler-action` : l'action
+          # exporte l'identifiant de compte même vide, ce qui fait échouer
+          # wrangler au lieu de le laisser déduire le compte. Ici, une variable
+          # vide est simplement retirée de l'environnement.
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || unset CLOUDFLARE_ACCOUNT_ID
+
           # `--env=""` désigne explicitement l'environnement de tête. Sans lui,
           # wrangler avertit que plusieurs environnements sont définis sans
           # cible — ambiguïté qu'on ne veut pas dans un déploiement automatique.
-          command: >-
-            deploy
-            ${{ (github.event.inputs.environment == 'preview') && '--env preview' || '--env=""' }}
+          bunx wrangler deploy $WRANGLER_ENV
 
       - name: Provisionner les secrets d'exécution du Worker
         env:
@@ -154,6 +165,8 @@ jobs:
             echo "::warning::Aucun secret d'exécution fourni. Le Worker est déployé mais ne pourra pas joindre Supabase."
             exit 0
           fi
+
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || unset CLOUDFLARE_ACCOUNT_ID
 
           echo "Secrets à provisionner :$presents"
           jq -n '[$ENV | to_entries[] | select(.key as $k | $noms | index($k)) | select(.value != "")] | from_entries' \
