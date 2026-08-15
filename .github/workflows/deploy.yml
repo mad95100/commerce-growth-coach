@@ -89,21 +89,6 @@ jobs:
           test -f .output/server/index.mjs || { echo "::error::.output/server/index.mjs absent"; exit 1; }
           test -d .output/public || { echo "::error::.output/public absent"; exit 1; }
 
-      - name: Appliquer les migrations Supabase
-        # Sautée si le projet n'est pas encore relié : la migration
-        # d'infrastructure ne doit pas être bloquée par cette étape.
-        if: env.SUPABASE_ACCESS_TOKEN != '' && vars.SUPABASE_PROJECT_ID != ''
-        env:
-          PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
-        run: |
-          npm install -g supabase@latest
-          supabase link --project-ref "$PROJECT_ID"
-          # `db push` n'applique QUE les migrations absentes de
-          # `supabase_migrations.schema_migrations`. Il ne recrée rien et ne
-          # rejoue rien : les données et la clé de chiffrement ne sont pas
-          # concernées.
-          supabase db push
-
       - name: Déployer sur Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
@@ -176,6 +161,33 @@ jobs:
             | bunx wrangler secret bulk $WRANGLER_ENV
 
           echo "Secrets d'exécution provisionnés."
+
+      - name: Appliquer les migrations Supabase
+        # APRÈS le déploiement, délibérément : on ne modifie le schéma qu'une
+        # fois le worker publié sans erreur. Sautée si le projet n'est pas relié.
+        if: env.SUPABASE_ACCESS_TOKEN != '' && vars.SUPABASE_PROJECT_ID != ''
+        env:
+          PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+        run: |
+          npm install -g supabase@latest
+          supabase link --project-ref "$PROJECT_ID"
+
+          # L'historique local et distant DOIVENT concorder. Un décalage d'une
+          # seule seconde sur un horodatage suffit à faire rejouer la migration
+          # initiale — donc à réexécuter des CREATE TYPE sur un schéma déjà en
+          # place, et à casser le déploiement. Le cas s'est produit.
+          echo "--- État des migrations ---"
+          supabase migration list
+
+          # Annonce ce qui va être appliqué avant de l'appliquer : la trace
+          # reste dans le journal du déploiement.
+          echo "--- Migrations qui vont être appliquées ---"
+          supabase db push --dry-run
+
+          # N'applique QUE les migrations absentes de
+          # `supabase_migrations.schema_migrations`. Ne recrée rien, ne rejoue
+          # rien, ne touche à aucune donnée.
+          supabase db push
 
       - name: Contrôle de démarrage
         env:

@@ -183,8 +183,8 @@ jobs:
           # attrape le cas où l'inventaire lui-même serait vidé pour faire
           # passer la CI.
           COUNT=$(grep -c 'file: "' tests/expected.ts)
-          if [ "$COUNT" -lt 14 ]; then
-            echo "::error file=tests/expected.ts::L'inventaire ne déclare plus que $COUNT suites, 14 attendues."
+          if [ "$COUNT" -lt 15 ]; then
+            echo "::error file=tests/expected.ts::L'inventaire ne déclare plus que $COUNT suites, 15 attendues."
             exit 1
           fi
           echo "$COUNT suites déclarées dans l'inventaire."

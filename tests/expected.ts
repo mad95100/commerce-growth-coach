@@ -97,6 +97,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Indépendance vis-à-vis de Lovable : aucune URL, aucun SDK, aucun paquet ni aucune résolution de registre privé à l'exécution, replis transitoires nommés et neutralisés par la configuration.",
   },
   {
+    file: "infra/migrations.test.ts",
+    minChecks: 12,
+    covers:
+      "Historique des migrations : versions uniques et ordonnées, durcissement RLS rejouable sans dommage, et déploiement qui annonce ce qu'il applique. Un décalage d'une seconde avait fait rejouer la migration initiale.",
+  },
+  {
     file: "infra/deploy-config.test.ts",
     minChecks: 50,
     covers:
