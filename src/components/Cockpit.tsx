@@ -29,6 +29,25 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+/**
+ * Les trois degrés de certitude d'un signal croisé.
+ *
+ * Les mêmes que ceux du moteur : un croisement ne crée jamais une certitude que
+ * les sources n'avaient pas. Un échantillon mince redescend en hypothèse, et
+ * l'affichage doit le montrer plutôt que de tout présenter au même niveau.
+ */
+const CERTAINTY_LABELS: Record<string, string> = {
+  fait: "Fait",
+  deduction_forte: "Déduction forte",
+  hypothese: "Hypothèse",
+};
+
+const CERTAINTY_STYLE: Record<string, string> = {
+  fait: "bg-primary/15 text-primary",
+  deduction_forte: "bg-info/15 text-info",
+  hypothese: "bg-muted text-muted-foreground",
+};
+
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-xl border border-border/60 bg-card/50 p-4">
@@ -152,6 +171,48 @@ export function Cockpit({ storeId }: { storeId: string }) {
       {/* L'entonnoir mesuré. Les étapes non mesurées y apparaissent comme
           telles, jamais comme des barres à zéro. */}
       {c.funnel && <FunnelView funnel={c.funnel} />}
+
+      {/* CE QUE LE CROISEMENT DES SOURCES ÉTABLIT.
+          Le moteur croise Shopify, Meta, Google et l'origine réelle des
+          commandes depuis plusieurs blocs — et le marchand n'en voyait rien.
+          Or ce sont les seules conclusions qu'aucune source ne peut produire
+          seule : un tableau de bord de régie ne dira jamais que la régie se
+          compte trop d'achats. Chaque signal est affiché avec sa certitude ET
+          ce qu'il ne permet PAS de conclure : sans cette seconde moitié, un
+          signal d'orientation se lit comme un verdict. */}
+      {c.crossSignals.length > 0 && (
+        <div className="rounded-2xl border border-border/60 bg-card/50 p-6">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+            <GitBranch className="h-4 w-4" /> Ce que le croisement des sources établit
+          </div>
+          <ul className="mt-4 space-y-4">
+            {c.crossSignals.map((signal) => (
+              <li key={signal.id} className="border-l-2 border-border pl-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="text-sm font-medium leading-relaxed">{signal.statement}</p>
+                  <span
+                    className={`shrink-0 rounded px-2 py-0.5 text-[11px] ${
+                      CERTAINTY_STYLE[signal.certainty] ?? "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {CERTAINTY_LABELS[signal.certainty] ?? signal.certainty}
+                  </span>
+                </div>
+                {signal.investigate.length > 0 && (
+                  <ul className="mt-2 space-y-0.5">
+                    {signal.investigate.map((lead) => (
+                      <li key={lead} className="text-sm text-muted-foreground">
+                        → {lead}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-2 text-xs text-yellow-500">{signal.doNotConclude}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Où en est chaque chantier. Remplace la liste indifférenciée : le
           marchand voit ce qui reste, ce qui attend, ce qui est acquis. */}

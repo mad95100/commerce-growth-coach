@@ -432,4 +432,26 @@ export default defineSuite("Organique — origine réelle des commandes", (t) =>
     /from "@\/lib\/connectors\//.test(read("src/lib/cross-source.ts")),
     false,
   );
+
+  // =========================================================================
+  // 8. Le marchand voit ce que le moteur a croisé
+  // =========================================================================
+  // Le défaut déjà rencontré ailleurs : le moteur calcule, et l'écran n'en
+  // montre rien. Les signaux croisés sont les seules conclusions qu'aucune
+  // source ne produit seule — un tableau de bord de régie ne dira jamais que la
+  // régie se compte trop d'achats.
+  const cockpit = read("src/components/Cockpit.tsx");
+  t.check("le cockpit affiche les signaux croisés", cockpit.includes("c.crossSignals.map"), true);
+  t.check(
+    "avec ce qu'ils ne permettent PAS de conclure",
+    cockpit.includes("signal.doNotConclude"),
+    true,
+  );
+  t.check("et leur degré de certitude", cockpit.includes("CERTAINTY_LABELS"), true);
+  t.check("ainsi que les pistes à instruire", cockpit.includes("signal.investigate.map"), true);
+  t.check(
+    "les signaux traversent bien la fonction serveur",
+    read("src/lib/cockpit.functions.ts").includes("crossSignals: crossed"),
+    true,
+  );
 });
