@@ -109,6 +109,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Verdict d'une correction : dilution de la fenêtre glissante compensée, métriques choisies selon ce qui a été corrigé, garde-fous qui empêchent de prendre un ROAS gonflé par la coupe du volume pour un succès, et annulation recommandée seulement quand elle est justifiée.",
   },
   {
+    file: "audits/measure-tick.test.ts",
+    minChecks: 30,
+    covers:
+      "Re-mesure automatique : cadence qui ne brûle pas le quota partenaire, arrêt dès qu'un verdict est définitif, équité entre boutiques, et dates corrompues depuis le navigateur qui ne déclenchent pas de mesures en boucle.",
+  },
+  {
     file: "infra/no-lovable.test.ts",
     minChecks: 25,
     covers:

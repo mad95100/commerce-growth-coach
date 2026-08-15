@@ -115,10 +115,10 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
     .from("fix_outcomes")
     // Le domaine du problème corrigé détermine quelles métriques comptent :
     // une réécriture de fiche produit ne se juge pas au ROAS.
-    .select("*, audit_findings(category)")
+    .select("*, audit_findings(title, category)")
     .eq("store_id", storeId);
   if (error) throw error;
-  if (!rows || rows.length === 0) return { updated: 0 };
+  if (!rows || rows.length === 0) return { updated: 0, regressions: [] };
 
   const creds = await loadChannelCredentials(supabase, storeId);
   if (!creds.shopify && !creds.meta && !creds.google) {
@@ -142,7 +142,8 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
     baseline: StoreMetrics | null;
     applied_at: string;
     expected_gain_min: number | null;
-    audit_findings: { category: string } | null;
+    verdict: string | null;
+    audit_findings: { title: string; category: string } | null;
   };
   const outcomes = (rows ?? []) as OutcomeRow[];
 
@@ -174,6 +175,11 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
       actionByFinding.set(action.finding_id, action);
     }
   }
+
+  // Régressions APPARUES pendant ce passage. Le passage périodique s'en sert
+  // pour prévenir le marchand — et seulement de celles-là : renotifier à
+  // chaque mesure une régression déjà signalée revient à ne plus être écouté.
+  const regressions: Array<{ findingId: string; title: string; headline: string }> = [];
 
   for (const row of outcomes) {
     const baseline = (row.baseline ?? {}) as StoreMetrics;
@@ -214,7 +220,15 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
         checked_at: new Date().toISOString(),
       })
       .eq("id", row.id);
+
+    if (outcome.verdict === "regression" && row.verdict !== "regression") {
+      regressions.push({
+        findingId: row.finding_id,
+        title: row.audit_findings?.title ?? "Correction appliquée",
+        headline: outcome.headline,
+      });
+    }
   }
 
-  return { updated: outcomes.length };
+  return { updated: outcomes.length, regressions };
 }

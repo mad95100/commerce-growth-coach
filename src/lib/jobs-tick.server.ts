@@ -37,6 +37,10 @@ export type TickResult = {
   failed: number;
   /** Identifiants traités, pour les journaux. */
   auditIds: string[];
+  /** Corrections re-mesurées pendant le même passage. */
+  measured: number;
+  /** Régressions découvertes, et pour lesquelles le marchand a été prévenu. */
+  regressions: number;
 };
 
 /**
@@ -53,6 +57,8 @@ export async function runJobsTick(now: Date = new Date()): Promise<TickResult> {
     completed: 0,
     failed: 0,
     auditIds: [],
+    measured: 0,
+    regressions: 0,
   };
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -71,7 +77,9 @@ export async function runJobsTick(now: Date = new Date()): Promise<TickResult> {
 
   if (error) {
     console.error("[jobs] lecture des audits en attente impossible :", error);
-    return result;
+    // Le passage continue quand même : la re-mesure ne dépend pas des audits,
+    // et une lecture en échec d'un côté ne doit pas priver l'autre d'horloge.
+    return { ...result, ...(await measure(now)) };
   }
 
   const candidates = selectTickCandidates((data ?? []) as PendingAudit[], now);
@@ -102,5 +110,30 @@ export async function runJobsTick(now: Date = new Date()): Promise<TickResult> {
     }
   }
 
-  return result;
+  return { ...result, ...(await measure(now)) };
+}
+
+/**
+ * Re-mesure les corrections déjà appliquées, dans le même passage.
+ *
+ * Greffé ici plutôt que sur un cron distinct : Cloudflare n'offre pas de
+ * cadence plus fine que la minute, et deux déclencheurs sur la même base se
+ * disputeraient les mêmes lignes. La règle de sélection espace elle-même les
+ * mesures — deux par jour et par boutique au plus.
+ *
+ * Ne lève jamais, et n'empêche jamais les audits d'avancer : ce sont eux que le
+ * marchand attend, la mesure peut attendre une minute de plus.
+ */
+async function measure(now: Date): Promise<{ measured: number; regressions: number }> {
+  try {
+    const { runMeasureTick } = await import("@/lib/measure-tick.server");
+    const tick = await runMeasureTick(now);
+    return { measured: tick.measured, regressions: tick.notified };
+  } catch (err) {
+    console.error(
+      "[jobs] re-mesure impossible :",
+      err instanceof Error ? err.message : String(err),
+    );
+    return { measured: 0, regressions: 0 };
+  }
 }
