@@ -4,6 +4,9 @@ import { computeCategoryScores, computeGlobalScore, computePotential } from "@/l
 import { analyseFindings } from "@/lib/finding-graph";
 import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-history";
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
+import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
+import { assessDiagnostics, diagnosticsToPromptBlock } from "@/lib/diagnostics";
+import type { SourceReport } from "@/lib/observations";
 import { AUDIT_MODEL, SYSTEM_PROMPT } from "@/lib/audit-prompt";
 import { extractJsonBlock } from "@/lib/audit-parse";
 
@@ -60,6 +63,32 @@ export async function executeAuditWork(input: {
   const snapshot = await captureAndStoreSnapshot(supabase as never, store.id);
   const previous = await getSnapshotAround(supabase as never, store.id, 7);
   const dataBlock = snapshotToPromptBlock(snapshot, previous, normalizeCurrency(store.currency));
+
+  // OBSERVATIONS. La couche commune que toutes les sources alimenteront —
+  // Shopify aujourd'hui, Meta, Google, l'organique et le marché ensuite. Le
+  // moteur ne connaît que ce format : ajouter une source n'oblige jamais à le
+  // rouvrir. Chaque observation porte sa preuve, sa taille d'échantillon et ce
+  // qu'elle permet d'établir.
+  const reports: SourceReport[] = [];
+  try {
+    const { loadChannelCredentials } = await import("@/lib/tracking.server");
+    const creds = await loadChannelCredentials(supabase, store.id);
+    if (creds.shopify) {
+      const { fetchShopifyObservations } = await import("@/lib/connectors/shopify-observe.server");
+      reports.push(
+        await fetchShopifyObservations(creds.shopify.shop, creds.shopify.encryptedToken),
+      );
+    }
+  } catch (err) {
+    // Une collecte en échec ne doit pas faire échouer l'audit : il repart
+    // alors sur les seules données déclarées, en le disant.
+    console.error("[audit] collecte des observations impossible :", err);
+  }
+
+  // Ce que ces données autorisent à conclure — et surtout ce qu'elles
+  // interdisent. C'est la barrière la plus en amont contre l'invention :
+  // celle qui agit avant que la phrase ne soit écrite.
+  const availability = assessDiagnostics(allObservations(reports));
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -137,6 +166,10 @@ ${situationHint}
 
 DONNÉES RÉELLES DISPONIBLES :
 ${dataBlock}
+
+${observationsToPromptBlock(reports)}
+
+${diagnosticsToPromptBlock(availability, allGaps(reports))}
 
 ${historyToPromptBlock(history)}
 

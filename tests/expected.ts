@@ -133,6 +133,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Robustesse en conditions réelles : une réponse de modèle mal formée n'emporte plus l'audit entier, la première vente d'une boutique partie de zéro est enfin mesurable, et onze boutiques types — sans ventes, sans publicité, internationale, contradictoire — obtiennent un verdict honnête ou aucun verdict, jamais une conclusion inventée.",
   },
   {
+    file: "audits/observations.test.ts",
+    minChecks: 100,
+    covers:
+      "Couche commune source → observation → diagnostic : ce qui n'est pas observé ne produit aucune valeur (jamais un zéro qui passerait pour une mesure), chaque observation porte sa preuve et sa taille d'échantillon, et ce que les données ne permettent pas d'établir part dans le prompt comme une interdiction nommée.",
+  },
+  {
     file: "infra/no-lovable.test.ts",
     minChecks: 25,
     covers:
