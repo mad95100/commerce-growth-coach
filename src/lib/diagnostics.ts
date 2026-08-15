@@ -139,6 +139,52 @@ export const DIAGNOSTICS: Diagnostic[] = [
       "Des commandes mono-article laissent le panier moyen au niveau du produit d'appel : c'est le levier le moins cher.",
   },
 
+  // --- Acquisition payante : ce que Meta établit seul ----------------------
+  {
+    id: "acquisition.depense_sans_resultat",
+    question: "Des campagnes dépensent-elles sans produire un seul achat ?",
+    domain: "acquisition",
+    requires: ["meta.spend_30d", "meta.campaigns_without_result"],
+    refines: ["meta.wasted_spend_30d"],
+    concludes:
+      "Une campagne qui dépense sans un seul achat attribué est le seul gaspillage qu'on puisse affirmer sans interprétation.",
+  },
+  {
+    id: "acquisition.cout_du_clic",
+    question: "Le trafic payant coûte-t-il trop cher pour ce panier moyen ?",
+    domain: "acquisition",
+    requires: ["meta.cpc_30d", "shopify.aov"],
+    concludes:
+      "Un coût par clic ne se juge que rapporté au panier moyen et au taux de transformation : seul, il ne dit rien.",
+  },
+  {
+    id: "acquisition.accroche",
+    question: "Les publicités donnent-elles envie de cliquer ?",
+    domain: "acquisition",
+    requires: ["meta.ctr_30d", "meta.impressions_30d"],
+    concludes:
+      "Un taux de clic bas est un fait ; sa cause — création, message ou audience — reste une hypothèse à tester.",
+  },
+  {
+    id: "acquisition.rentabilite_reelle",
+    question: "La publicité rapporte-t-elle plus qu'elle ne coûte, en vrai ?",
+    domain: "rentabilite",
+    requires: ["meta.spend_30d", "shopify.revenue_30d"],
+    concludes:
+      "Le ROAS déclaré par Meta repose sur son attribution. Rapporté au chiffre d'affaires réel, le rapport change souvent d'ordre de grandeur.",
+  },
+
+  // --- LE croisement : ce qu'aucune source ne peut établir seule ------------
+  {
+    id: "croisement.apres_clic",
+    question: "Le trafic payant achète-t-il une fois arrivé sur la boutique ?",
+    domain: "conversion",
+    requires: ["meta.clicks_30d", "shopify.orders_30d"],
+    refines: ["shopify.cart_abandonment_rate"],
+    concludes:
+      "Commandes rapportées aux clics : la seule mesure qui départage une publicité inefficace d'une boutique qui ne transforme pas. Ni Meta ni Shopify ne peut la calculer seul.",
+  },
+
   // --- Ce qui exige des données qu'aucune source ne fournit encore ---------
   // Ces entrées ne sont PAS mortes : elles existent pour que le moteur sache
   // nommer précisément ce qui lui manque, au lieu de conclure dans le vide.

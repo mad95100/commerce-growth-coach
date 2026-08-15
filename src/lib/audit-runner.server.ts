@@ -6,6 +6,7 @@ import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
 import { assessDiagnostics, diagnosticsToPromptBlock } from "@/lib/diagnostics";
+import { crossSignals, crossSignalsToPromptBlock } from "@/lib/cross-source";
 import type { SourceReport } from "@/lib/observations";
 import { AUDIT_MODEL, SYSTEM_PROMPT } from "@/lib/audit-prompt";
 import { extractJsonBlock } from "@/lib/audit-parse";
@@ -79,6 +80,10 @@ export async function executeAuditWork(input: {
         await fetchShopifyObservations(creds.shopify.shop, creds.shopify.encryptedToken),
       );
     }
+    if (creds.meta) {
+      const { fetchMetaObservations } = await import("@/lib/connectors/meta-observe.server");
+      reports.push(await fetchMetaObservations(creds.meta.accountId, creds.meta.encryptedToken));
+    }
   } catch (err) {
     // Une collecte en échec ne doit pas faire échouer l'audit : il repart
     // alors sur les seules données déclarées, en le disant.
@@ -89,6 +94,12 @@ export async function executeAuditWork(input: {
   // interdisent. C'est la barrière la plus en amont contre l'invention :
   // celle qui agit avant que la phrase ne soit écrite.
   const availability = assessDiagnostics(allObservations(reports));
+
+  // CROISEMENT. Ce qu'aucune source ne montre seule : ce que devient le trafic
+  // payant une fois arrivé sur la boutique. C'est ce croisement qui départage
+  // « ma publicité est mauvaise » de « ma boutique perd les gens qu'elle
+  // amène » — deux diagnostics opposés qu'un seul canal ne peut pas séparer.
+  const crossed = crossSignals(allObservations(reports));
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -170,6 +181,8 @@ ${dataBlock}
 ${observationsToPromptBlock(reports)}
 
 ${diagnosticsToPromptBlock(availability, allGaps(reports))}
+
+${crossSignalsToPromptBlock(crossed)}
 
 ${historyToPromptBlock(history)}
 
