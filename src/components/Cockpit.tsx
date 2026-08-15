@@ -14,7 +14,16 @@ import {
   type Category,
   type Confidence,
 } from "@/lib/scoring";
-import { AlertTriangle, ArrowRight, Clock, Gauge, Target, TrendingUp } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  Clock,
+  Compass,
+  Gauge,
+  GitBranch,
+  Target,
+  TrendingUp,
+} from "lucide-react";
 
 function Kpi({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -122,10 +131,33 @@ export function Cockpit({ storeId }: { storeId: string }) {
         />
       </div>
 
+      {/* La réponse du directeur, avant la liste. C'est elle qu'on lit en
+          arrivant : un seul geste, et pourquoi celui-là. */}
+      {c.plan && (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6">
+          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-primary">
+            <Compass className="h-4 w-4" /> Ce que je ferais maintenant
+          </div>
+          <p className="mt-3 text-sm leading-relaxed">{c.plan.rationale}</p>
+          {c.plan.now && (
+            <Link
+              to="/audits/$auditId"
+              params={{ auditId: c.plan.now.auditId ?? "" }}
+              className="mt-4 inline-block"
+            >
+              <Button className="bg-gradient-primary text-primary-foreground">
+                Commencer par « {c.plan.now.title} » <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          )}
+        </div>
+      )}
+
       <div>
         <h2 className="font-display text-xl font-bold">Tes priorités aujourd'hui</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Trois actions maximum. On ne passe à la suite qu'une fois celles-ci faites.
+          Trois actions maximum, dans cet ordre. Une cause passe toujours avant ce qu'elle provoque
+          — corriger un symptôme sans sa cause ne donne rien.
         </p>
 
         {c.priorities.length === 0 ? (
@@ -160,6 +192,18 @@ export function Cockpit({ storeId }: { storeId: string }) {
                         Confiance : {CONFIDENCE_LABELS[p.confidence as Confidence] ?? "Moyenne"}
                       </span>
                     </div>
+                    {p.unlocks.length > 0 && (
+                      <p className="mt-3 flex items-start gap-1.5 text-xs text-primary">
+                        <GitBranch className="mt-0.5 h-3 w-3 shrink-0" />
+                        <span>
+                          Fait tomber aussi : {p.unlocks.map((u) => `« ${u} »`).join(", ")}.
+                        </span>
+                      </p>
+                    )}
+                    {p.reason && <p className="mt-2 text-xs text-muted-foreground">{p.reason}</p>}
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Ensuite, regarde {p.measure}.
+                    </p>
                   </div>
                 </div>
                 <Link
@@ -173,6 +217,30 @@ export function Cockpit({ storeId }: { storeId: string }) {
                 </Link>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Ce qui attend, et ce qui l'attend. Le dire évite la question
+            « pourquoi ce problème grave n'est-il pas dans la liste ? ». */}
+        {c.plan && c.plan.blocked.length > 0 && (
+          <div className="mt-4 rounded-xl border border-dashed border-border p-4">
+            <div className="text-sm font-medium">
+              {c.plan.blocked.length} problème{c.plan.blocked.length > 1 ? "s" : ""} en attente
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Rien à faire dessus pour l'instant : ils viennent de ce qui est au-dessus. Ils
+              disparaissent peut-être tout seuls.
+            </p>
+            <ul className="mt-3 space-y-1.5">
+              {c.plan.blocked.map((b) => (
+                <li key={b.id} className="text-sm">
+                  • {b.title}{" "}
+                  <span className="text-muted-foreground">
+                    — après {b.blockedBy.map((t) => `« ${t} »`).join(" et ")}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

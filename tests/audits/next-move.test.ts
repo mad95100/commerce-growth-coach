@@ -1,0 +1,345 @@
+import {
+  MEASURE_BY_CATEGORY,
+  buildNextMovePlan,
+  type PlannableFinding,
+} from "../../src/lib/next-move";
+import { defineSuite } from "../harness";
+
+/**
+ * Le prochain geste, et pourquoi celui-là.
+ *
+ * CE QUI EST EN JEU. Le centre de pilotage proposait les trois problèmes au
+ * plus haut score, sans regarder la chaîne causale. Il pouvait donc mettre en
+ * tête un symptôme dont la cause était encore en place — le marchand corrige,
+ * ne voit aucun effet, et perd confiance dans l'outil. Ces contrôles portent
+ * sur la seule règle qui l'empêche : rien n'est proposé tant que ce qui le
+ * cause n'est pas corrigé.
+ *
+ * Deuxième enjeu, moins visible : `audit_findings` est modifiable depuis le
+ * navigateur. `caused_by` peut donc contenir n'importe quoi, y compris de quoi
+ * bloquer tous les problèmes à la fois. Un écran de pilotage vide serait la
+ * pire des réponses.
+ */
+
+function make(overrides: Partial<PlannableFinding> = {}): PlannableFinding {
+  return {
+    id: "id-a",
+    title: "Problème A",
+    category: "conversion",
+    status: "todo",
+    finding_key: "a",
+    caused_by: [],
+    priority_score: 100,
+    priority_band: "important",
+    priority_reason: "Sévérité élevée. Établi sur tes données réelles.",
+    epistemic_level: "fait",
+    estimated_gain_min: 200,
+    estimated_gain_max: 400,
+    time_minutes: 30,
+    blocks_count: 0,
+    auto_correction: null,
+    sort_order: 0,
+    audit_id: "audit-1",
+    ...overrides,
+  };
+}
+
+export default defineSuite("Audits — le prochain geste", (t) => {
+  // --- Rien à faire ---------------------------------------------------------
+  const empty = buildNextMovePlan([]);
+  t.check("sans problème, aucun geste", empty.now, null);
+  t.check("et rien derrière", [empty.then.length, empty.blocked.length], [0, 0]);
+  t.check(
+    "la réponse invite à relancer un diagnostic",
+    empty.rationale.includes("Relance-en un"),
+    true,
+  );
+
+  const allDone = buildNextMovePlan([
+    make({ id: "1", status: "done" }),
+    make({ id: "2", finding_key: "b", status: "done" }),
+  ]);
+  t.check("tout corrigé équivaut à rien à faire", allDone.now, null);
+
+  // --- Le cas nominal -------------------------------------------------------
+  const simple = buildNextMovePlan([
+    make({ id: "1", title: "Petit", priority_score: 20, finding_key: "petit" }),
+    make({ id: "2", title: "Gros", priority_score: 900, finding_key: "gros" }),
+    make({ id: "3", title: "Moyen", priority_score: 300, finding_key: "moyen" }),
+  ]);
+  t.check("le plus urgent passe en premier", simple.now?.title, "Gros");
+  t.check(
+    "les deux suivants sont proposés",
+    simple.then.map((m) => m.title),
+    ["Moyen", "Petit"],
+  );
+  t.check("pas plus de deux", simple.then.length, 2);
+  t.check("rien n'est bloqué", simple.blocked.length, 0);
+  t.check("l'audit d'origine est transmis", simple.now?.auditId, "audit-1");
+  t.check(
+    "la réponse nomme le geste",
+    simple.rationale.startsWith("Si cette boutique était la mienne, je commencerais par « Gros »."),
+    true,
+  );
+
+  // Quatre problèmes, trois affichés : au-delà, ce n'est plus un plan.
+  const many = buildNextMovePlan(
+    [1, 2, 3, 4, 5].map((n) =>
+      make({ id: `${n}`, finding_key: `k${n}`, title: `P${n}`, priority_score: 100 - n }),
+    ),
+  );
+  t.check("trois gestes au plus", 1 + many.then.length, 3);
+
+  // --- LA règle : jamais un symptôme avant sa cause ------------------------
+  // Le symptôme a un score bien supérieur. Le proposer d'abord serait le
+  // comportement d'avant, et il ne produirait rien.
+  const chained = buildNextMovePlan([
+    make({ id: "cause", title: "Frais de port cachés", finding_key: "frais", priority_score: 50 }),
+    make({
+      id: "symptome",
+      title: "Panier abandonné",
+      finding_key: "panier",
+      caused_by: ["frais"],
+      priority_score: 900,
+    }),
+  ]);
+  t.check(
+    "la cause est proposée malgré son score inférieur",
+    chained.now?.title,
+    "Frais de port cachés",
+  );
+  t.check("le symptôme n'est pas dans les gestes suivants", chained.then.length, 0);
+  t.check(
+    "il est annoncé comme en attente",
+    chained.blocked.map((b) => b.title),
+    ["Panier abandonné"],
+  );
+  t.check("et on dit ce qui le retient", chained.blocked[0].blockedBy, ["Frais de port cachés"]);
+  t.check(
+    "la réponse annonce ce que la correction fait tomber",
+    chained.rationale.includes("fait tomber « Panier abandonné » du même coup"),
+    true,
+  );
+
+  // --- Le plan se recompose à mesure qu'on avance --------------------------
+  const afterFix = buildNextMovePlan([
+    make({
+      id: "cause",
+      title: "Frais de port cachés",
+      finding_key: "frais",
+      priority_score: 50,
+      status: "done",
+    }),
+    make({
+      id: "symptome",
+      title: "Panier abandonné",
+      finding_key: "panier",
+      caused_by: ["frais"],
+      priority_score: 900,
+    }),
+  ]);
+  t.check("une cause corrigée ne bloque plus", afterFix.now?.title, "Panier abandonné");
+  t.check("et plus rien n'est en attente", afterFix.blocked.length, 0);
+  t.check("le symptôme débloqué n'annonce plus de conséquence", afterFix.now?.unlocks, []);
+
+  // --- Chaîne à trois maillons ---------------------------------------------
+  const deep = buildNextMovePlan([
+    make({ id: "1", title: "Racine", finding_key: "r", priority_score: 10 }),
+    make({ id: "2", title: "Milieu", finding_key: "m", caused_by: ["r"], priority_score: 500 }),
+    make({ id: "3", title: "Bout", finding_key: "b", caused_by: ["m"], priority_score: 800 }),
+  ]);
+  t.check("seule la racine est exécutable", deep.now?.title, "Racine");
+  t.check("les deux autres attendent", deep.blocked.length, 2);
+  // Les problèmes en attente sont eux aussi classés par urgence : « Bout »,
+  // plus lourd, s'affiche avant « Milieu ». Chacun n'annonce que ce qui le
+  // retient DIRECTEMENT — remonter toute la chaîne noierait l'information.
+  t.check(
+    "chacun sait ce qu'il attend",
+    deep.blocked.map((b) => [b.title, ...b.blockedBy]),
+    [
+      ["Bout", "Milieu"],
+      ["Milieu", "Racine"],
+    ],
+  );
+  t.check("la racine n'annonce que sa conséquence directe", deep.now?.unlocks, ["Milieu"]);
+
+  // --- Plusieurs causes pour un même problème ------------------------------
+  const multi = buildNextMovePlan([
+    make({ id: "1", title: "Cause A", finding_key: "ca", priority_score: 100 }),
+    make({ id: "2", title: "Cause B", finding_key: "cb", priority_score: 90 }),
+    make({
+      id: "3",
+      title: "Effet",
+      finding_key: "e",
+      caused_by: ["ca", "cb"],
+      priority_score: 999,
+    }),
+  ]);
+  t.check(
+    "les deux causes passent d'abord",
+    [multi.now?.title, multi.then[0]?.title],
+    ["Cause A", "Cause B"],
+  );
+  t.check("l'effet attend les deux", multi.blocked[0].blockedBy, ["Cause A", "Cause B"]);
+
+  // --- Ce que l'audit ne sait pas ------------------------------------------
+  const unsure = buildNextMovePlan([
+    make({ id: "1", title: "Sûr", finding_key: "s", priority_score: 500 }),
+    make({
+      id: "2",
+      title: "Pas sûr",
+      finding_key: "p",
+      priority_score: 400,
+      epistemic_level: "donnee_manquante",
+    }),
+  ]);
+  t.check(
+    "les conclusions non établies sont listées à part",
+    unsure.unknowns.map((u) => u.title),
+    ["Pas sûr"],
+  );
+  t.check(
+    "la réserve est dite dans la réponse",
+    unsure.rationale.includes("je n'ai pas la donnée pour trancher"),
+    true,
+  );
+  t.check(
+    "une conclusion établie n'est pas mise en réserve",
+    buildNextMovePlan([make()]).unknowns.length,
+    0,
+  );
+
+  // --- La mesure fait partie de la réponse ---------------------------------
+  // Annoncer quoi regarder sans dire sur quelle fenêtre invite à conclure trop
+  // tôt, et à défaire une correction qui marchait.
+  t.check(
+    "la mesure dépend du domaine",
+    buildNextMovePlan([make({ category: "acquisition" })]).now?.measure,
+    MEASURE_BY_CATEGORY.acquisition,
+  );
+  t.check(
+    "un domaine inconnu garde une mesure par défaut",
+    buildNextMovePlan([make({ category: "cosmos" })]).now?.measure.includes("7 jours"),
+    true,
+  );
+  for (const [domaine, mesure] of Object.entries(MEASURE_BY_CATEGORY)) {
+    t.check(`la mesure de « ${domaine} » annonce sa fenêtre`, /\d+\s+jours/.test(mesure), true);
+  }
+  t.check(
+    "la réponse dit quoi regarder ensuite",
+    buildNextMovePlan([make()]).rationale.includes("c'est ça qui dira si ça a marché"),
+    true,
+  );
+  t.check(
+    "la réponse annonce le temps à y passer",
+    buildNextMovePlan([make({ time_minutes: 90 })]).rationale.includes("Compte 1.5 h."),
+    true,
+  );
+
+  // --- Données d'audits antérieurs, sans chaîne causale --------------------
+  const legacy = buildNextMovePlan([
+    make({
+      id: "1",
+      title: "Ancien A",
+      finding_key: null,
+      caused_by: null,
+      priority_band: null,
+      priority_reason: null,
+      epistemic_level: null,
+      priority_score: 10,
+    }),
+    make({
+      id: "2",
+      title: "Ancien B",
+      finding_key: null,
+      caused_by: null,
+      priority_band: null,
+      priority_reason: null,
+      epistemic_level: null,
+      priority_score: 20,
+    }),
+  ]);
+  t.check("sans chaîne, tout reste exécutable", legacy.blocked.length, 0);
+  t.check("l'ordre de priorité s'applique seul", legacy.now?.title, "Ancien B");
+  t.check("aucune bande n'est inventée", legacy.now?.band, null);
+  t.check("aucune justification n'est inventée", legacy.now?.reason, null);
+  t.check(
+    "la réponse tient sans justification",
+    legacy.rationale.startsWith("Si cette boutique était la mienne"),
+    true,
+  );
+
+  // --- Entrées hostiles : la table est modifiable depuis le navigateur -----
+  const cyclic = buildNextMovePlan([
+    make({ id: "1", title: "A", finding_key: "a", caused_by: ["b"], priority_score: 10 }),
+    make({ id: "2", title: "B", finding_key: "b", caused_by: ["a"], priority_score: 20 }),
+  ]);
+  t.check("une boucle ne vide pas l'écran", Boolean(cyclic.now), true);
+  t.check("le plus urgent est alors proposé", cyclic.now?.title, "B");
+
+  const selfBlocking = buildNextMovePlan([
+    make({ id: "1", title: "Seul", finding_key: "x", caused_by: ["x"] }),
+  ]);
+  t.check("un problème ne se bloque pas lui-même", selfBlocking.now?.title, "Seul");
+  t.check("et n'apparaît pas en attente", selfBlocking.blocked.length, 0);
+
+  const ghost = buildNextMovePlan([
+    make({ id: "1", title: "Orphelin", finding_key: "o", caused_by: ["disparu"] }),
+  ]);
+  t.check("un renvoi vers un problème absent ne bloque pas", ghost.now?.title, "Orphelin");
+
+  const junk = buildNextMovePlan([
+    make({ id: "1", title: "Bruit", finding_key: "j", caused_by: { pas: "un tableau" } }),
+    make({
+      id: "2",
+      title: "Autre",
+      finding_key: "k",
+      caused_by: [null, 42, ""],
+      priority_score: 1,
+    }),
+  ]);
+  t.check("un caused_by qui n'est pas un tableau est ignoré", junk.blocked.length, 0);
+  t.check("les entrées non textuelles sont ignorées", junk.now?.title, "Bruit");
+
+  const noKeys = buildNextMovePlan([
+    make({ id: "1", title: "Sans clé", finding_key: null, caused_by: ["a"] }),
+  ]);
+  t.check("un problème sans clé reste exécutable", noKeys.now?.title, "Sans clé");
+
+  // --- Champs manquants -----------------------------------------------------
+  const bare = buildNextMovePlan([
+    {
+      id: "1",
+      title: "Minimal",
+      category: "boutique",
+      status: "todo",
+    },
+  ]);
+  t.check("une ligne minimale suffit", bare.now?.title, "Minimal");
+  t.check(
+    "les montants absents restent nuls",
+    [bare.now?.gainMin, bare.now?.gainMax],
+    [null, null],
+  );
+  t.check("aucune correction automatique n'est supposée", bare.now?.hasAutoFix, false);
+  t.check("sans durée, la réponse ne parle pas de temps", bare.rationale.includes("Compte"), false);
+
+  t.check(
+    "une correction automatique disponible est signalée",
+    buildNextMovePlan([make({ auto_correction: { title: "t", content: "c" } })]).now?.hasAutoFix,
+    true,
+  );
+
+  // --- Stabilité ------------------------------------------------------------
+  const sample = [
+    make({ id: "1", finding_key: "a", priority_score: 100 }),
+    make({ id: "2", finding_key: "b", caused_by: ["a"], priority_score: 500 }),
+    make({ id: "3", finding_key: "c", priority_score: 100, sort_order: 1 }),
+  ];
+  t.check(
+    "deux appels sur les mêmes données donnent le même plan",
+    JSON.stringify(buildNextMovePlan(sample)),
+    JSON.stringify(buildNextMovePlan(sample)),
+  );
+  t.check("à score égal, l'ordre décidé à l'audit tranche", buildNextMovePlan(sample).now?.id, "1");
+});

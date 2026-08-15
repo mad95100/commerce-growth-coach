@@ -97,6 +97,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Chaîne causale, quatre niveaux de certitude et priorité justifiée : une conclusion sans preuve ne peut pas être déclarée critique, un symptôme n'est jamais proposé avant sa cause, et une causalité circulaire ne fait pas boucler le cron.",
   },
   {
+    file: "audits/next-move.test.ts",
+    minChecks: 58,
+    covers:
+      "Le prochain geste : rien n'est proposé tant que ce qui le cause n'est pas corrigé, le plan se recompose à mesure qu'on avance, et une chaîne causale corrompue depuis le navigateur ne vide jamais l'écran de pilotage.",
+  },
+  {
     file: "infra/no-lovable.test.ts",
     minChecks: 25,
     covers:

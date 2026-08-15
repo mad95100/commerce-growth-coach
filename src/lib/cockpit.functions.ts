@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { normalizeCurrency } from "@/lib/currency";
+import { buildNextMovePlan, type NextMovePlan, type PlannableFinding } from "@/lib/next-move";
+import type { PriorityBand } from "@/lib/finding-graph";
 import { z } from "zod";
 
 /**
@@ -25,6 +27,14 @@ export type CockpitPriority = {
   confidence: string;
   audit_id: string;
   has_auto_fix: boolean;
+  /** Bande de priorité, `null` sur les audits antérieurs au moteur causal. */
+  band: PriorityBand | null;
+  /** Pourquoi cette priorité, calculé à l'audit. `null` de même. */
+  reason: string | null;
+  /** Titres des problèmes que cette correction fait tomber. */
+  unlocks: string[];
+  /** Ce qu'il faudra regarder pour savoir si ça a marché, et sur quelle fenêtre. */
+  measure: string;
 };
 
 export type Cockpit = {
@@ -48,6 +58,11 @@ export type Cockpit = {
   lastSyncAt: string | null;
   unavailable: string[];
   priorities: CockpitPriority[];
+  /**
+   * Ce que ferait un directeur e-commerce maintenant, et pourquoi celui-là.
+   * `null` tant qu'aucun diagnostic n'est terminé.
+   */
+  plan: NextMovePlan | null;
 };
 
 /** Tout ce qu'il faut pour le centre de pilotage, en un seul appel. */
@@ -152,30 +167,50 @@ export const getCockpit = createServerFn({ method: "POST" })
       .maybeSingle();
 
     let priorities: CockpitPriority[] = [];
+    let plan: NextMovePlan | null = null;
     if (audit) {
+      // TOUS les problèmes de l'audit, corrigés compris — et non les trois
+      // premiers par score. La sélection ne peut plus se faire en SQL : savoir
+      // si un problème est exécutable demande de connaître l'état de ses
+      // causes, donc de les avoir toutes sous la main. Un audit compte quelques
+      // dizaines de lignes ; les charger ne coûte rien et évite de proposer un
+      // symptôme dont la cause est encore en place.
       const { data: findings } = await supabase
         .from("audit_findings")
         .select(
-          "id, title, category, severity, estimated_gain_min, estimated_gain_max, difficulty, time_minutes, confidence, auto_correction, audit_id",
+          "id, title, category, severity, status, estimated_gain_min, estimated_gain_max, difficulty, time_minutes, confidence, auto_correction, audit_id, finding_key, caused_by, priority_score, priority_band, priority_reason, epistemic_level, blocks_count, sort_order",
         )
         .eq("audit_id", audit.id)
-        .neq("status", "done")
-        .order("priority_score", { ascending: false })
-        .limit(3);
+        .order("sort_order");
 
-      priorities = (findings ?? []).map((f: Record<string, CockpitSnapshotValue>) => ({
-        id: f.id,
-        title: f.title,
-        category: f.category,
-        severity: f.severity,
-        impact_min: f.estimated_gain_min,
-        impact_max: f.estimated_gain_max,
-        difficulty: f.difficulty ?? 2,
-        time_minutes: f.time_minutes ?? 30,
-        confidence: f.confidence ?? "medium",
-        audit_id: f.audit_id,
-        has_auto_fix: Boolean(f.auto_correction),
-      }));
+      const rows = (findings ?? []) as PlannableFinding[];
+      plan = buildNextMovePlan(rows);
+
+      // Les trois gestes du plan, dans l'ordre du plan, avec les champs
+      // d'affichage que le centre de pilotage utilisait déjà.
+      const byId = new Map(rows.map((f) => [f.id, f as Record<string, CockpitSnapshotValue>]));
+      priorities = [plan.now, ...plan.then]
+        .filter((move): move is NonNullable<typeof move> => Boolean(move))
+        .map((move) => {
+          const f = byId.get(move.id)!;
+          return {
+            id: f.id,
+            title: f.title,
+            category: f.category,
+            severity: f.severity,
+            impact_min: f.estimated_gain_min,
+            impact_max: f.estimated_gain_max,
+            difficulty: f.difficulty ?? 2,
+            time_minutes: f.time_minutes ?? 30,
+            confidence: f.confidence ?? "medium",
+            audit_id: f.audit_id,
+            has_auto_fix: Boolean(f.auto_correction),
+            band: move.band,
+            reason: move.reason,
+            unlocks: move.unlocks,
+            measure: move.measure,
+          };
+        });
     }
 
     return {
@@ -197,5 +232,6 @@ export const getCockpit = createServerFn({ method: "POST" })
       lastSyncAt: snapRow?.fetched_at ?? null,
       unavailable,
       priorities,
+      plan,
     };
   });
