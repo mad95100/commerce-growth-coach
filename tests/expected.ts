@@ -98,9 +98,15 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/next-move.test.ts",
-    minChecks: 58,
+    minChecks: 76,
     covers:
-      "Le prochain geste : rien n'est proposé tant que ce qui le cause n'est pas corrigé, le plan se recompose à mesure qu'on avance, et une chaîne causale corrompue depuis le navigateur ne vide jamais l'écran de pilotage.",
+      "Le prochain geste : rien n'est proposé tant que ce qui le cause n'est pas corrigé, une correction qui a fait reculer la boutique passe avant tout gain potentiel, ce qui est prouvé est gardé, ce qui n'a rien donné n'est pas reproposé, et une chaîne causale corrompue depuis le navigateur ne vide jamais l'écran de pilotage.",
+  },
+  {
+    file: "audits/measure.test.ts",
+    minChecks: 94,
+    covers:
+      "Verdict d'une correction : dilution de la fenêtre glissante compensée, métriques choisies selon ce qui a été corrigé, garde-fous qui empêchent de prendre un ROAS gonflé par la coupe du volume pour un succès, et annulation recommandée seulement quand elle est justifiée.",
   },
   {
     file: "infra/no-lovable.test.ts",

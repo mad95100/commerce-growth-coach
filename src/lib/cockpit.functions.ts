@@ -1,7 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { normalizeCurrency } from "@/lib/currency";
-import { buildNextMovePlan, type NextMovePlan, type PlannableFinding } from "@/lib/next-move";
+import {
+  buildNextMovePlan,
+  type MeasuredOutcome,
+  type NextMovePlan,
+  type PlannableFinding,
+} from "@/lib/next-move";
 import type { PriorityBand } from "@/lib/finding-graph";
 import { z } from "zod";
 
@@ -184,7 +189,40 @@ export const getCockpit = createServerFn({ method: "POST" })
         .order("sort_order");
 
       const rows = (findings ?? []) as PlannableFinding[];
-      plan = buildNextMovePlan(rows);
+
+      // Ce que les corrections déjà appliquées ont réellement produit. Une
+      // régression prend la tête du plan : réparer un dégât passe avant tout
+      // gain potentiel.
+      const { data: measured } = await supabase
+        .from("fix_outcomes")
+        .select("finding_id, verdict, headline, rollback_recommended, rollback_possible, action_id")
+        .eq("store_id", store.id)
+        .not("verdict", "is", null);
+
+      type MeasuredRow = {
+        finding_id: string;
+        verdict: string | null;
+        headline: string | null;
+        rollback_recommended: boolean | null;
+        rollback_possible: boolean | null;
+        action_id: string | null;
+      };
+      const titleById = new Map(rows.map((f) => [f.id, f.title]));
+      const outcomes: MeasuredOutcome[] = ((measured ?? []) as MeasuredRow[])
+        // Un suivi dont le problème appartient à un audit plus ancien n'a pas
+        // de titre ici : on ne l'invente pas, on l'ignore.
+        .filter((m) => titleById.has(m.finding_id))
+        .map((m) => ({
+          findingId: m.finding_id,
+          title: titleById.get(m.finding_id)!,
+          verdict: m.verdict,
+          headline: m.headline,
+          rollbackRecommended: m.rollback_recommended,
+          rollbackPossible: m.rollback_possible,
+          actionId: m.action_id,
+        }));
+
+      plan = buildNextMovePlan(rows, outcomes);
 
       // Les trois gestes du plan, dans l'ordre du plan, avec les champs
       // d'affichage que le centre de pilotage utilisait déjà.

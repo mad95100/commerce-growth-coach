@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getStoreTracking, refreshTracking } from "@/lib/tracking.functions";
+import { VERDICT_EMOJI, VERDICT_LABELS, type Verdict, VERDICTS } from "@/lib/measure";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -56,6 +57,16 @@ type Outcome = {
   checked_at: string | null;
   status: "measuring" | "on_track" | "underperforming" | "regressed";
   alert_message: string | null;
+  // Produits par `measure.ts`. Nuls sur les suivis antérieurs : l'affichage
+  // retombe alors sur l'ancien statut plutôt que d'inventer un verdict.
+  verdict: string | null;
+  headline: string | null;
+  explanation: string | null;
+  coverage: number | null;
+  measured_days: number | null;
+  rollback_recommended: boolean | null;
+  rollback_possible: boolean | null;
+  rollback_reason: string | null;
   expected_gain_min: number | null;
   expected_gain_max: number | null;
   delta: Delta[] | null;
@@ -73,6 +84,17 @@ const STATUS_META: Record<Outcome["status"], { label: string; className: string 
   on_track: { label: "Gains confirmés", className: "bg-primary/15 text-primary" },
   underperforming: { label: "Gains absents", className: "bg-yellow-500/15 text-yellow-500" },
   regressed: { label: "En recul", className: "bg-destructive/15 text-destructive" },
+};
+
+/** Habillage des cinq verdicts. Distinguer « aucun impact » d'« insuffisant »
+ *  n'est pas décoratif : le premier dit que le diagnostic s'est trompé de
+ *  cause, le second qu'il faut attendre. */
+const VERDICT_META: Record<Verdict, { className: string }> = {
+  en_cours: { className: "bg-muted text-muted-foreground" },
+  confirme: { className: "bg-primary/15 text-primary" },
+  insuffisant: { className: "bg-yellow-500/15 text-yellow-500" },
+  nul: { className: "bg-muted text-muted-foreground" },
+  regression: { className: "bg-destructive/15 text-destructive" },
 };
 
 function fmt(value: number | null, format: Delta["format"], currency: string | null = null) {
@@ -154,7 +176,19 @@ function TrackingPage() {
                 <div className="text-sm font-semibold">
                   {o.audit_findings?.title ?? "Correction appliquée"}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">{o.alert_message}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {o.headline ?? o.alert_message}
+                </p>
+                {/* Ce qu'on peut y faire. Promettre un bouton qui n'existe pas
+                    serait pire que de dire qu'il faut la main. */}
+                {o.rollback_recommended && (
+                  <p className="mt-2 text-sm font-medium text-destructive">
+                    {o.rollback_reason ??
+                      (o.rollback_possible
+                        ? "Annule cette correction depuis le rapport d'audit."
+                        : "Reviens en arrière à la main dans ton compte.")}
+                  </p>
+                )}
               </div>
             </div>
           ))}
@@ -171,6 +205,9 @@ function TrackingPage() {
           </div>
         ) : (
           outcomes.map((o) => {
+            const verdict = (VERDICTS as readonly string[]).includes(o.verdict ?? "")
+              ? (o.verdict as Verdict)
+              : null;
             const meta = STATUS_META[o.status];
             const deltas = o.delta ?? [];
             return (
@@ -188,13 +225,28 @@ function TrackingPage() {
                       {o.expected_gain_max != null && ` – ${o.expected_gain_max}`}
                     </p>
                   </div>
-                  <Badge className={meta.className}>{meta.label}</Badge>
+                  {verdict ? (
+                    <Badge className={VERDICT_META[verdict].className}>
+                      {VERDICT_EMOJI[verdict]} {VERDICT_LABELS[verdict]}
+                    </Badge>
+                  ) : (
+                    <Badge className={meta.className}>{meta.label}</Badge>
+                  )}
                 </div>
+
+                {/* Le raisonnement, pas seulement la conclusion : c'est ce qui
+                    permet au marchand de contester le verdict. */}
+                {o.explanation && (
+                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                    {o.explanation}
+                  </p>
+                )}
 
                 {deltas.length === 0 ? (
                   <p className="mt-4 text-sm text-muted-foreground">
-                    Pas encore de mesure. Clique sur « Remesurer maintenant » (compte au moins 3
-                    jours de recul pour un verdict fiable).
+                    Pas encore de mesure. Clique sur « Remesurer maintenant ». Les indicateurs étant
+                    des cumuls sur 30 jours, comptez une semaine de recul avant qu'un verdict
+                    veuille dire quelque chose.
                   </p>
                 ) : (
                   <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

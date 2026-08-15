@@ -506,6 +506,18 @@ export type Database = {
       fix_outcomes: {
         Row: {
           alert_message: string | null
+          action_id: string | null
+          coverage: number | null
+          drivers: Json
+          explanation: string | null
+          guards: Json
+          headline: string | null
+          measured_days: number | null
+          rollback_possible: boolean
+          rollback_reason: string | null
+          rollback_recommended: boolean
+          tool_name: string | null
+          verdict: string | null
           applied_at: string
           baseline: Json
           checked_at: string | null
@@ -522,6 +534,18 @@ export type Database = {
         }
         Insert: {
           alert_message?: string | null
+          action_id?: string | null
+          coverage?: number | null
+          drivers?: Json
+          explanation?: string | null
+          guards?: Json
+          headline?: string | null
+          measured_days?: number | null
+          rollback_possible?: boolean
+          rollback_reason?: string | null
+          rollback_recommended?: boolean
+          tool_name?: string | null
+          verdict?: string | null
           applied_at?: string
           baseline?: Json
           checked_at?: string | null
@@ -538,6 +562,18 @@ export type Database = {
         }
         Update: {
           alert_message?: string | null
+          action_id?: string | null
+          coverage?: number | null
+          drivers?: Json
+          explanation?: string | null
+          guards?: Json
+          headline?: string | null
+          measured_days?: number | null
+          rollback_possible?: boolean
+          rollback_reason?: string | null
+          rollback_recommended?: boolean
+          tool_name?: string | null
+          verdict?: string | null
           applied_at?: string
           baseline?: Json
           checked_at?: string | null

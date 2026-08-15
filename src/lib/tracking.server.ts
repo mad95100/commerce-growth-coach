@@ -2,10 +2,10 @@ import type { Db } from "@/lib/actions.server";
 import {
   captureStoreMetrics,
   computeDeltas,
-  judgeOutcome,
   type ChannelCredentials,
   type StoreMetrics,
 } from "@/lib/metrics.server";
+import { measureOutcome } from "@/lib/measure";
 
 // Même type de client que le journal des actions : le redéclarer
 // réintroduirait des `any` déjà assumés une fois ailleurs.
@@ -113,7 +113,9 @@ export async function recordFixBaseline(
 export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
   const { data: rows, error } = await supabase
     .from("fix_outcomes")
-    .select("*")
+    // Le domaine du problème corrigé détermine quelles métriques comptent :
+    // une réécriture de fiche produit ne se juge pas au ROAS.
+    .select("*, audit_findings(category)")
     .eq("store_id", storeId);
   if (error) throw error;
   if (!rows || rows.length === 0) return { updated: 0 };
@@ -136,25 +138,83 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
   // le compilateur signale alors toute colonne mal orthographiée.
   type OutcomeRow = {
     id: string;
+    finding_id: string;
     baseline: StoreMetrics | null;
     applied_at: string;
     expected_gain_min: number | null;
+    audit_findings: { category: string } | null;
   };
-  for (const row of (rows ?? []) as OutcomeRow[]) {
+  const outcomes = (rows ?? []) as OutcomeRow[];
+
+  // Comment la correction a été appliquée, quand elle est passée par une
+  // action automatique. L'outil dit quelles métriques regarder — couper un
+  // ensemble de publicités et réécrire une fiche produit ne se jugent pas de
+  // la même façon — et `revertible` dit si l'annulation part d'un bouton.
+  const { data: actionRows } = await supabase
+    .from("actions")
+    .select("id, finding_id, tool_name, revertible, applied_at")
+    .eq("store_id", storeId)
+    .eq("status", "applied")
+    .in(
+      "finding_id",
+      outcomes.map((o) => o.finding_id),
+    )
+    .order("applied_at", { ascending: false });
+
+  type ActionRow = {
+    id: string;
+    finding_id: string | null;
+    tool_name: string | null;
+    revertible: boolean | null;
+  };
+  // La plus récente par problème : c'est celle qui est encore en vigueur.
+  const actionByFinding = new Map<string, ActionRow>();
+  for (const action of (actionRows ?? []) as ActionRow[]) {
+    if (action.finding_id && !actionByFinding.has(action.finding_id)) {
+      actionByFinding.set(action.finding_id, action);
+    }
+  }
+
+  for (const row of outcomes) {
     const baseline = (row.baseline ?? {}) as StoreMetrics;
     const deltas = computeDeltas(baseline, latest);
-    const verdict = judgeOutcome(deltas, row.applied_at, row.expected_gain_min ?? null);
+    const action = actionByFinding.get(row.finding_id);
+    const outcome = measureOutcome({
+      deltas,
+      appliedAt: row.applied_at,
+      category: row.audit_findings?.category ?? null,
+      tool: action?.tool_name ?? null,
+      revertible: action?.revertible === true,
+    });
+
     await journal
       .from("fix_outcomes")
       .update({
         latest,
         delta: deltas,
-        status: verdict.status,
-        alert_message: verdict.alert_message,
+        // L'ancienne colonne reste renseignée : elle porte l'énumération que
+        // l'interface historique et les notifications lisent encore.
+        status: outcome.legacyStatus,
+        // Seule une régression mérite d'alerter. Un impact faible ou nul est
+        // une information, pas une alarme — sonner pour tout revient à ne
+        // plus être écouté quand ça compte.
+        alert_message: outcome.verdict === "regression" ? outcome.headline : null,
+        verdict: outcome.verdict,
+        headline: outcome.headline,
+        explanation: outcome.explanation,
+        coverage: outcome.coverage,
+        measured_days: outcome.days,
+        rollback_recommended: outcome.rollback.recommended,
+        rollback_possible: outcome.rollback.possible,
+        rollback_reason: outcome.rollback.reason,
+        drivers: outcome.drivers,
+        guards: outcome.guards,
+        tool_name: action?.tool_name ?? null,
+        action_id: action?.id ?? null,
         checked_at: new Date().toISOString(),
       })
       .eq("id", row.id);
   }
 
-  return { updated: rows.length };
+  return { updated: outcomes.length };
 }

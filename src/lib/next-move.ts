@@ -80,7 +80,38 @@ export type BlockedMove = {
   blockedBy: string[];
 };
 
+/**
+ * Verdict d'une correction déjà appliquée, tel que `measure.ts` l'a rendu et
+ * que la base le restitue.
+ */
+export type MeasuredOutcome = {
+  findingId: string;
+  title: string;
+  /** `confirme` | `insuffisant` | `nul` | `regression` | `en_cours`. */
+  verdict: string | null;
+  headline: string | null;
+  rollbackRecommended?: boolean | null;
+  rollbackPossible?: boolean | null;
+  /** Action à annuler, quand l'annulation est automatisable. */
+  actionId?: string | null;
+};
+
+/** Une correction qui a dégradé la situation, et ce qu'on peut y faire. */
+export type RollbackAlert = {
+  findingId: string;
+  title: string;
+  headline: string | null;
+  /** `true` si l'annulation part d'un bouton, `false` s'il faut la main. */
+  automatic: boolean;
+  actionId: string | null;
+};
+
 export type NextMovePlan = {
+  /**
+   * Ce qui passe AVANT tout le reste : une correction qui a fait reculer la
+   * boutique. Annuler un dégât prime sur tout gain potentiel.
+   */
+  alert: RollbackAlert | null;
   /** Le seul geste à faire maintenant. `null` si tout est fait. */
   now: PlannedMove | null;
   /** Les deux suivants, une fois `now` corrigé. */
@@ -88,6 +119,10 @@ export type NextMovePlan = {
   blocked: BlockedMove[];
   /** Conclusions que l'audit n'a pas pu établir : à vérifier, pas à corriger. */
   unknowns: Array<{ id: string; title: string }>;
+  /** Corrections dont l'effet est prouvé. Ce qui marche, et qu'on garde. */
+  proven: Array<{ findingId: string; title: string; headline: string | null }>;
+  /** Corrections appliquées sans effet mesurable : le diagnostic était à côté. */
+  ineffective: Array<{ findingId: string; title: string; headline: string | null }>;
   /** La réponse du directeur, en français, prête à afficher. */
   rationale: string;
 };
@@ -170,17 +205,59 @@ function enumerate(items: string[]): string {
  * causalité : tout y est exécutable, et le plan retombe sur un simple ordre de
  * priorité. C'est le comportement d'avant, ce qui est exactement ce qu'il faut.
  */
-export function buildNextMovePlan(findings: PlannableFinding[]): NextMovePlan {
+export function buildNextMovePlan(
+  findings: PlannableFinding[],
+  outcomes: MeasuredOutcome[] = [],
+): NextMovePlan {
   const pending = findings.filter((f) => !isDone(f));
 
+  // --- Ce que les corrections déjà appliquées ont produit -------------------
+  // Une régression prime sur tout : réparer un dégât passe avant n'importe quel
+  // gain potentiel. On ne retient que les régressions dont l'annulation est
+  // RECOMMANDÉE — `measure.ts` ne la recommande jamais à la légère.
+  const alerts = outcomes.filter(
+    (o) => o.verdict === "regression" && o.rollbackRecommended === true,
+  );
+  const alert: RollbackAlert | null =
+    alerts.length > 0
+      ? {
+          findingId: alerts[0].findingId,
+          title: alerts[0].title,
+          headline: alerts[0].headline ?? null,
+          automatic: alerts[0].rollbackPossible === true,
+          actionId: alerts[0].actionId ?? null,
+        }
+      : null;
+
+  const proven = outcomes
+    .filter((o) => o.verdict === "confirme")
+    .map((o) => ({ findingId: o.findingId, title: o.title, headline: o.headline ?? null }));
+
+  // « Aucun impact » n'est pas un échec de la correction : c'est un échec du
+  // DIAGNOSTIC. Reproposer la même correction serait absurde ; ce qu'il faut,
+  // c'est chercher ailleurs. Le distinguer de la régression est tout l'intérêt
+  // d'avoir quatre verdicts plutôt que deux.
+  const ineffective = outcomes
+    .filter((o) => o.verdict === "nul")
+    .map((o) => ({ findingId: o.findingId, title: o.title, headline: o.headline ?? null }));
+
   if (pending.length === 0) {
+    const parts: string[] = [];
+    if (alert) parts.push(rollbackSentence(alert));
+    parts.push(
+      "Tout ce que le dernier diagnostic avait relevé est corrigé.",
+      ...learningSentences(proven, ineffective),
+      "Relance un diagnostic : c'est en mesurant l'effet des corrections qu'on trouve le prochain levier.",
+    );
     return {
+      alert,
       now: null,
       then: [],
       blocked: [],
       unknowns: [],
-      rationale:
-        "Tout ce que le dernier diagnostic avait relevé est corrigé. Relance-en un : c'est en mesurant l'effet des corrections qu'on trouve le prochain levier.",
+      proven,
+      ineffective,
+      rationale: parts.join(" "),
     };
   }
 
@@ -233,7 +310,18 @@ export function buildNextMovePlan(findings: PlannableFinding[]): NextMovePlan {
     .map((f) => ({ id: f.id, title: f.title }));
 
   // --- La réponse du directeur ---------------------------------------------
-  const parts = [`Si cette boutique était la mienne, je commencerais par « ${now.title} ».`];
+  const parts: string[] = [];
+
+  // La régression parle en premier. Le geste prévu vient après, sans être
+  // annulé pour autant : on répare, puis on continue d'avancer.
+  if (alert) parts.push(rollbackSentence(alert));
+  parts.push(...learningSentences(proven, ineffective));
+
+  parts.push(
+    alert
+      ? `Ensuite, je reprendrais par « ${now.title} ».`
+      : `Si cette boutique était la mienne, je commencerais par « ${now.title} ».`,
+  );
   if (now.reason) parts.push(now.reason);
   if (now.unlocks.length > 0) {
     parts.push(
@@ -252,5 +340,54 @@ export function buildNextMovePlan(findings: PlannableFinding[]): NextMovePlan {
     );
   }
 
-  return { now, then, blocked, unknowns, rationale: parts.join(" ") };
+  return {
+    alert,
+    now,
+    then,
+    blocked,
+    unknowns,
+    proven,
+    ineffective,
+    rationale: parts.join(" "),
+  };
+}
+
+/** Ce qu'on dit d'une correction qui a fait reculer la boutique. */
+function rollbackSentence(alert: RollbackAlert): string {
+  const constat = alert.headline
+    ? `Avant tout : « ${alert.title} » a dégradé la situation. ${alert.headline}`
+    : `Avant tout : « ${alert.title} » a dégradé la situation.`;
+  return alert.automatic
+    ? `${constat} Annule cette correction — un bouton suffit, l'état d'avant est connu.`
+    : `${constat} Reviens en arrière à la main dans ton compte : cette correction ne s'annule pas toute seule.`;
+}
+
+/**
+ * APPRENDRE : ce que les mesures ont enseigné.
+ *
+ * Deux enseignements de nature différente. Une correction confirmée dit quel
+ * levier fonctionne sur CETTE boutique. Une correction sans effet dit que le
+ * diagnostic s'est trompé de cause — et c'est une information plus utile
+ * qu'elle n'en a l'air, parce qu'elle empêche de creuser au même endroit.
+ */
+function learningSentences(
+  proven: Array<{ title: string }>,
+  ineffective: Array<{ title: string }>,
+): string[] {
+  const parts: string[] = [];
+  if (proven.length > 0) {
+    parts.push(
+      proven.length === 1
+        ? `${enumerate([proven[0].title])} a bien produit son effet : c'est prouvé, on garde.`
+        : `${proven.length} corrections ont produit leur effet, dont ${enumerate([proven[0].title])} : c'est prouvé, on garde.`,
+    );
+  }
+  if (ineffective.length > 0) {
+    parts.push(
+      ineffective.length === 1
+        ? `En revanche ${enumerate([ineffective[0].title])} n'a rien changé — ce n'était pas le vrai blocage, inutile d'y revenir.`
+        : `En revanche ${ineffective.length} corrections n'ont rien changé, dont ${enumerate([ineffective[0].title])} — ce n'étaient pas les vrais blocages, inutile d'y revenir.`,
+    );
+  }
+  return parts;
 }

@@ -51,7 +51,7 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   t.check("et rien derrière", [empty.then.length, empty.blocked.length], [0, 0]);
   t.check(
     "la réponse invite à relancer un diagnostic",
-    empty.rationale.includes("Relance-en un"),
+    empty.rationale.includes("Relance un diagnostic"),
     true,
   );
 
@@ -327,6 +327,147 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   t.check(
     "une correction automatique disponible est signalée",
     buildNextMovePlan([make({ auto_correction: { title: "t", content: "c" } })]).now?.hasAutoFix,
+    true,
+  );
+
+  // --- CORRIGER → MESURER → PROUVER → APPRENDRE ---------------------------
+  // Ce que les corrections déjà appliquées ont produit change le plan. Une
+  // régression prime sur tout : réparer un dégât passe avant tout gain
+  // potentiel, quel que soit le score du problème suivant.
+  const withRegression = buildNextMovePlan(
+    [make({ id: "1", title: "Le prochain levier", finding_key: "l", priority_score: 900 })],
+    [
+      {
+        findingId: "ancien",
+        title: "Budget Meta doublé",
+        verdict: "regression",
+        headline: "Achats Meta s'est dégradé de -22 % depuis la correction.",
+        rollbackRecommended: true,
+        rollbackPossible: true,
+        actionId: "action-1",
+      },
+    ],
+  );
+  t.check("une régression remonte en alerte", withRegression.alert?.title, "Budget Meta doublé");
+  t.check("l'annulation automatique est signalée", withRegression.alert?.automatic, true);
+  t.check("avec l'action à annuler", withRegression.alert?.actionId, "action-1");
+  t.check(
+    "la réponse commence par le dégât",
+    withRegression.rationale.startsWith(
+      "Avant tout : « Budget Meta doublé » a dégradé la situation.",
+    ),
+    true,
+  );
+  t.check(
+    "elle annonce qu'un bouton suffit",
+    withRegression.rationale.includes("un bouton suffit"),
+    true,
+  );
+  // La prochaine action reste proposée : on répare, PUIS on avance.
+  t.check("le geste suivant n'est pas annulé", withRegression.now?.title, "Le prochain levier");
+  t.check(
+    "il est présenté comme la suite",
+    withRegression.rationale.includes("Ensuite, je reprendrais par « Le prochain levier »."),
+    true,
+  );
+
+  const manualRollback = buildNextMovePlan(
+    [make({ id: "1", title: "Suite", finding_key: "s" })],
+    [
+      {
+        findingId: "ancien",
+        title: "Ciblage modifié",
+        verdict: "regression",
+        headline: null,
+        rollbackRecommended: true,
+        rollbackPossible: false,
+      },
+    ],
+  );
+  t.check(
+    "une annulation manuelle est annoncée comme telle",
+    manualRollback.alert?.automatic,
+    false,
+  );
+  t.check(
+    "et la marche à suivre est donnée",
+    manualRollback.rationale.includes("Reviens en arrière à la main"),
+    true,
+  );
+
+  // Une régression dont l'annulation n'est PAS recommandée par la mesure ne
+  // remonte pas en alerte : c'est `measure.ts` qui décide, pas cet écran.
+  const notRecommended = buildNextMovePlan(
+    [make({ id: "1", finding_key: "a" })],
+    [
+      {
+        findingId: "x",
+        title: "Autre",
+        verdict: "regression",
+        headline: null,
+        rollbackRecommended: false,
+        rollbackPossible: true,
+      },
+    ],
+  );
+  t.check("sans recommandation, pas d'alerte", notRecommended.alert, null);
+
+  // PROUVER et APPRENDRE : ce qui marche est confirmé, ce qui n'a rien donné
+  // est écarté — reproposer la même correction serait absurde.
+  const learned = buildNextMovePlan(
+    [make({ id: "1", title: "Suite", finding_key: "s" })],
+    [
+      { findingId: "a", title: "Frais de port affichés", verdict: "confirme", headline: "+18 %" },
+      { findingId: "b", title: "Bandeau de réassurance", verdict: "nul", headline: null },
+      { findingId: "c", title: "Encore en mesure", verdict: "en_cours", headline: null },
+    ],
+  );
+  t.check(
+    "les corrections prouvées sont listées",
+    learned.proven.map((p) => p.title),
+    ["Frais de port affichés"],
+  );
+  t.check(
+    "les corrections sans effet aussi",
+    learned.ineffective.map((p) => p.title),
+    ["Bandeau de réassurance"],
+  );
+  t.check(
+    "une mesure en cours n'est ni l'un ni l'autre",
+    learned.proven.length + learned.ineffective.length,
+    2,
+  );
+  t.check(
+    "ce qui marche est dit",
+    learned.rationale.includes("« Frais de port affichés » a bien produit son effet"),
+    true,
+  );
+  t.check(
+    "ce qui n'a rien donné est écarté explicitement",
+    learned.rationale.includes("inutile d'y revenir"),
+    true,
+  );
+
+  // Même sans problème restant, l'apprentissage est restitué.
+  const doneAndLearned = buildNextMovePlan(
+    [make({ id: "1", status: "done" })],
+    [{ findingId: "a", title: "Prix revu", verdict: "confirme", headline: null }],
+  );
+  t.check("tout corrigé n'efface pas ce qu'on a appris", doneAndLearned.proven.length, 1);
+  t.check(
+    "et la réponse le dit avant d'inviter à relancer",
+    doneAndLearned.rationale.indexOf("Prix revu") <
+      doneAndLearned.rationale.indexOf("Relance un diagnostic"),
+    true,
+  );
+
+  // Sans mesure, le plan est exactement celui d'avant.
+  const noOutcomes = buildNextMovePlan([make({ id: "1", finding_key: "a" })]);
+  t.check("sans mesure, aucune alerte", noOutcomes.alert, null);
+  t.check("aucun apprentissage", [noOutcomes.proven.length, noOutcomes.ineffective.length], [0, 0]);
+  t.check(
+    "et la réponse garde sa forme d'origine",
+    noOutcomes.rationale.startsWith("Si cette boutique était la mienne"),
     true,
   );
 

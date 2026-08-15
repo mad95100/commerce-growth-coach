@@ -2,35 +2,23 @@ import { fetchShopifySnapshot } from "@/lib/connectors/shopify.server";
 import { normalizeCurrency } from "@/lib/currency";
 import { fetchMetaSnapshot, metaToken } from "@/lib/connectors/meta-apply.server";
 import { fetchGoogleSnapshot, googleAccessToken } from "@/lib/connectors/google-apply.server";
+import type { StoreMetrics } from "@/lib/metrics";
 
-/** Instantané normalisé des indicateurs business/pub d'une boutique (30 derniers jours). */
-export type StoreMetrics = {
-  captured_at: string;
-  shopify: {
-    /** Code ISO 4217 de la boutique, ou `null` si indéterminée. */
-    currency: string | null;
-    revenue_30d: number | null;
-    orders_30d: number | null;
-    aov: number | null;
-  } | null;
-  meta: {
-    /** Devise du compte publicitaire Meta. Rien ne garantit qu'elle égale celle de la boutique. */
-    currency: string | null;
-    spend: number | null;
-    purchases: number | null;
-    roas: number | null;
-    ctr: number | null;
-  } | null;
-  google: {
-    /** Devise du compte Google Ads. Rien ne garantit qu'elle égale celle de la boutique. */
-    currency: string | null;
-    cost: number | null;
-    clicks: number | null;
-    conversions: number | null;
-    ctr: number | null;
-    conversion_rate: number | null;
-  } | null;
-};
+/**
+ * Capture des indicateurs chez les partenaires.
+ *
+ * La forme des données et l'arithmétique des écarts vivent dans `metrics.ts`,
+ * qui est pur : l'interface et le moteur de mesure l'importent sans embarquer
+ * les connecteurs ni `node:crypto` dans le bundle du navigateur. Tout y est
+ * réexporté ci-dessous — les appelants existants n'ont rien à changer.
+ */
+export {
+  computeDeltas,
+  METRIC_DEFS,
+  METRIC_WINDOW_DAYS,
+  type MetricDelta,
+  type StoreMetrics,
+} from "@/lib/metrics";
 
 export type ChannelCredentials = {
   shopify?: { shop: string; encryptedToken: string };
@@ -135,199 +123,4 @@ export async function captureStoreMetrics(creds: ChannelCredentials): Promise<St
 
   await Promise.all(jobs);
   return metrics;
-}
-
-export type MetricDelta = {
-  key: string;
-  label: string;
-  channel: "shopify" | "meta" | "google";
-  format: "currency" | "number" | "percent" | "ratio";
-  /**
-   * Devise du montant, pour les métriques `currency` uniquement — celle du
-   * canal, pas celle de la boutique : Meta et Google facturent dans la devise
-   * de leur propre compte.
-   */
-  currency: string | null;
-  before: number | null;
-  after: number | null;
-  change_pct: number | null;
-  /** true si une hausse est une bonne nouvelle */
-  higher_is_better: boolean;
-};
-
-const METRIC_DEFS: Array<{
-  key: string;
-  label: string;
-  channel: "shopify" | "meta" | "google";
-  format: MetricDelta["format"];
-  higher_is_better: boolean;
-  pick: (m: StoreMetrics) => number | null;
-}> = [
-  {
-    key: "revenue_30d",
-    label: "CA 30 jours",
-    channel: "shopify",
-    format: "currency",
-    higher_is_better: true,
-    pick: (m) => m.shopify?.revenue_30d ?? null,
-  },
-  {
-    key: "orders_30d",
-    label: "Commandes 30 jours",
-    channel: "shopify",
-    format: "number",
-    higher_is_better: true,
-    pick: (m) => m.shopify?.orders_30d ?? null,
-  },
-  {
-    key: "aov",
-    label: "Panier moyen",
-    channel: "shopify",
-    format: "currency",
-    higher_is_better: true,
-    pick: (m) => m.shopify?.aov ?? null,
-  },
-  {
-    key: "meta_roas",
-    label: "ROAS Meta",
-    channel: "meta",
-    format: "ratio",
-    higher_is_better: true,
-    pick: (m) => m.meta?.roas ?? null,
-  },
-  {
-    key: "meta_ctr",
-    label: "CTR Meta",
-    channel: "meta",
-    format: "percent",
-    higher_is_better: true,
-    pick: (m) => m.meta?.ctr ?? null,
-  },
-  {
-    key: "meta_purchases",
-    label: "Achats Meta",
-    channel: "meta",
-    format: "number",
-    higher_is_better: true,
-    pick: (m) => m.meta?.purchases ?? null,
-  },
-  {
-    key: "meta_spend",
-    label: "Dépense Meta",
-    channel: "meta",
-    format: "currency",
-    higher_is_better: false,
-    pick: (m) => m.meta?.spend ?? null,
-  },
-  {
-    key: "google_conv_rate",
-    label: "Taux de conversion Google",
-    channel: "google",
-    format: "percent",
-    higher_is_better: true,
-    pick: (m) => (m.google?.conversion_rate != null ? m.google.conversion_rate * 100 : null),
-  },
-  {
-    key: "google_ctr",
-    label: "CTR Google",
-    channel: "google",
-    format: "percent",
-    higher_is_better: true,
-    pick: (m) => (m.google?.ctr != null ? m.google.ctr * 100 : null),
-  },
-  {
-    key: "google_conversions",
-    label: "Conversions Google",
-    channel: "google",
-    format: "number",
-    higher_is_better: true,
-    pick: (m) => m.google?.conversions ?? null,
-  },
-  {
-    key: "google_cost",
-    label: "Dépense Google",
-    channel: "google",
-    format: "currency",
-    higher_is_better: false,
-    pick: (m) => m.google?.cost ?? null,
-  },
-];
-
-/** Compare deux instantanés et renvoie les écarts métrique par métrique. */
-export function computeDeltas(before: StoreMetrics, after: StoreMetrics): MetricDelta[] {
-  return METRIC_DEFS.map((d) => {
-    const b = d.pick(before);
-    const a = d.pick(after);
-    const change_pct = b != null && a != null && b !== 0 ? ((a - b) / Math.abs(b)) * 100 : null;
-    return {
-      key: d.key,
-      label: d.label,
-      channel: d.channel,
-      format: d.format,
-      // La devise est lue sur l'instantané le plus récent : c'est celle dans
-      // laquelle `after` est libellé.
-      currency:
-        d.format === "currency"
-          ? (after[d.channel]?.currency ?? before[d.channel]?.currency ?? null)
-          : null,
-      before: b,
-      after: a,
-      change_pct,
-      higher_is_better: d.higher_is_better,
-    };
-  }).filter((d) => d.before != null || d.after != null);
-}
-
-export type TrackingVerdict = {
-  status: "measuring" | "on_track" | "underperforming" | "regressed";
-  alert_message: string | null;
-};
-
-/**
- * Décide si les gains estimés se matérialisent.
- * On regarde en priorité le CA, sinon le ROAS / taux de conversion.
- */
-export function judgeOutcome(
-  deltas: MetricDelta[],
-  appliedAt: string,
-  expectedGainMin: number | null,
-): TrackingVerdict {
-  const daysSince = (Date.now() - new Date(appliedAt).getTime()) / 86_400_000;
-  const drivers = deltas.filter(
-    (d) =>
-      ["revenue_30d", "meta_roas", "google_conv_rate", "meta_ctr"].includes(d.key) &&
-      d.change_pct != null,
-  );
-
-  if (daysSince < 3 || drivers.length === 0) {
-    return {
-      status: "measuring",
-      alert_message: null,
-    };
-  }
-
-  const worst = drivers.reduce((w, d) =>
-    (d.change_pct as number) < (w.change_pct as number) ? d : w,
-  );
-  const revenue = drivers.find((d) => d.key === "revenue_30d");
-  const main = revenue ?? drivers[0]!;
-  const change = main.change_pct as number;
-
-  if (change <= -5) {
-    return {
-      status: "regressed",
-      alert_message: `${main.label} a baissé de ${Math.abs(change).toFixed(1)} % depuis la correction (${Math.round(daysSince)} j). Il faut revenir en arrière ou tester une autre approche — surveille aussi ${worst.label}.`,
-    };
-  }
-
-  if (change < 3) {
-    return {
-      status: "underperforming",
-      alert_message: expectedGainMin
-        ? `On attendait environ +${expectedGainMin} de gain, mais ${main.label} n'a bougé que de ${change.toFixed(1)} % en ${Math.round(daysSince)} jours. La correction ne suffit pas : relance un audit pour trouver le vrai blocage.`
-        : `${main.label} n'a quasiment pas bougé (${change.toFixed(1)} %) en ${Math.round(daysSince)} jours. La correction ne suffit pas : relance un audit.`,
-    };
-  }
-
-  return { status: "on_track", alert_message: null };
 }
