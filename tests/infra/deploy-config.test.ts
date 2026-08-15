@@ -17,12 +17,19 @@ const ROOT = new URL("../../", import.meta.url).pathname;
 const read = (relative: string) => readFileSync(join(ROOT, relative), "utf8");
 
 /**
- * Variables lues par le code serveur et qui doivent exister quelque part.
- * `AI_BASE_URL` et `APP_URL` sont dans `wrangler.toml` (publiques) ;
- * les autres sont des secrets, donc seulement documentées.
+ * Variables publiques, attendues EN CLAIR dans `wrangler.toml`.
+ *
+ * Les deux valeurs Supabase en font partie : l'URL du projet et la clé
+ * « publishable » sont destinées au navigateur et déjà versionnées dans `.env`.
+ * Sans elles côté serveur, le rendu échoue — le worker ne lit pas `.env`.
+ */
+const PUBLIC_VARS = ["APP_URL", "AI_BASE_URL", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"];
+
+/**
+ * Secrets, qui ne doivent JAMAIS apparaître dans un fichier versionné.
+ * Ils sont seulement documentés, et provisionnés par `deploy.yml`.
  */
 const REQUIRED_SECRETS = [
-  "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "DATA_CONNECTIONS_ENCRYPTION_KEY",
   "OAUTH_STATE_SECRET",
@@ -127,6 +134,45 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
     true,
   );
 
+  // --- Les variables publiques sont bien renseignées ------------------------
+  // Le worker ne lit pas `.env` : ce qui n'est pas ici n'existe pas à
+  // l'exécution, et le rendu serveur échoue sans diagnostic évident.
+  for (const name of PUBLIC_VARS) {
+    t.check(
+      `${name} a une valeur dans wrangler.toml`,
+      new RegExp(`^${name}\\s*=\\s*"\\S`, "m").test(wrangler),
+      true,
+    );
+  }
+
+  // --- Le déploiement provisionne les secrets d'exécution -------------------
+  const deploy = read(".github/workflows/deploy.yml");
+  t.check(
+    "le déploiement échoue tôt si les identifiants Cloudflare manquent",
+    /Secret\(s\) absent\(s\) des secrets du dépôt GitHub/.test(deploy),
+    true,
+  );
+  t.check("l'environnement ciblé est explicite", /--env=""/.test(deploy), true);
+  t.check(
+    "les secrets d'exécution sont poussés sur le Worker",
+    /wrangler secret bulk/.test(deploy),
+    true,
+  );
+  for (const name of REQUIRED_SECRETS) {
+    t.check(
+      `${name} est provisionné par le déploiement`,
+      new RegExp(`${name}:\\s*\\$\\{\\{\\s*secrets\\.${name}`).test(deploy),
+      true,
+    );
+  }
+  // Une valeur passée en argument de ligne de commande apparaîtrait dans la
+  // liste des processus et dans les journaux du runner.
+  t.check(
+    "aucun secret n'est passé en argument à wrangler",
+    /secret\s+put\s+\S+\s+--text/.test(deploy),
+    false,
+  );
+
   // --- Documentation des variables -----------------------------------------
   const envExample = read(".env.example");
   for (const name of REQUIRED_SECRETS) {
@@ -142,7 +188,6 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
   if (existsSync(join(ROOT, ".env"))) {
     const env = read(".env");
     for (const name of REQUIRED_SECRETS) {
-      if (name === "SUPABASE_URL") continue; // publique, légitimement présente
       t.check(
         `${name} n'a pas de valeur dans le .env versionné`,
         new RegExp(`^\\s*(export\\s+)?${name}\\s*=\\s*\\S`, "m").test(env),

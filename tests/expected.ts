@@ -98,7 +98,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "infra/deploy-config.test.ts",
-    minChecks: 40,
+    minChecks: 50,
     covers:
       "Cohérence du déploiement Cloudflare : entrée du worker, nodejs_compat, actifs statiques, cron, absence de secret versionné, et concordance entre wrangler.toml, vite.config.ts et .env.example.",
   },

@@ -46,7 +46,14 @@ enabled = true
 # et doit correspondre, au caractère près, aux URL déclarées chez Shopify, Meta
 # et Google. La renseigner ici neutralise le repli historique inscrit dans
 # `src/lib/public-origin.server.ts`.
+# Les deux valeurs Supabase ci-dessous sont PUBLIQUES par conception : l'URL du
+# projet et la clé « publishable », destinée au navigateur. Elles sont déjà
+# versionnées dans `.env`. Le serveur les lit par `process.env`, qui n'est
+# alimenté que par ces variables une fois sur Cloudflare — sans elles, le rendu
+# serveur échoue. La clé de SERVICE, elle, reste un secret.
 [vars]
+SUPABASE_URL = "https://osejhtqrqfvaqrersfcm.supabase.co"
+SUPABASE_PUBLISHABLE_KEY = "sb_publishable_ZNuc4_semPG-oaCDILYOSA_Qngx99_f"
 APP_URL = "https://app.ecompilot.ai"
 AI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 AI_AUDIT_MODEL = "gemini-2.5-pro"
@@ -63,6 +70,8 @@ AI_FIX_MODEL = "gemini-2.5-flash"
 name = "ecompilot-ai-preview"
 
 [env.preview.vars]
+SUPABASE_URL = "https://osejhtqrqfvaqrersfcm.supabase.co"
+SUPABASE_PUBLISHABLE_KEY = "sb_publishable_ZNuc4_semPG-oaCDILYOSA_Qngx99_f"
 APP_URL = "https://preview.ecompilot.ai"
 AI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 AI_AUDIT_MODEL = "gemini-2.5-pro"

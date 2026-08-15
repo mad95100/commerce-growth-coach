@@ -59,6 +59,26 @@ jobs:
       - name: Installer les dépendances
         run: bun install --frozen-lockfile
 
+      - name: Les identifiants de déploiement sont présents
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Sans ce contrôle, wrangler échoue plus loin sur « it's necessary to
+          # set a CLOUDFLARE_API_TOKEN », un message qui n'indique pas OÙ le
+          # renseigner — et le piège est réel : ces deux valeurs se placent dans
+          # les secrets du DÉPÔT GITHUB, pas dans l'interface Cloudflare, qui ne
+          # sert qu'à l'exécution du Worker.
+          manquants=""
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || manquants="$manquants CLOUDFLARE_API_TOKEN"
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || manquants="$manquants CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$manquants" ]; then
+            echo "::error::Secret(s) absent(s) des secrets du dépôt GitHub :$manquants"
+            echo "::error::À ajouter dans Settings → Secrets and variables → Actions → New repository secret."
+            exit 1
+          fi
+          echo "Identifiants de déploiement présents."
+
       - name: Construire
         run: bun run build
 
@@ -89,9 +109,73 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # `--env=""` désigne explicitement l'environnement de tête. Sans lui,
+          # wrangler avertit que plusieurs environnements sont définis sans
+          # cible — ambiguïté qu'on ne veut pas dans un déploiement automatique.
           command: >-
             deploy
-            ${{ (github.event.inputs.environment == 'preview') && '--env preview' || '' }}
+            ${{ (github.event.inputs.environment == 'preview') && '--env preview' || '--env=""' }}
+
+      - name: Provisionner les secrets d'exécution du Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_ENV: ${{ (github.event.inputs.environment == 'preview') && '--env preview' || '--env=""' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DATA_CONNECTIONS_ENCRYPTION_KEY: ${{ secrets.DATA_CONNECTIONS_ENCRYPTION_KEY }}
+          OAUTH_STATE_SECRET: ${{ secrets.OAUTH_STATE_SECRET }}
+          SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
+          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          JOBS_TICK_SECRET: ${{ secrets.JOBS_TICK_SECRET }}
+          META_CLIENT_ID: ${{ secrets.META_CLIENT_ID }}
+          META_CLIENT_SECRET: ${{ secrets.META_CLIENT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_ADS_DEVELOPER_TOKEN: ${{ secrets.GOOGLE_ADS_DEVELOPER_TOKEN }}
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: ${{ secrets.GOOGLE_ADS_LOGIN_CUSTOMER_ID }}
+        run: |
+          # POURQUOI CETTE ÉTAPE. Un Worker fraîchement déployé n'a aucun secret :
+          # le rendu serveur, l'OAuth et les audits échoueraient tous. Les
+          # renseigner à la main dans l'interface Cloudflare marcherait, mais il
+          # faudrait recommencer à chaque nouvel environnement. Ils sont donc
+          # déclarés une seule fois dans les secrets du dépôt et poussés d'ici.
+          #
+          # AUCUNE VALEUR N'EST AFFICHÉE : le JSON est construit par `jq` depuis
+          # l'environnement, puis lu par wrangler sur son entrée standard. Rien
+          # ne transite par la ligne de commande ni par les journaux.
+          #
+          # Un secret non renseigné est simplement OMIS, jamais écrit à vide :
+          # `secret bulk` ne touche pas aux clés absentes du JSON, donc une
+          # valeur déjà posée sur le Worker survit à un déploiement.
+          NOMS="SUPABASE_SERVICE_ROLE_KEY DATA_CONNECTIONS_ENCRYPTION_KEY OAUTH_STATE_SECRET
+                SHOPIFY_CLIENT_ID SHOPIFY_CLIENT_SECRET AI_API_KEY JOBS_TICK_SECRET
+                META_CLIENT_ID META_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET
+                GOOGLE_ADS_DEVELOPER_TOKEN GOOGLE_ADS_LOGIN_CUSTOMER_ID"
+
+          presents=""
+          absents=""
+          for nom in $NOMS; do
+            if [ -n "$(printenv "$nom" || true)" ]; then
+              presents="$presents $nom"
+            else
+              absents="$absents $nom"
+            fi
+          done
+
+          [ -n "$absents" ] && echo "::warning::Secrets non fournis, laissés inchangés sur le Worker :$absents"
+
+          if [ -z "$presents" ]; then
+            echo "::warning::Aucun secret d'exécution fourni. Le Worker est déployé mais ne pourra pas joindre Supabase."
+            exit 0
+          fi
+
+          echo "Secrets à provisionner :$presents"
+          jq -n '[$ENV | to_entries[] | select(.key as $k | $noms | index($k)) | select(.value != "")] | from_entries' \
+            --argjson noms "$(printf '%s\n' $presents | jq -R . | jq -s .)" \
+            | bunx wrangler secret bulk $WRANGLER_ENV
+
+          echo "Secrets d'exécution provisionnés."
 
       - name: Contrôle de démarrage
         env:
