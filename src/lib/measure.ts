@@ -177,6 +177,26 @@ export const CONFIRM_PCT = 10;
 /** Chute d'une métrique de garde qui renverse le verdict à elle seule. */
 export const GUARD_REGRESSION_PCT = 10;
 
+/**
+ * Volume minimal en dessous duquel aucun pourcentage ne veut rien dire.
+ *
+ * LE DÉFAUT QUE CELA CORRIGE. Sur une boutique à deux commandes par mois, un
+ * chiffre d'affaires qui passe de 180 à 190 € fait +5,6 % — assez pour franchir
+ * le seuil de bruit et se voir attribuer un verdict. Or ces dix euros sont une
+ * commande un peu plus chère, pas l'effet d'une correction. Le pourcentage est
+ * une illusion d'optique produite par un dénominateur minuscule.
+ *
+ * Dix commandes sur trente jours est le plancher en dessous duquel on
+ * s'abstient. Ce n'est pas un test statistique — il en faudrait un vrai — mais
+ * c'est la barrière qui empêche de faire passer du hasard pour un résultat.
+ *
+ * EXCEPTION, et elle compte : le passage par zéro. Une boutique qui vend pour
+ * la première fois n'a pas « varié de x % », elle a changé d'état. C'est
+ * précisément l'événement que le produit existe pour provoquer, et il ne doit
+ * pas être écarté au motif que trois commandes font un petit échantillon.
+ */
+export const MIN_ORDERS_FOR_VERDICT = 10;
+
 // ---------------------------------------------------------------------------
 // Entrées et sorties
 // ---------------------------------------------------------------------------
@@ -308,6 +328,14 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
   const drivers = pick(roles.drivers, "driver");
   const guards = pick(roles.guards, "guard");
 
+  // Volume observé, quand il est connu. Sert uniquement à savoir si un
+  // pourcentage a un sens, jamais à juger la correction elle-même.
+  const orders = input.deltas.find((d) => d.key === "orders_30d");
+  const volume = Math.max(orders?.before ?? 0, orders?.after ?? 0);
+  const crossedZero = drivers.some((m) => m.before === 0 && (m.after ?? 0) > 0);
+  const tooFewObservations =
+    orders !== undefined && volume < MIN_ORDERS_FOR_VERDICT && !crossedZero;
+
   const rollbackImpossible = (verdict: Verdict): RollbackAdvice => ({
     recommended: false,
     possible: input.revertible === true,
@@ -317,8 +345,8 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
         : "La correction n'a pas dégradé la situation : rien à annuler.",
   });
 
-  // --- 1. Trop tôt, ou rien à mesurer --------------------------------------
-  if (coverage < MIN_COVERAGE || drivers.length === 0) {
+  // --- 1. Trop tôt, rien à mesurer, ou pas assez de volume -----------------
+  if (coverage < MIN_COVERAGE || drivers.length === 0 || tooFewObservations) {
     const missing = drivers.length === 0;
     const remaining = Math.max(0, Math.ceil(METRIC_WINDOW_DAYS * MIN_COVERAGE - days));
     return {
@@ -331,10 +359,14 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
       guards,
       headline: missing
         ? "Pas encore de quoi mesurer cette correction."
-        : `Mesure en cours — verdict dans ${remaining} jour${remaining > 1 ? "s" : ""}.`,
+        : tooFewObservations
+          ? `Trop peu de commandes pour conclure (${Math.round(volume)} sur ${METRIC_WINDOW_DAYS} jours).`
+          : `Mesure en cours — verdict dans ${remaining} jour${remaining > 1 ? "s" : ""}.`,
       explanation: missing
         ? "Aucun des indicateurs qui devraient bouger n'est disponible pour l'instant. Vérifie que le canal concerné est bien connecté : sans lui, l'effet de cette correction ne peut pas être prouvé."
-        : `Les indicateurs sont des cumuls sur ${METRIC_WINDOW_DAYS} jours. ${round(days)} jour(s) après la correction, seuls ${Math.round(coverage * 100)} % de ce qui est mesuré lui sont postérieurs — trop peu pour conclure sans risquer de défaire ce qui commence à marcher.`,
+        : tooFewObservations
+          ? `Avec ${Math.round(volume)} commande(s) sur ${METRIC_WINDOW_DAYS} jours, un écart en pourcentage ne veut rien dire : une commande de plus ou de moins suffit à le faire basculer. Il faut au moins ${MIN_ORDERS_FOR_VERDICT} commandes pour qu'un verdict soit autre chose qu'une illusion d'optique. Je préfère te dire que je ne sais pas.`
+          : `Les indicateurs sont des cumuls sur ${METRIC_WINDOW_DAYS} jours. ${round(days)} jour(s) après la correction, seuls ${Math.round(coverage * 100)} % de ce qui est mesuré lui sont postérieurs — trop peu pour conclure sans risquer de défaire ce qui commence à marcher.`,
       rollback: rollbackImpossible("en_cours"),
       legacyStatus: LEGACY_STATUS.en_cours,
     };

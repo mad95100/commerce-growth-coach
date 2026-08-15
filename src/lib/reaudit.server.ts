@@ -47,10 +47,13 @@ export async function runReauditTick(now: Date = new Date()): Promise<ReauditTic
   // chiffres et rendrait les mêmes conclusions.
   const { data: settled, error } = await supabaseAdmin
     .from("fix_attempts")
-    .select("store_id, verdict, measured_at")
+    .select("store_id, verdict, settled_at")
     .in("verdict", ["confirme", "nul", "regression"])
-    .not("measured_at", "is", null)
-    .order("measured_at", { ascending: false })
+    // `settled_at` et non `measured_at` : le second est réécrit deux fois par
+    // jour, et s'en servir faisait repasser pour neuf un verdict déjà intégré
+    // au dernier diagnostic — donc relancer un audit payant, indéfiniment.
+    .not("settled_at", "is", null)
+    .order("settled_at", { ascending: false })
     .limit(200);
 
   if (error) {
@@ -58,7 +61,7 @@ export async function runReauditTick(now: Date = new Date()): Promise<ReauditTic
     return result;
   }
 
-  type SettledRow = { store_id: string; verdict: string; measured_at: string };
+  type SettledRow = { store_id: string; verdict: string; settled_at: string };
   const byStore = new Map<string, SettledRow[]>();
   for (const row of (settled ?? []) as SettledRow[]) {
     if (!row.store_id) continue;
@@ -67,7 +70,21 @@ export async function runReauditTick(now: Date = new Date()): Promise<ReauditTic
     byStore.set(row.store_id, list);
   }
 
-  for (const [storeId, rows] of [...byStore.entries()].slice(0, MAX_STORES_PER_REAUDIT_TICK)) {
+  // ÉQUITÉ. Sans cet ordre, les mêmes boutiques passent en tête à chaque
+  // passage : une dont la décision est « attendre » y reste éternellement, et
+  // celles derrière elle ne sont jamais examinées. Les moins récemment
+  // examinées d'abord, comme pour les mesures.
+  const candidates = [...byStore.keys()];
+  const { data: order } = await supabaseAdmin
+    .from("stores")
+    .select("id, reaudit_checked_at")
+    .in("id", candidates)
+    .order("reaudit_checked_at", { ascending: true, nullsFirst: true })
+    .limit(MAX_STORES_PER_REAUDIT_TICK);
+
+  const chosen = ((order ?? []) as Array<{ id: string }>).map((row) => row.id);
+  for (const storeId of chosen) {
+    const rows = byStore.get(storeId) ?? [];
     result.inspected += 1;
     try {
       const handled = await considerStore(supabaseAdmin, storeId, rows, now);
@@ -90,14 +107,19 @@ async function considerStore(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   admin: any,
   storeId: string,
-  settled: Array<{ verdict: string; measured_at: string }>,
+  settled: Array<{ verdict: string; settled_at: string }>,
   now: Date,
 ): Promise<"lancer" | "proposer" | "attendre"> {
   const { data: store } = await admin
     .from("stores")
-    .select("id, name, owner_id, reaudit_prompted_at")
+    .select("id, name, owner_id, reaudit_prompted_at, reaudit_launched_at")
     .eq("id", storeId)
     .maybeSingle();
+
+  // Examinée : la boutique passe en queue de file, qu'on agisse ou non. Écrit
+  // avant toute décision, pour qu'une boutique qui échoue plus bas ne bloque
+  // pas indéfiniment celles qui la suivent.
+  await admin.from("stores").update({ reaudit_checked_at: now.toISOString() }).eq("id", storeId);
   // Sans propriétaire, il n'y a ni quota à consulter, ni personne à prévenir.
   if (!store?.owner_id) return "attendre";
 
@@ -116,7 +138,7 @@ async function considerStore(
   // d'avant y sont déjà intégrés.
   const floor = lastCompleted ? new Date(lastCompleted.created_at).getTime() : 0;
   const verdictsSinceAudit = settled
-    .filter((row) => new Date(row.measured_at).getTime() > floor)
+    .filter((row) => new Date(row.settled_at).getTime() > floor)
     .map((row) => row.verdict);
 
   const { loadEntitlements } = await import("@/lib/billing.server");
@@ -135,6 +157,24 @@ async function considerStore(
   if (decision.action === "attendre") return "attendre";
 
   if (decision.action === "lancer") {
+    // RÉCLAMATION. Le cron tourne à la minute et un passage peut durer plus
+    // longtemps : deux invocations se recouvrent, lisent toutes deux « aucun
+    // diagnostic en cours », et en créent chacune un — deux rapports
+    // concurrents et DEUX QUOTAS pour un seul. L'écriture est donc conditionnée
+    // à la valeur lue juste avant : le second passage n'affecte aucune ligne et
+    // s'abstient, sans verrou ni transaction.
+    const previous = store.reaudit_launched_at ?? null;
+    let claim = admin
+      .from("stores")
+      .update({ reaudit_launched_at: now.toISOString() })
+      .eq("id", storeId);
+    claim =
+      previous === null
+        ? claim.is("reaudit_launched_at", null)
+        : claim.eq("reaudit_launched_at", previous);
+    const { data: claimed } = await claim.select("id");
+    if (!claimed || claimed.length === 0) return "attendre";
+
     await launchAudit(admin, store, decision.reason);
     return "lancer";
   }

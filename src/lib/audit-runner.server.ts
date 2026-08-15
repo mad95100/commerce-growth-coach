@@ -3,6 +3,7 @@ import { currencyLabel, normalizeCurrency } from "@/lib/currency";
 import { computeCategoryScores, computeGlobalScore, computePotential } from "@/lib/scoring";
 import { analyseFindings } from "@/lib/finding-graph";
 import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-history";
+import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { AUDIT_MODEL, SYSTEM_PROMPT } from "@/lib/audit-prompt";
 import { extractJsonBlock } from "@/lib/audit-parse";
 
@@ -278,29 +279,22 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
       `Réponse IA invalide (${json.choices?.[0]?.finish_reason ?? "sans contenu"}). Relance l'audit.`,
     );
   }
-  const parsed = JSON.parse(rawArgs) as {
-    score: number;
-    verdict: string;
-    summary: string;
-    findings: Array<{
-      key?: string;
-      caused_by?: string[];
-      category: string;
-      severity: string;
-      title: string;
-      root_cause: string;
-      impact_description: string;
-      estimated_gain_min: number;
-      estimated_gain_max: number;
-      action_steps: Array<{ text: string }>;
-      auto_correction: { title: string; content: string } | null;
-      timeframe: string;
-      difficulty?: number;
-      time_minutes?: number;
-      confidence?: string;
-      evidence?: { based_on: string; assumptions: string };
-    }>;
-  };
+  // Le modèle renvoie du texte libre validé par un schéma que RIEN ne garantit
+  // à l'exécution : `category`, `severity` et `timeframe` sont des énumérations
+  // PostgreSQL, et une seule valeur inattendue faisait échouer l'insertion
+  // ENTIÈRE — un audit déjà payé, dont les neuf problèmes valides étaient
+  // perdus avec le dixième. Tout passe donc par un nettoyage qui répare ce qui
+  // l'est, écarte ce qui ne l'est pas, et n'invente jamais rien.
+  let rawPayload: unknown;
+  try {
+    rawPayload = JSON.parse(rawArgs);
+  } catch {
+    throw new Error("Réponse IA illisible (JSON invalide). Relance l'audit.");
+  }
+  const parsed = sanitizeAuditPayload(rawPayload);
+  if (parsed.repairs.length > 0) {
+    console.info(`[audit] ${parsed.repairs.length} correction(s) de forme :`, parsed.repairs);
+  }
 
   // BARRIÈRE MÉCANIQUE. Le prompt DEMANDE au modèle de ne pas reproposer ce qui
   // a échoué ; ce filtre l'EMPÊCHE. Une consigne de prompt est une préférence,

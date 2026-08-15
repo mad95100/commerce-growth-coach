@@ -88,7 +88,7 @@ bun install
 bun run dev          # Vite, port 8080
 bun run build        # produit .output/
 bun run preview      # wrangler dev — le worker réel, pas Vite
-bun run test         # 1026 contrôles, 21 suites
+bun run test         # 1109 contrôles, 22 suites
 bun run typecheck
 bun run lint
 ```

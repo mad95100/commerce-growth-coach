@@ -521,6 +521,7 @@ export type Database = {
           measured_at: string | null
           rollback_possible: boolean
           rollback_recommended: boolean
+          settled_at: string | null
           signature: string
           store_id: string
           title: string
@@ -539,6 +540,7 @@ export type Database = {
           measured_at?: string | null
           rollback_possible?: boolean
           rollback_recommended?: boolean
+          settled_at?: string | null
           signature: string
           store_id: string
           title: string
@@ -557,6 +559,7 @@ export type Database = {
           measured_at?: string | null
           rollback_possible?: boolean
           rollback_recommended?: boolean
+          settled_at?: string | null
           signature?: string
           store_id?: string
           title?: string
@@ -822,6 +825,8 @@ export type Database = {
           owner_id: string
           revenue_goal: number | null
           situation: Database["public"]["Enums"]["store_situation"] | null
+          reaudit_checked_at: string | null
+          reaudit_launched_at: string | null
           reaudit_prompted_at: string | null
           updated_at: string
           url: string | null
@@ -840,6 +845,8 @@ export type Database = {
           owner_id: string
           revenue_goal?: number | null
           situation?: Database["public"]["Enums"]["store_situation"] | null
+          reaudit_checked_at?: string | null
+          reaudit_launched_at?: string | null
           reaudit_prompted_at?: string | null
           updated_at?: string
           url?: string | null
@@ -858,6 +865,8 @@ export type Database = {
           owner_id?: string
           revenue_goal?: number | null
           situation?: Database["public"]["Enums"]["store_situation"] | null
+          reaudit_checked_at?: string | null
+          reaudit_launched_at?: string | null
           reaudit_prompted_at?: string | null
           updated_at?: string
           url?: string | null

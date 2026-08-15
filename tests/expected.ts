@@ -127,6 +127,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Relance du diagnostic : jamais deux audits concurrents, jamais de relance sans verdict nouveau, et surtout jamais de quota compté dépensé sans l'accord du marchand — sur un plan limité le diagnostic est proposé, pas lancé.",
   },
   {
+    file: "audits/robustness.test.ts",
+    minChecks: 78,
+    covers:
+      "Robustesse en conditions réelles : une réponse de modèle mal formée n'emporte plus l'audit entier, la première vente d'une boutique partie de zéro est enfin mesurable, et onze boutiques types — sans ventes, sans publicité, internationale, contradictoire — obtiennent un verdict honnête ou aucun verdict, jamais une conclusion inventée.",
+  },
+  {
     file: "infra/no-lovable.test.ts",
     minChecks: 25,
     covers:

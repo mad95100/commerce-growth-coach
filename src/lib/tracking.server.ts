@@ -8,6 +8,9 @@ import {
 import { measureOutcome } from "@/lib/measure";
 import { attemptSignature } from "@/lib/attempt-history";
 
+/** Verdicts qui ne bougeront plus. Voir `settled_at` dans la migration. */
+const FINAL_VERDICTS = new Set(["confirme", "nul", "regression"]);
+
 // Même type de client que le journal des actions : le redéclarer
 // réintroduirait des `any` déjà assumés une fois ailleurs.
 
@@ -182,6 +185,23 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
   // chaque mesure une régression déjà signalée revient à ne plus être écouté.
   const regressions: Array<{ findingId: string; title: string; headline: string }> = [];
 
+  const measuredAt = new Date().toISOString();
+
+  // Dates de règlement déjà connues, lues en une fois. `settled_at` doit être
+  // écrit UNE SEULE FOIS ; l'upsert réécrivant la ligne entière, il faut
+  // reporter la valeur existante à chaque mesure ultérieure sous peine de
+  // l'effacer — et de relancer la boucle de réanalyse qu'elle vient d'arrêter.
+  const { data: knownAttempts } = await journal
+    .from("fix_attempts")
+    .select("signature, settled_at")
+    .eq("store_id", storeId);
+  const settledBySignature = new Map(
+    ((knownAttempts ?? []) as Array<{ signature: string; settled_at: string | null }>).map((a) => [
+      a.signature,
+      a.settled_at,
+    ]),
+  );
+
   for (const row of outcomes) {
     const baseline = (row.baseline ?? {}) as StoreMetrics;
     const deltas = computeDeltas(baseline, latest);
@@ -226,10 +246,15 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
     // l'audit : c'est ce qui permet au diagnostic SUIVANT de savoir que cette
     // correction a déjà été tentée, et ce qu'elle a donné. Sans elle, chaque
     // audit reproposerait ce qui a échoué le mois précédent.
+    // Le verdict devient-il définitif MAINTENANT ? La distinction porte tout le
+    // bouclage : c'est elle qui dit si la boutique a réellement appris quelque
+    // chose depuis son dernier diagnostic.
     const signature = attemptSignature({
       key: row.audit_findings?.finding_key,
       title: row.audit_findings?.title,
     });
+    const settledBefore = settledBySignature.get(signature) ?? null;
+    const settledNow = !settledBefore && FINAL_VERDICTS.has(outcome.verdict);
     if (signature) {
       const { error: memoryError } = await journal.from("fix_attempts").upsert(
         {
@@ -245,7 +270,13 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
           headline: outcome.headline,
           rollback_recommended: outcome.rollback.recommended,
           rollback_possible: outcome.rollback.possible,
-          measured_at: new Date().toISOString(),
+          measured_at: measuredAt,
+          // Écrit UNE SEULE FOIS, au passage où le verdict devient définitif.
+          // `measured_at` est réécrit deux fois par jour ; s'en servir pour
+          // répondre à « qu'a-t-on appris depuis le dernier diagnostic ? »
+          // faisait repasser pour neuf un verdict déjà intégré, et relançait
+          // un audit payant, indéfiniment.
+          settled_at: settledNow ? measuredAt : settledBefore,
         },
         { onConflict: "store_id,signature" },
       );

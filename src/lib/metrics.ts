@@ -170,12 +170,41 @@ export const METRIC_DEFS: Array<{
   },
 ];
 
+/**
+ * Écart en pourcentage entre deux valeurs, y compris depuis zéro.
+ *
+ * LE DÉFAUT QUE CELA CORRIGE. Une division par zéro renvoyait `null`, ce qui
+ * effaçait purement et simplement le cas le plus important du produit : une
+ * boutique qui passe de 0 à 5 commandes. C'est la PREMIÈRE VENTE — l'événement
+ * que l'outil existe pour provoquer — et il était invisible à la mesure, donc
+ * jamais porté au crédit de la correction qui l'avait produite.
+ *
+ * Partir de zéro n'a pas de pourcentage au sens strict : toute apparition est
+ * un gain infini. On la plafonne à `FROM_ZERO_PCT`, largement au-dessus de tous
+ * les seuils de décision, ce qui la fait lire comme « amélioration franche »
+ * sans produire d'infini qui casserait les moyennes et l'affichage.
+ *
+ * Zéro vers zéro reste `null` : il n'y a rien à dire, et surtout pas « 0 % »,
+ * qui se lirait comme une mesure alors que rien n'a été mesuré.
+ */
+export const FROM_ZERO_PCT = 100;
+
+export function percentChange(before: number | null, after: number | null): number | null {
+  if (before == null || after == null) return null;
+  if (!Number.isFinite(before) || !Number.isFinite(after)) return null;
+  if (before === 0) {
+    if (after === 0) return null;
+    return after > 0 ? FROM_ZERO_PCT : -FROM_ZERO_PCT;
+  }
+  return ((after - before) / Math.abs(before)) * 100;
+}
+
 /** Compare deux instantanés et renvoie les écarts métrique par métrique. */
 export function computeDeltas(before: StoreMetrics, after: StoreMetrics): MetricDelta[] {
   return METRIC_DEFS.map((d) => {
     const b = d.pick(before);
     const a = d.pick(after);
-    const change_pct = b != null && a != null && b !== 0 ? ((a - b) / Math.abs(b)) * 100 : null;
+    const change_pct = percentChange(b, a);
     return {
       key: d.key,
       label: d.label,
