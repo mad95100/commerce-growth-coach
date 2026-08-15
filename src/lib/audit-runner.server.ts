@@ -7,7 +7,7 @@ import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
 import { assessDiagnostics, diagnosticsToPromptBlock } from "@/lib/diagnostics";
 import { crossSignals, crossSignalsToPromptBlock } from "@/lib/cross-source";
-import { buildFunnel, funnelToPromptBlock } from "@/lib/funnel";
+import { anchorGainsOnLeak, buildFunnel, funnelToPromptBlock } from "@/lib/funnel";
 import type { SourceReport } from "@/lib/observations";
 import { AUDIT_MODEL, SYSTEM_PROMPT } from "@/lib/audit-prompt";
 import { extractJsonBlock } from "@/lib/audit-parse";
@@ -371,6 +371,19 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     );
   }
   parsed.findings = reviewed.kept.map((entry) => entry.finding);
+
+  // ANCRAGE SUR LA MESURE. L'entonnoir a chiffré la fuite à partir des données
+  // réelles de la boutique. Sans cette étape, le classement reposerait sur le
+  // montant DEVINÉ par le modèle : un problème réel à 7 000 EUR passerait
+  // derrière une piste à laquelle il aurait spontanément attribué 12 000 EUR.
+  // La mesure fait foi contre l'estimation, sur le domaine où elle porte.
+  const anchoring = anchorGainsOnLeak(parsed.findings, funnel.worst);
+  parsed.findings = anchoring.findings;
+  if (anchoring.anchored > 0) {
+    console.info(
+      `[audit] ${anchoring.anchored} problème(s) ancré(s) sur la fuite mesurée (${funnel.worst?.costPerMonth}).`,
+    );
+  }
 
   // Scoring et priorisation déterministes côté serveur (jamais devinés par l'IA)
   const categoryScores = computeCategoryScores(parsed.findings);

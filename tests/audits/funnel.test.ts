@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   FUNNEL_STAGES,
+  RECOVERABLE_SHARE_MIN,
   REFERENCE_RATES,
+  anchorGainsOnLeak,
   buildFunnel,
   funnelToPromptBlock,
 } from "../../src/lib/funnel";
@@ -240,6 +242,52 @@ export default defineSuite("Moteur — entonnoir et localisation de la fuite", (
     true,
   );
 
+  // --- L'ancrage du classement sur la mesure ------------------------------
+  // Sans lui, le classement reposerait sur le montant DEVINÉ par le modèle : un
+  // problème réel chiffré à 2 400 EUR passerait derrière une piste à laquelle
+  // il aurait spontanément attribué 12 000 EUR.
+  const guessed = [
+    { category: "conversion", estimated_gain_min: 200, estimated_gain_max: 12000 },
+    { category: "retention", estimated_gain_min: 500, estimated_gain_max: 900 },
+  ];
+  const anchored = anchorGainsOnLeak(guessed, complete.worst);
+  t.check("un seul problème est concerné", anchored.anchored, 1);
+  t.check(
+    "le problème du domaine qui fuit est ramené à la mesure",
+    [anchored.findings[0].estimated_gain_min, anchored.findings[0].estimated_gain_max],
+    [Math.round(2400 * RECOVERABLE_SHARE_MIN), 2400],
+  );
+  t.check(
+    "un problème d'un autre domaine n'est pas touché",
+    [anchored.findings[1].estimated_gain_min, anchored.findings[1].estimated_gain_max],
+    [500, 900],
+  );
+  // On ne promet jamais la totalité de la fuite : une correction parfaite
+  // n'existe pas. Mieux vaut annoncer moins et le tenir.
+  t.check(
+    "la fourchette basse reste prudente",
+    anchored.findings[0].estimated_gain_min! < 2400,
+    true,
+  );
+  t.check(
+    "sans fuite chiffrée, rien n'est ancré",
+    anchorGainsOnLeak(guessed, noAov.worst).anchored,
+    0,
+  );
+  t.check(
+    "et les estimations d'origine sont conservées",
+    anchorGainsOnLeak(guessed, null).findings,
+    guessed,
+  );
+  t.check(
+    "une fuite d'acquisition n'ancre pas un problème de conversion",
+    anchorGainsOnLeak(
+      [{ category: "conversion", estimated_gain_min: 100, estimated_gain_max: 200 }],
+      twoLeaks.leaks.find((l) => l.to === "clics") ?? null,
+    ).anchored,
+    0,
+  );
+
   // --- Le branchement -------------------------------------------------------
   const runner = read("src/lib/audit-runner.server.ts");
   t.check("l'audit construit l'entonnoir", runner.includes("buildFunnel"), true);
@@ -247,6 +295,19 @@ export default defineSuite("Moteur — entonnoir et localisation de la fuite", (
   t.check(
     "à partir de toutes les sources, pas d'une seule",
     runner.includes("buildFunnel(allObservations(reports))"),
+    true,
+  );
+  t.check(
+    "et ancre le classement sur la fuite mesurée",
+    runner.includes("anchorGainsOnLeak"),
+    true,
+  );
+  t.check(
+    "l'ancrage a lieu AVANT le calcul des priorités",
+    // Comparé aux APPELS, pas aux imports : `computeCategoryScores` apparaît
+    // en tête de fichier, bien avant tout code exécuté.
+    runner.indexOf("anchorGainsOnLeak(parsed.findings") <
+      runner.indexOf("computeCategoryScores(parsed.findings)"),
     true,
   );
   const funnelModule = read("src/lib/funnel.ts");

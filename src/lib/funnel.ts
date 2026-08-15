@@ -311,3 +311,70 @@ export function funnelToPromptBlock(funnel: Funnel): string {
 
   return parts.join("\n\n");
 }
+
+/**
+ * Ancre les gains estimés sur la fuite RÉELLEMENT MESURÉE.
+ *
+ * LE DÉFAUT QUE CELA CORRIGE. L'entonnoir chiffre la fuite à partir des
+ * données de la boutique — 70 commandes manquantes à 100 € font 7 000 € par
+ * mois. Le classement, lui, continuait de reposer sur `estimated_gain_min`,
+ * un montant DEVINÉ par le modèle, sans aucun ancrage. Un problème réel chiffré
+ * à 7 000 € pouvait donc passer derrière une piste à laquelle le modèle avait
+ * spontanément attribué 12 000 €.
+ *
+ * La règle : quand un problème porte sur le domaine où la fuite est mesurée, sa
+ * fourchette est ramenée à ce que la mesure autorise. Ni au-dessus — on ne
+ * promet pas plus que ce qui fuit —, ni en dessous : la mesure fait foi contre
+ * une estimation.
+ *
+ * PRUDENCE VOLONTAIRE : la fourchette basse est le tiers du montant mesuré.
+ * Récupérer la totalité d'une fuite supposerait une correction parfaite, ce qui
+ * n'arrive jamais. Mieux vaut annoncer moins et le tenir.
+ */
+export const RECOVERABLE_SHARE_MIN = 1 / 3;
+
+/** Domaines concernés par chaque marche d'arrivée d'une fuite. */
+const STAGE_DOMAINS: Record<FunnelStage, string[]> = {
+  impressions: ["acquisition"],
+  clics: ["acquisition"],
+  paniers: ["produit", "offre", "boutique"],
+  commandes: ["conversion"],
+  commandes_conservees: ["operations", "rentabilite"],
+};
+
+export type AnchorableFinding = {
+  category: string;
+  estimated_gain_min?: number | null;
+  estimated_gain_max?: number | null;
+};
+
+/**
+ * Ramène la fourchette d'un problème à ce que la fuite mesurée autorise.
+ *
+ * Ne touche à rien quand la fuite n'est pas chiffrée, ou quand le problème
+ * relève d'un autre domaine que la marche qui fuit : une correction de
+ * rétention n'a aucune raison d'être plafonnée par une fuite de checkout.
+ */
+export function anchorGainsOnLeak<T extends AnchorableFinding>(
+  findings: T[],
+  leak: FunnelLeak | null,
+): { findings: T[]; anchored: number } {
+  if (!leak || leak.costPerMonth === null || leak.costPerMonth <= 0) {
+    return { findings, anchored: 0 };
+  }
+
+  const domains = new Set(STAGE_DOMAINS[leak.to] ?? []);
+  let anchored = 0;
+
+  const next = findings.map((f) => {
+    if (!domains.has(f.category)) return f;
+    anchored += 1;
+    return {
+      ...f,
+      estimated_gain_min: Math.round(leak.costPerMonth! * RECOVERABLE_SHARE_MIN),
+      estimated_gain_max: leak.costPerMonth!,
+    };
+  });
+
+  return { findings: next, anchored };
+}
