@@ -179,6 +179,8 @@ export type Database = {
           estimated_gain_max: number | null
           estimated_gain_min: number | null
           evidence: Json
+          history_action: string | null
+          history_note: string | null
           id: string
           impact_description: string | null
           priority_score: number
@@ -211,6 +213,8 @@ export type Database = {
           estimated_gain_max?: number | null
           estimated_gain_min?: number | null
           evidence?: Json
+          history_action?: string | null
+          history_note?: string | null
           id?: string
           impact_description?: string | null
           priority_score?: number
@@ -243,6 +247,8 @@ export type Database = {
           estimated_gain_max?: number | null
           estimated_gain_min?: number | null
           evidence?: Json
+          history_action?: string | null
+          history_note?: string | null
           id?: string
           impact_description?: string | null
           priority_score?: number
@@ -496,6 +502,78 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "data_snapshots_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fix_attempts: {
+        Row: {
+          applied_at: string
+          category: string | null
+          created_at: string
+          finding_id: string | null
+          finding_key: string | null
+          headline: string | null
+          id: string
+          measured_at: string | null
+          rollback_possible: boolean
+          rollback_recommended: boolean
+          signature: string
+          store_id: string
+          title: string
+          tool_name: string | null
+          updated_at: string
+          verdict: string | null
+        }
+        Insert: {
+          applied_at?: string
+          category?: string | null
+          created_at?: string
+          finding_id?: string | null
+          finding_key?: string | null
+          headline?: string | null
+          id?: string
+          measured_at?: string | null
+          rollback_possible?: boolean
+          rollback_recommended?: boolean
+          signature: string
+          store_id: string
+          title: string
+          tool_name?: string | null
+          updated_at?: string
+          verdict?: string | null
+        }
+        Update: {
+          applied_at?: string
+          category?: string | null
+          created_at?: string
+          finding_id?: string | null
+          finding_key?: string | null
+          headline?: string | null
+          id?: string
+          measured_at?: string | null
+          rollback_possible?: boolean
+          rollback_recommended?: boolean
+          signature?: string
+          store_id?: string
+          title?: string
+          tool_name?: string | null
+          updated_at?: string
+          verdict?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fix_attempts_finding_id_fkey"
+            columns: ["finding_id"]
+            isOneToOne: false
+            referencedRelation: "audit_findings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fix_attempts_store_id_fkey"
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"

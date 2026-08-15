@@ -53,6 +53,12 @@ export type PlannableFinding = {
   auto_correction?: unknown;
   sort_order?: number | null;
   audit_id?: string | null;
+  /**
+   * Ce que la mémoire de la boutique disait de cette piste au moment de
+   * l'audit : `proposer`, `prioriser`, `reformuler` ou `ecarter`.
+   */
+  history_action?: string | null;
+  history_note?: string | null;
 };
 
 export type PlannedMove = {
@@ -71,6 +77,8 @@ export type PlannedMove = {
   /** Ce qu'il faudra regarder, et sur quelle fenêtre, pour savoir si ça a marché. */
   measure: string;
   hasAutoFix: boolean;
+  /** Ce que la mémoire dit de cette piste. `null` si elle est neuve. */
+  historyNote: string | null;
 };
 
 export type BlockedMove = {
@@ -164,6 +172,11 @@ function causesOf(finding: PlannableFinding): string[] {
 
 /** Du plus urgent au moins urgent, à égalité l'ordre décidé à l'audit. */
 function byUrgency(a: PlannableFinding, b: PlannableFinding): number {
+  // Ce que la mémoire impose passe avant le score : réparer une régression
+  // n'est pas une question de rentabilité, et reproposer sans discernement ce
+  // qui ressemble à un échec passé est ce qui fait perdre confiance.
+  const memory = historyRank(a) - historyRank(b);
+  if (memory !== 0) return memory;
   const score = (b.priority_score ?? 0) - (a.priority_score ?? 0);
   if (score !== 0) return score;
   const bandA = toPriorityBand(a.priority_band);
@@ -188,7 +201,28 @@ function toMove(finding: PlannableFinding, unlocks: string[]): PlannedMove {
     unlocks,
     measure: MEASURE_BY_CATEGORY[finding.category] ?? DEFAULT_MEASURE,
     hasAutoFix: Boolean(finding.auto_correction),
+    historyNote: finding.history_note ?? null,
   };
+}
+
+/**
+ * Ordre imposé par la mémoire, avant tout calcul de priorité.
+ *
+ * Une piste marquée `prioriser` vient d'une correction qui a fait reculer la
+ * boutique : elle passe devant, quel que soit son score. Une piste
+ * `reformuler` ressemble à quelque chose qui a déjà échoué — on la garde, mais
+ * derrière ce qui est neuf, parce qu'elle demande d'abord de justifier en quoi
+ * elle diffère.
+ */
+const HISTORY_RANK: Record<string, number> = {
+  prioriser: 0,
+  proposer: 1,
+  reformuler: 2,
+  ecarter: 3,
+};
+
+function historyRank(finding: PlannableFinding): number {
+  return HISTORY_RANK[finding.history_action ?? "proposer"] ?? 1;
 }
 
 /** Énumère en français : « A », « A et B », « A, B et C ». */
@@ -330,6 +364,8 @@ export function buildNextMovePlan(
         : `Le corriger fait tomber ${enumerate(now.unlocks)} du même coup — ${now.unlocks.length} problèmes réglés en une fois.`,
     );
   }
+  // Pourquoi cette action-là et pas une redite : la mémoire l'explique.
+  if (now.historyNote) parts.push(now.historyNote);
   if (now.timeMinutes) parts.push(`Compte ${formatMinutes(now.timeMinutes)}.`);
   parts.push(`Ensuite, regarde ${now.measure} : c'est ça qui dira si ça a marché.`);
   if (unknowns.length > 0) {

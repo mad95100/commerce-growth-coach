@@ -6,6 +6,7 @@ import {
   type StoreMetrics,
 } from "@/lib/metrics.server";
 import { measureOutcome } from "@/lib/measure";
+import { attemptSignature } from "@/lib/attempt-history";
 
 // Même type de client que le journal des actions : le redéclarer
 // réintroduirait des `any` déjà assumés une fois ailleurs.
@@ -115,7 +116,7 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
     .from("fix_outcomes")
     // Le domaine du problème corrigé détermine quelles métriques comptent :
     // une réécriture de fiche produit ne se juge pas au ROAS.
-    .select("*, audit_findings(title, category)")
+    .select("*, audit_findings(title, category, finding_key)")
     .eq("store_id", storeId);
   if (error) throw error;
   if (!rows || rows.length === 0) return { updated: 0, regressions: [] };
@@ -143,7 +144,7 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
     applied_at: string;
     expected_gain_min: number | null;
     verdict: string | null;
-    audit_findings: { title: string; category: string } | null;
+    audit_findings: { title: string; category: string; finding_key: string | null } | null;
   };
   const outcomes = (rows ?? []) as OutcomeRow[];
 
@@ -220,6 +221,39 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
         checked_at: new Date().toISOString(),
       })
       .eq("id", row.id);
+
+    // MÉMOIRE. Écrite à chaque mesure, à l'échelle de la boutique et non de
+    // l'audit : c'est ce qui permet au diagnostic SUIVANT de savoir que cette
+    // correction a déjà été tentée, et ce qu'elle a donné. Sans elle, chaque
+    // audit reproposerait ce qui a échoué le mois précédent.
+    const signature = attemptSignature({
+      key: row.audit_findings?.finding_key,
+      title: row.audit_findings?.title,
+    });
+    if (signature) {
+      const { error: memoryError } = await journal.from("fix_attempts").upsert(
+        {
+          store_id: storeId,
+          signature,
+          finding_id: row.finding_id,
+          finding_key: row.audit_findings?.finding_key ?? null,
+          title: row.audit_findings?.title ?? "Correction appliquée",
+          category: row.audit_findings?.category ?? null,
+          tool_name: action?.tool_name ?? null,
+          applied_at: row.applied_at,
+          verdict: outcome.verdict,
+          headline: outcome.headline,
+          rollback_recommended: outcome.rollback.recommended,
+          rollback_possible: outcome.rollback.possible,
+          measured_at: new Date().toISOString(),
+        },
+        { onConflict: "store_id,signature" },
+      );
+      // La mémoire est un confort de diagnostic, pas une condition de la
+      // mesure : une écriture ratée ne doit pas perdre le verdict qui vient
+      // d'être calculé.
+      if (memoryError) console.error("[mesure] mémoire non écrite :", memoryError);
+    }
 
     if (outcome.verdict === "regression" && row.verdict !== "regression") {
       regressions.push({

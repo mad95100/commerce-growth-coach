@@ -43,6 +43,7 @@ import {
   CornerDownRight,
   GitBranch,
   HelpCircle,
+  History,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -76,6 +77,9 @@ type Finding = {
   epistemic_level: string | null;
   blocks_count: number | null;
   chain_depth: number | null;
+  /** Ce que la mémoire de la boutique disait de cette piste au moment de l'audit. */
+  history_action: string | null;
+  history_note: string | null;
 };
 
 /** Habillage de chaque bande de priorité. Le rouge se mérite. */
@@ -638,6 +642,21 @@ function FindingCard({
                 Cause racine : {blocks} autre{blocks > 1 ? "s" : ""} problème
                 {blocks > 1 ? "s" : ""} de cette liste {blocks > 1 ? "en découlent" : "en découle"}.
               </span>
+            </p>
+          )}
+          {/* Ce que la boutique a déjà tenté. Le dire évite la question « je
+              l'ai déjà fait, pourquoi tu me le redemandes ? » — et quand la
+              réponse est « justement, autrement », il faut qu'elle soit lue. */}
+          {finding.history_note && (
+            <p
+              className={`mt-2 flex items-start gap-1.5 text-xs ${
+                finding.history_action === "prioriser"
+                  ? "text-destructive"
+                  : "text-muted-foreground"
+              }`}
+            >
+              <History className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>{finding.history_note}</span>
             </p>
           )}
           {!compact && finding.priority_reason && (

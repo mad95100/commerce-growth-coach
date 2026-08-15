@@ -2,6 +2,7 @@ import type { Db } from "@/lib/actions.server";
 import { currencyLabel, normalizeCurrency } from "@/lib/currency";
 import { computeCategoryScores, computeGlobalScore, computePotential } from "@/lib/scoring";
 import { analyseFindings } from "@/lib/finding-graph";
+import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-history";
 import { AUDIT_MODEL, SYSTEM_PROMPT } from "@/lib/audit-prompt";
 import { extractJsonBlock } from "@/lib/audit-parse";
 
@@ -65,6 +66,36 @@ export async function executeAuditWork(input: {
     .eq("user_id", userId)
     .maybeSingle();
 
+  // MÉMOIRE DE LA BOUTIQUE. Ce qui a déjà été corrigé, et ce que la mesure en a
+  // dit. Sans elle le diagnostic repartirait de zéro et reproposerait ce qui a
+  // échoué le mois dernier — la faute qui fait perdre confiance en premier.
+  // Une lecture en échec ne doit pas empêcher l'audit : on repart alors sans
+  // mémoire, comme avant, plutôt que de ne rien produire.
+  let history: Attempt[] = [];
+  try {
+    const { data: attempts } = await supabase
+      .from("fix_attempts")
+      .select(
+        "finding_key, title, category, tool_name, verdict, headline, applied_at, rollback_recommended, rollback_possible",
+      )
+      .eq("store_id", store.id)
+      .order("applied_at", { ascending: false })
+      .limit(40);
+    history = ((attempts ?? []) as Array<Record<string, unknown>>).map((a) => ({
+      key: (a.finding_key as string | null) ?? null,
+      title: (a.title as string) ?? "Correction",
+      category: (a.category as string | null) ?? null,
+      tool: (a.tool_name as string | null) ?? null,
+      verdict: (a.verdict as string | null) ?? null,
+      headline: (a.headline as string | null) ?? null,
+      appliedAt: (a.applied_at as string) ?? new Date().toISOString(),
+      rollbackRecommended: (a.rollback_recommended as boolean | null) ?? false,
+      rollbackPossible: (a.rollback_possible as boolean | null) ?? false,
+    }));
+  } catch (err) {
+    console.error("[audit] mémoire des corrections illisible :", err);
+  }
+
   const levelHint =
     profile?.experience_level === "avance"
       ? "Utilisateur AVANCÉ : tu peux être plus technique et plus dense."
@@ -105,6 +136,8 @@ ${situationHint}
 
 DONNÉES RÉELLES DISPONIBLES :
 ${dataBlock}
+
+${historyToPromptBlock(history)}
 
 Analyse cette boutique comme un directeur e-commerce senior. Couvre l'offre, le produit, la boutique, la conversion, l'acquisition, la rétention et la rentabilité. Ne retiens que les problèmes qui coûtent réellement de l'argent, du plus coûteux au moins coûteux.
 
@@ -269,6 +302,27 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     }>;
   };
 
+  // BARRIÈRE MÉCANIQUE. Le prompt DEMANDE au modèle de ne pas reproposer ce qui
+  // a échoué ; ce filtre l'EMPÊCHE. Une consigne de prompt est une préférence,
+  // pas une garantie : un modèle qui reformule légèrement passerait au travers.
+  // La mémoire tranche donc après coup, sur la clé du problème.
+  const reviewed = applyHistory(
+    // Les corrections proposées par l'audit ne passent pas par un outil : c'est
+    // le marchand, ou une action confirmée plus tard, qui les exécute. Le
+    // rapprochement se fait donc sur la clé et le domaine.
+    parsed.findings.map((f) => ({ ...f, tool: null as string | null })),
+    history,
+  );
+  const guidanceByIndex = new Map(
+    reviewed.kept.map((entry, index) => [index, entry.guidance] as const),
+  );
+  if (reviewed.dropped.length > 0) {
+    console.info(
+      `[audit] ${reviewed.dropped.length} piste(s) écartée(s) par la mémoire de la boutique.`,
+    );
+  }
+  parsed.findings = reviewed.kept.map((entry) => entry.finding);
+
   // Scoring et priorisation déterministes côté serveur (jamais devinés par l'IA)
   const categoryScores = computeCategoryScores(parsed.findings);
   const globalScore = computeGlobalScore(categoryScores);
@@ -324,6 +378,13 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
         epistemic_level: a.epistemic,
         blocks_count: a.blocks,
         chain_depth: a.chain_depth,
+        // Ce que la mémoire de la boutique dit de cette piste. Figé ici, et
+        // non recalculé à l'affichage : la mémoire évolue — une correction
+        // mesurée « en cours » devient « nul » huit jours plus tard — et un
+        // rapport doit pouvoir expliquer la décision telle qu'elle a été prise
+        // le jour où il a été produit.
+        history_action: guidanceByIndex.get(a.index)?.action ?? "proposer",
+        history_note: guidanceByIndex.get(a.index)?.reason ?? null,
       };
     });
     const { error: fErr } = await supabase.from("audit_findings").insert(rows);
