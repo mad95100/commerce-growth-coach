@@ -193,6 +193,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Comparaison d'état indépendante de l'ordre des clés : `jsonb` ne le préserve pas, et une comparaison naïve refusait des corrections légitimes.",
   },
   {
+    file: "audits/organic-attribution.test.ts",
+    minChecks: 70,
+    covers:
+      "Origine réelle des commandes, lue sur les commandes elles-mêmes sans permission nouvelle : le seul contrepoids indépendant au ROAS déclaré par les régies. Un clic payant depuis Google n'est jamais compté en recherche naturelle, les ventes en caisse sortent du calcul, et rien n'est publié tant que la majorité des commandes est sans trace — une absence de référent n'est pas du trafic direct.",
+  },
+  {
     file: "audits/measure-path.test.ts",
     minChecks: 58,
     covers:

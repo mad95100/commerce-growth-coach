@@ -70,6 +70,16 @@ export const MIN_PURCHASES_FOR_ROAS = 10;
 /** Écart d'attribution au-delà duquel Meta se compte trop d'achats. */
 export const ATTRIBUTION_GAP_RATIO = 1.5;
 
+/**
+ * Part de commandes marquées « payant » au-delà de laquelle la boutique dépend
+ * de son budget. Ce n'est pas une contre-performance : c'est une fragilité, et
+ * les deux ne se corrigent pas de la même façon.
+ */
+export const HIGH_PAID_DEPENDENCE_PCT = 70;
+
+/** Part sans marqueur publicitaire au-delà de laquelle un socle propre existe. */
+export const STRONG_ORGANIC_PCT = 60;
+
 function certaintyFromSample(sample: number, strong: number, weak: number): CrossCertainty {
   if (sample >= strong) return "deduction_forte";
   if (sample >= weak) return "hypothese";
@@ -353,6 +363,88 @@ export function crossSignals(observations: Observation[]): CrossSignal[] {
         "N'additionne JAMAIS ces deux budgets et ne compare pas leurs coûts par clic. Aucun taux de change n'est disponible.",
       certainty: "fait",
       evidence: [spend.evidence, googleSpend.evidence],
+    });
+  }
+
+  // --- Ce que le marchand garderait sans budget -----------------------------
+  // Le seul contrepoids indépendant aux régies. Meta et Google attribuent
+  // chacun de leur côté ; les commandes, elles, appartiennent au marchand.
+  const coverage = findObservation(observations, "organic.attribution_coverage");
+  const nonPaidShare = findObservation(observations, "organic.non_paid_order_share");
+  const paidShare = findObservation(observations, "organic.payant_order_share");
+  const searchShare = findObservation(observations, "organic.recherche_order_share");
+
+  if (coverage?.value != null && nonPaidShare?.value != null && paidShare?.value != null) {
+    const sample = nonPaidShare.sample ?? 0;
+
+    if (paidShare.value >= HIGH_PAID_DEPENDENCE_PCT) {
+      signals.push({
+        id: "cross.dependance_payant",
+        statement: `${Math.round(paidShare.value)} % des commandes arrivent avec un identifiant de clic publicitaire : l'essentiel du chiffre d'affaires s'arrête le jour où le budget s'arrête.`,
+        investigate: [
+          "Ce que deviennent les ventes si le budget baisse de moitié — c'est le test qui dit si l'entreprise tient debout seule.",
+          "Le référencement et la base client, les deux seules acquisitions qui ne se paient pas deux fois.",
+        ],
+        doNotConclude:
+          "Ne conclus pas que la publicité est mauvaise : elle marche, c'est le problème. Une dépendance n'est pas une contre-performance, c'est une fragilité.",
+        certainty: certaintyFromSample(sample, 200, 50),
+        evidence: [paidShare.evidence, coverage.evidence],
+      });
+    }
+
+    if (nonPaidShare.value >= STRONG_ORGANIC_PCT) {
+      signals.push({
+        id: "cross.socle_organique",
+        statement: `${Math.round(nonPaidShare.value)} % des commandes n'arrivent avec aucun identifiant de clic publicitaire : la boutique vend sans que le budget ait à pousser.`,
+        investigate: [
+          searchShare?.value != null && searchShare.value > 0
+            ? `La recherche naturelle, qui apporte déjà ${Math.round(searchShare.value)} % des commandes : c'est là que l'effort composé.`
+            : "Les canaux qui apportent ces commandes, pour savoir lequel renforcer.",
+          "Le budget publicitaire : une part de ce qu'il achète serait peut-être venue seule.",
+        ],
+        doNotConclude:
+          "Ne conclus pas que la publicité ne sert à rien : une commande sans marqueur a pu être déclenchée par une publicité vue et non cliquée. L'absence de marqueur prouve l'absence de clic tracé, pas l'absence d'influence.",
+        certainty: certaintyFromSample(sample, 200, 50),
+        evidence: [nonPaidShare.evidence, coverage.evidence],
+      });
+    }
+
+    // LE CROISEMENT QUI TRANCHE. Les régies annoncent N achats ; la boutique
+    // compte combien de commandes portent réellement un clic payant.
+    const claimed =
+      (metaPurchases ?? 0) + (observationValue(observations, "google.conversions_30d") ?? 0);
+    const paidOrders = (paidShare.value / 100) * (nonPaidShare.sample ?? 0) || 0;
+    if (claimed > 0 && paidOrders > 0 && claimed > paidOrders * ATTRIBUTION_GAP_RATIO) {
+      signals.push({
+        id: "cross.attribution_contredite",
+        statement: `Les régies s'attribuent ${Math.round(claimed)} achats, mais seules ${Math.round(paidOrders)} commandes de la boutique portent un identifiant de clic publicitaire.`,
+        investigate: [
+          "Le ROAS réel, à recalculer sur les commandes réellement marquées plutôt que sur ce que les régies déclarent.",
+          "Le recoupement entre Meta et Google, qui peuvent s'attribuer la même vente chacun de son côté.",
+        ],
+        doNotConclude:
+          "Ne conclus pas que les régies mentent, ni que ces ventes n'existent pas. Un clic payant perd son identifiant dès que le visiteur revient plus tard par un autre chemin — l'écart mesure l'incertitude de l'attribution, pas une fraude.",
+        certainty: "deduction_forte",
+        evidence: [paidShare.evidence, coverage.evidence],
+      });
+    }
+  } else if (coverage?.value != null) {
+    // La couverture a été mesurée, mais les parts n'ont pas été publiées : par
+    // construction, c'est que la source les a jugées intraçables. Le seuil reste
+    // chez elle — le redéclarer ici en ferait deux, qui divergeraient un jour.
+    // On le DIT, plutôt que de laisser croire que l'origine des commandes n'a
+    // pas été regardée.
+    signals.push({
+      id: "cross.origine_intraçable",
+      statement: `Seules ${Math.round(coverage.value)} % des commandes portent une trace de leur origine : la répartition entre payant et naturel n'est pas mesurable sur cette boutique.`,
+      investigate: [
+        "Un outil de mesure du trafic côté boutique, qui garde la trace que le navigateur efface.",
+        "Les paramètres de campagne sur tous les liens sortants, seuls marqueurs qui survivent.",
+      ],
+      doNotConclude:
+        "N'en déduis SURTOUT PAS que ces commandes sont du trafic direct. Une absence de référent est une absence d'information, jamais une origine.",
+      certainty: "fait",
+      evidence: [coverage.evidence],
     });
   }
 

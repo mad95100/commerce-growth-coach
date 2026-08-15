@@ -77,9 +77,14 @@ export async function executeAuditWork(input: {
     const creds = await loadChannelCredentials(supabase, store.id);
     if (creds.shopify) {
       const { fetchShopifyObservations } = await import("@/lib/connectors/shopify-observe.server");
-      reports.push(
-        await fetchShopifyObservations(creds.shopify.shop, creds.shopify.encryptedToken),
+      // Deux sources d'un seul appel : l'état de la boutique, et l'origine des
+      // commandes — la seule mesure d'acquisition qui ne vienne pas des régies
+      // elles-mêmes, donc la seule qui puisse les contredire.
+      const shopifyReports = await fetchShopifyObservations(
+        creds.shopify.shop,
+        creds.shopify.encryptedToken,
       );
+      reports.push(shopifyReports.shopify, shopifyReports.organic);
     }
     if (creds.meta) {
       const { fetchMetaObservations } = await import("@/lib/connectors/meta-observe.server");

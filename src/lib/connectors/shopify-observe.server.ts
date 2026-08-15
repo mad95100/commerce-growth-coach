@@ -2,12 +2,30 @@ import { decryptToken } from "@/lib/crypto.server";
 import { SHOPIFY_API_VERSION } from "@/lib/connectors/shopify-apply.server";
 import {
   SHOPIFY_WINDOW_DAYS,
+  organicReport,
   shopifyObservations,
   shopifyUnreachable,
   type RawOrder,
   type RawProduct,
 } from "@/lib/connectors/shopify-observe";
 import type { SourceReport } from "@/lib/observations";
+
+/**
+ * Un appel, deux sources.
+ *
+ * Les commandes servent deux lectures distinctes : l'état de la boutique, et
+ * l'origine du trafic qui l'a fait vivre. Les rendre séparément évite de faire
+ * du connecteur Shopify un silo qui répondrait aussi pour l'acquisition.
+ */
+export type ShopifyReports = { shopify: SourceReport; organic: SourceReport };
+
+/** Shopify injoignable : les deux lectures le sont aussi, sans aucun zéro. */
+function unreachable(error: string): ShopifyReports {
+  return {
+    shopify: shopifyUnreachable(error),
+    organic: { source: "organic", observations: [], gaps: [], reachable: false, error },
+  };
+}
 
 /**
  * Lecture Shopify. La partie réseau, et rien d'autre.
@@ -42,7 +60,7 @@ export async function fetchShopifyObservations(
   shop: string,
   encryptedToken: string,
   fetcher: Fetcher = fetch,
-): Promise<SourceReport> {
+): Promise<ShopifyReports> {
   let headers: Record<string, string>;
   try {
     headers = {
@@ -52,7 +70,7 @@ export async function fetchShopifyObservations(
   } catch {
     // Jeton illisible : la clé de chiffrement a changé, ou la connexion est à
     // refaire. Rien à diagnostiquer, et surtout rien à inventer.
-    return shopifyUnreachable("Jeton Shopify illisible.");
+    return unreachable("Jeton Shopify illisible.");
   }
 
   const base = `https://${shop}/admin/api/${SHOPIFY_API_VERSION}`;
@@ -73,7 +91,7 @@ export async function fetchShopifyObservations(
   // les montants sont libellés, et un montant sans devise n'est pas un montant.
   const shopJson = await get<{ shop?: { currency?: string | null } }>("shop.json");
   if (!shopJson?.shop) {
-    return shopifyUnreachable("La boutique n'a pas répondu.");
+    return unreachable("La boutique n'a pas répondu.");
   }
 
   const [countJson, productsJson, ordersJson, checkoutsJson] = await Promise.all([
@@ -83,7 +101,7 @@ export async function fetchShopifyObservations(
     ),
     get<{ orders?: RawOrder[] }>(
       `orders.json?status=any&limit=${MAX_ORDERS}&created_at_min=${since}` +
-        `&fields=id,total_price,total_discounts,financial_status,created_at,customer,discount_codes,refunds,line_items`,
+        `&fields=id,total_price,total_discounts,financial_status,created_at,customer,discount_codes,refunds,line_items,referring_site,landing_site,source_name`,
     ),
     // Les paniers abandonnés : la seule fenêtre sur les acheteurs qui ont
     // renoncé après avoir décidé. C'est la perte la plus chère et la plus
@@ -93,7 +111,7 @@ export async function fetchShopifyObservations(
 
   const products = Array.isArray(productsJson?.products) ? productsJson.products : [];
 
-  return shopifyObservations({
+  const raw = {
     currency: shopJson.shop.currency ?? null,
     productCount: typeof countJson?.count === "number" ? countJson.count : null,
     products,
@@ -108,5 +126,10 @@ export async function fetchShopifyObservations(
       typeof countJson?.count === "number"
         ? countJson.count <= products.length
         : products.length < MAX_PRODUCTS,
-  });
+  };
+
+  // DEUX rapports, pas un. Les commandes disent l'état de la boutique ET
+  // l'origine du trafic qui l'a fait vivre : ce sont deux sources différentes
+  // pour le moteur, même si un seul appel réseau les a produites.
+  return { shopify: shopifyObservations(raw), organic: organicReport(raw) };
 }

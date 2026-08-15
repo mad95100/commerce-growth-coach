@@ -246,6 +246,38 @@ export const DIAGNOSTICS: Diagnostic[] = [
     requires: ["shopify.price_median", "market.price_median"],
     concludes: "Un prix ne se juge que par comparaison. Seul, il ne dit rien.",
   },
+  {
+    id: "acquisition.dependance_budget",
+    question: "Que resterait-il des ventes si le budget publicitaire s'arrêtait ?",
+    domain: "acquisition",
+    requires: ["organic.payant_order_share", "organic.attribution_coverage"],
+    concludes:
+      "C'est la question qui distingue une entreprise d'un robinet publicitaire, et aucune régie ne peut y répondre : elles ne voient que ce qu'elles ont apporté.",
+  },
+  {
+    id: "acquisition.socle_organique",
+    question: "Quelle part des ventes arrive sans qu'on la paie ?",
+    domain: "acquisition",
+    requires: ["organic.non_paid_order_share", "organic.attribution_coverage"],
+    concludes:
+      "Le seul chiffre qui dit si l'effort investi hors publicité produit quelque chose — et s'il vaut d'être poursuivi.",
+  },
+  {
+    id: "acquisition.attribution_contradictoire",
+    question: "Les régies s'attribuent-elles plus de ventes qu'il n'en est arrivé par le payant ?",
+    domain: "acquisition",
+    requires: ["organic.payant_order_share", "meta.purchases_30d"],
+    concludes:
+      "Un contrepoids indépendant au ROAS déclaré : les commandes appartiennent au marchand, pas à la régie qui les revendique.",
+  },
+  {
+    id: "acquisition.canaux_naturels",
+    question: "Quels canaux gratuits apportent réellement des commandes ?",
+    domain: "acquisition",
+    requires: ["organic.recherche_order_share", "organic.social_order_share"],
+    concludes:
+      "Savoir où l'audience se forme déjà, pour renforcer ce qui prend plutôt que de deviner par où commencer.",
+  },
 ];
 
 export type DiagnosticAvailability = {

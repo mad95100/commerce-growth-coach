@@ -17,6 +17,7 @@
  */
 
 import type { Observation, ObservationGap, SourceReport } from "@/lib/observations";
+import { attributionObservations } from "@/lib/connectors/order-attribution";
 
 /** Fenêtre de toutes les mesures de commandes, alignée sur le reste du moteur. */
 export const SHOPIFY_WINDOW_DAYS = 30;
@@ -55,6 +56,10 @@ export type RawOrder = {
   refunds?: unknown[] | null;
   line_items?: RawLineItem[] | null;
   total_discounts?: string | number | null;
+  /** Origine de la session qui a produit la commande. Couvert par `read_orders`. */
+  referring_site?: string | null;
+  landing_site?: string | null;
+  source_name?: string | null;
 };
 
 export type RawRefund = { amount?: string | number | null };
@@ -439,6 +444,21 @@ export function shopifyObservations(raw: ShopifyRaw): SourceReport {
   );
 
   return { source: "shopify", observations, gaps, reachable: true };
+}
+
+/**
+ * Le canal organique, tiré des MÊMES commandes.
+ *
+ * Rapport distinct et non fondu dans celui de Shopify : ce qu'il décrit n'est
+ * pas la boutique, c'est l'acquisition. Les mélanger reviendrait à faire du
+ * connecteur Shopify le silo que cette architecture existe pour éviter.
+ */
+export function organicReport(raw: ShopifyRaw): SourceReport {
+  const { observations, gaps } = attributionObservations({
+    orders: raw.orders,
+    currency: raw.currency,
+  });
+  return { source: "organic", observations, gaps, reachable: true };
 }
 
 /** Rapport d'une source injoignable. Aucune observation, jamais de zéro. */
