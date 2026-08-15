@@ -6,6 +6,9 @@ import { getCockpit } from "@/lib/cockpit.functions";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ScoreRing } from "@/components/ScoreRing";
+import { BriefingCard } from "@/components/BriefingCard";
+import { FunnelView } from "@/components/FunnelView";
+import { WORK_STATE_LABELS, type WorkState } from "@/lib/briefing";
 import {
   CATEGORY_LABELS,
   CONFIDENCE_LABELS,
@@ -132,33 +135,44 @@ export function Cockpit({ storeId }: { storeId: string }) {
         />
       </div>
 
-      {/* Une correction qui a fait reculer la boutique passe AVANT tout le
-          reste. Réparer un dégât prime sur n'importe quel gain potentiel. */}
-      {c.plan?.alert && (
-        <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-6">
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-destructive">
-            <TriangleAlert className="h-4 w-4" /> À réparer avant tout
-          </div>
-          <h3 className="mt-2 font-display text-lg font-bold">{c.plan.alert.title}</h3>
-          {c.plan.alert.headline && (
-            <p className="mt-1 text-sm text-muted-foreground">{c.plan.alert.headline}</p>
-          )}
-          <p className="mt-3 text-sm">
-            {c.plan.alert.automatic
-              ? "Cette correction s'annule automatiquement : l'état d'avant est connu."
-              : "Cette correction ne s'annule pas toute seule — il faut revenir en arrière à la main dans ton compte."}
-          </p>
-          <Link to="/tracking/$storeId" params={{ storeId }} className="mt-4 inline-block">
-            <Button variant="outline">
-              Voir la mesure <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </Link>
+      {/* La régression est portée par le briefing lui-même, qui bascule en mode
+          alerte : deux encarts disant la même chose se feraient concurrence. */}
+
+      {/* LE BRIEFING. Neuf questions dans l'ordre où on se les pose, assemblées
+          depuis le moteur — rien n'est écrit en dur. C'est ce qu'on lit en
+          arrivant, avant toute statistique. */}
+      {c.briefing && (
+        <BriefingCard
+          briefing={c.briefing}
+          auditId={c.priorities[0]?.audit_id ?? null}
+          storeId={storeId}
+        />
+      )}
+
+      {/* L'entonnoir mesuré. Les étapes non mesurées y apparaissent comme
+          telles, jamais comme des barres à zéro. */}
+      {c.funnel && <FunnelView funnel={c.funnel} />}
+
+      {/* Où en est chaque chantier. Remplace la liste indifférenciée : le
+          marchand voit ce qui reste, ce qui attend, ce qui est acquis. */}
+      {c.briefing && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {(Object.keys(WORK_STATE_LABELS) as WorkState[])
+            .filter((state) => c.work[state] > 0)
+            .map((state) => (
+              <div key={state} className="rounded-xl border border-border/60 bg-card/50 p-3">
+                <div className="font-display text-xl font-bold">{c.work[state]}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">
+                  {WORK_STATE_LABELS[state]}
+                </div>
+              </div>
+            ))}
         </div>
       )}
 
       {/* La réponse du directeur, avant la liste. C'est elle qu'on lit en
           arrivant : un seul geste, et pourquoi celui-là. */}
-      {c.plan && (
+      {c.plan && !c.briefing && (
         <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-primary">
             <Compass className="h-4 w-4" /> Ce que je ferais maintenant

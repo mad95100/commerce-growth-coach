@@ -408,6 +408,11 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
       potential_gain_max: potential.max,
       verdict: parsed.verdict,
       summary: parsed.summary,
+      // Conservés tels qu'ils étaient au moment de conclure. Les recalculer à
+      // l'affichage produirait un écran qui contredit son propre texte.
+      funnel,
+      cross_signals: crossed,
+      data_gaps: allGaps(reports),
       completed_at: new Date().toISOString(),
     })
     .eq("id", auditId);

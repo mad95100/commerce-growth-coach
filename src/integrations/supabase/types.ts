@@ -276,6 +276,9 @@ export type Database = {
           audit_type: Database["public"]["Enums"]["audit_type"]
           category_scores: Json
           completed_at: string | null
+          cross_signals: Json | null
+          data_gaps: Json | null
+          funnel: Json | null
           created_at: string
           created_by: string
           error_message: string | null
@@ -294,6 +297,9 @@ export type Database = {
           audit_type?: Database["public"]["Enums"]["audit_type"]
           category_scores?: Json
           completed_at?: string | null
+          cross_signals?: Json | null
+          data_gaps?: Json | null
+          funnel?: Json | null
           created_at?: string
           created_by: string
           error_message?: string | null
@@ -312,6 +318,9 @@ export type Database = {
           audit_type?: Database["public"]["Enums"]["audit_type"]
           category_scores?: Json
           completed_at?: string | null
+          cross_signals?: Json | null
+          data_gaps?: Json | null
+          funnel?: Json | null
           created_at?: string
           created_by?: string
           error_message?: string | null

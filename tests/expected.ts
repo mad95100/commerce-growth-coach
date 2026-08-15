@@ -151,6 +151,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Entonnoir et localisation de la fuite : à quelle marche le volume disparaît et ce que cela coûte par mois. Aucune marche n'est interpolée — une marche non mesurée est un trou nommé et la fuite n'est jamais cherchée au travers, ce qui empêche d'imputer un problème de checkout à la publicité.",
   },
   {
+    file: "audits/briefing.test.ts",
+    minChecks: 70,
+    covers:
+      "Le briefing du directeur : neuf réponses assemblées depuis le moteur, jamais écrites en dur. Un montant non chiffrable ne devient pas zéro, une étape non mesurée ne devient pas une barre vide, et « Corriger maintenant » n'apparaît que là où une correction existe — le bouton ouvre un aperçu, il n'exécute rien.",
+  },
+  {
     file: "infra/no-lovable.test.ts",
     minChecks: 25,
     covers:

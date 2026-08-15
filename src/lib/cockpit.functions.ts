@@ -8,6 +8,9 @@ import {
   type PlannableFinding,
 } from "@/lib/next-move";
 import type { PriorityBand } from "@/lib/finding-graph";
+import { buildBriefing, summariseWork, type Briefing, type WorkState } from "@/lib/briefing";
+import type { Funnel } from "@/lib/funnel";
+import type { CrossSignal } from "@/lib/cross-source";
 import { z } from "zod";
 
 /**
@@ -68,6 +71,14 @@ export type Cockpit = {
    * `null` tant qu'aucun diagnostic n'est terminé.
    */
   plan: NextMovePlan | null;
+  /** La réponse complète : problème, coût, preuve, certitude, geste, mesure. */
+  briefing: Briefing | null;
+  /** L'entonnoir tel qu'il était au moment de conclure. Jamais recalculé. */
+  funnel: Funnel | null;
+  /** Ce qu'aucune source ne montre seule. */
+  crossSignals: CrossSignal[];
+  /** Répartition du travail par état, pour remplacer la liste indifférenciée. */
+  work: Record<WorkState, number>;
 };
 
 /** Tout ce qu'il faut pour le centre de pilotage, en un seul appel. */
@@ -164,7 +175,9 @@ export const getCockpit = createServerFn({ method: "POST" })
 
     const { data: audit } = await supabase
       .from("audits")
-      .select("id, score, category_scores, potential_gain_min, potential_gain_max")
+      .select(
+        "id, score, category_scores, potential_gain_min, potential_gain_max, funnel, cross_signals",
+      )
       .eq("store_id", store.id)
       .eq("status", "completed")
       .order("created_at", { ascending: false })
@@ -173,6 +186,9 @@ export const getCockpit = createServerFn({ method: "POST" })
 
     let priorities: CockpitPriority[] = [];
     let plan: NextMovePlan | null = null;
+    let briefing: Briefing | null = null;
+    let funnel: Funnel | null = null;
+    let crossed: CrossSignal[] = [];
     if (audit) {
       // TOUS les problèmes de l'audit, corrigés compris — et non les trois
       // premiers par score. La sélection ne peut plus se faire en SQL : savoir
@@ -224,6 +240,37 @@ export const getCockpit = createServerFn({ method: "POST" })
 
       plan = buildNextMovePlan(rows, outcomes);
 
+      // Le problème en tête, avec ce qui le soutient. Le briefing n'invente
+      // rien : il assemble ce que le moteur a déjà établi.
+      const lead = plan.now ? rows.find((f) => f.id === plan!.now!.id) : null;
+      const leadRow = lead as unknown as Record<string, CockpitSnapshotValue> | undefined;
+      const evidence = (leadRow?.evidence ?? {}) as Record<string, string>;
+      funnel = (audit.funnel as Funnel | null) ?? null;
+      crossed = Array.isArray(audit.cross_signals) ? (audit.cross_signals as CrossSignal[]) : [];
+
+      briefing = buildBriefing({
+        plan,
+        funnel,
+        currency,
+        finding: leadRow
+          ? {
+              rootCause: leadRow.root_cause ?? null,
+              impactDescription: leadRow.impact_description ?? null,
+              epistemic: leadRow.epistemic_level ?? null,
+              basedOn: evidence.based_on ?? null,
+              assumptions: evidence.assumptions ?? null,
+              gainMin: leadRow.estimated_gain_min ?? null,
+              gainMax: leadRow.estimated_gain_max ?? null,
+              currency,
+              actionSteps: Array.isArray(leadRow.action_steps)
+                ? (leadRow.action_steps as Array<{ text?: string }>)
+                    .map((a) => a?.text ?? "")
+                    .filter(Boolean)
+                : [],
+            }
+          : null,
+      });
+
       // Les trois gestes du plan, dans l'ordre du plan, avec les champs
       // d'affichage que le centre de pilotage utilisait déjà.
       const byId = new Map(rows.map((f) => [f.id, f as Record<string, CockpitSnapshotValue>]));
@@ -271,5 +318,9 @@ export const getCockpit = createServerFn({ method: "POST" })
       unavailable,
       priorities,
       plan,
+      briefing,
+      funnel,
+      crossSignals: crossed,
+      work: summariseWork(plan),
     };
   });
