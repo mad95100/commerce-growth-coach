@@ -121,6 +121,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Mémoire des corrections à travers les audits : une correction sans effet n'est jamais reproposée, une réussite devient un acquis, une régression remonte en tête, un résultat non tranché produit « il manque des données » et non une conclusion, et le filtre ne rend jamais un rapport vide.",
   },
   {
+    file: "audits/reaudit.test.ts",
+    minChecks: 42,
+    covers:
+      "Relance du diagnostic : jamais deux audits concurrents, jamais de relance sans verdict nouveau, et surtout jamais de quota compté dépensé sans l'accord du marchand — sur un plan limité le diagnostic est proposé, pas lancé.",
+  },
+  {
     file: "infra/no-lovable.test.ts",
     minChecks: 25,
     covers:

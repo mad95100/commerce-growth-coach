@@ -41,6 +41,8 @@ export type TickResult = {
   measured: number;
   /** Régressions découvertes, et pour lesquelles le marchand a été prévenu. */
   regressions: number;
+  /** Diagnostics relancés parce que les mesures l'avaient justifié. */
+  reaudits: number;
 };
 
 /**
@@ -59,6 +61,7 @@ export async function runJobsTick(now: Date = new Date()): Promise<TickResult> {
     auditIds: [],
     measured: 0,
     regressions: 0,
+    reaudits: 0,
   };
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -124,16 +127,38 @@ export async function runJobsTick(now: Date = new Date()): Promise<TickResult> {
  * Ne lève jamais, et n'empêche jamais les audits d'avancer : ce sont eux que le
  * marchand attend, la mesure peut attendre une minute de plus.
  */
-async function measure(now: Date): Promise<{ measured: number; regressions: number }> {
+async function measure(
+  now: Date,
+): Promise<{ measured: number; regressions: number; reaudits: number }> {
+  let measured = 0;
+  let regressions = 0;
   try {
     const { runMeasureTick } = await import("@/lib/measure-tick.server");
     const tick = await runMeasureTick(now);
-    return { measured: tick.measured, regressions: tick.notified };
+    measured = tick.measured;
+    regressions = tick.notified;
   } catch (err) {
     console.error(
       "[jobs] re-mesure impossible :",
       err instanceof Error ? err.message : String(err),
     );
-    return { measured: 0, regressions: 0 };
   }
+
+  // BOUCLAGE. La mesure vient de trancher des verdicts ; c'est le moment de
+  // décider si la boutique mérite un nouveau diagnostic. Après la mesure et
+  // jamais avant : décider sur des verdicts périmés ferait relancer un audit
+  // sur les mêmes conclusions que le précédent.
+  let reaudits = 0;
+  try {
+    const { runReauditTick } = await import("@/lib/reaudit.server");
+    const tick = await runReauditTick(now);
+    reaudits = tick.launched + tick.proposed;
+  } catch (err) {
+    console.error(
+      "[jobs] réanalyse impossible :",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  return { measured, regressions, reaudits };
 }

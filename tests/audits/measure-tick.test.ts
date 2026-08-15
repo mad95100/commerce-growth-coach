@@ -197,7 +197,7 @@ export default defineSuite("Mesure — passage périodique", (t) => {
   t.check("le passage périodique déclenche la re-mesure", tick.includes("runMeasureTick"), true);
   t.check(
     "la re-mesure est isolée des audits par un try",
-    /async function measure\(now: Date\)[\s\S]{0,400}try \{/.test(tick),
+    /async function measure\([\s\S]{0,200}try \{/.test(tick),
     true,
   );
   t.check(

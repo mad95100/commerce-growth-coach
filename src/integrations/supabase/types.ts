@@ -822,6 +822,7 @@ export type Database = {
           owner_id: string
           revenue_goal: number | null
           situation: Database["public"]["Enums"]["store_situation"] | null
+          reaudit_prompted_at: string | null
           updated_at: string
           url: string | null
         }
@@ -839,6 +840,7 @@ export type Database = {
           owner_id: string
           revenue_goal?: number | null
           situation?: Database["public"]["Enums"]["store_situation"] | null
+          reaudit_prompted_at?: string | null
           updated_at?: string
           url?: string | null
         }
@@ -856,6 +858,7 @@ export type Database = {
           owner_id?: string
           revenue_goal?: number | null
           situation?: Database["public"]["Enums"]["store_situation"] | null
+          reaudit_prompted_at?: string | null
           updated_at?: string
           url?: string | null
         }
