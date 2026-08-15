@@ -7,6 +7,7 @@ import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
 import { assessDiagnostics, diagnosticsToPromptBlock } from "@/lib/diagnostics";
 import { crossSignals, crossSignalsToPromptBlock } from "@/lib/cross-source";
+import { buildFunnel, funnelToPromptBlock } from "@/lib/funnel";
 import type { SourceReport } from "@/lib/observations";
 import { AUDIT_MODEL, SYSTEM_PROMPT } from "@/lib/audit-prompt";
 import { extractJsonBlock } from "@/lib/audit-parse";
@@ -101,6 +102,12 @@ export async function executeAuditWork(input: {
   // amène » — deux diagnostics opposés qu'un seul canal ne peut pas séparer.
   const crossed = crossSignals(allObservations(reports));
 
+  // L'ENTONNOIR. Le croisement dit que la fuite est après le clic ; l'entonnoir
+  // dit à QUELLE MARCHE, et ce qu'elle coûte. C'est ce qui transforme une liste
+  // de chiffres en « voici le problème qui te coûte le plus ». Les marches non
+  // mesurées sont nommées : la fuite n'est jamais cherchée au travers d'un trou.
+  const funnel = buildFunnel(allObservations(reports));
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("experience_level")
@@ -181,6 +188,8 @@ ${dataBlock}
 ${observationsToPromptBlock(reports)}
 
 ${diagnosticsToPromptBlock(availability, allGaps(reports))}
+
+${funnelToPromptBlock(funnel)}
 
 ${crossSignalsToPromptBlock(crossed)}
 

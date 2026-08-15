@@ -145,6 +145,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Meta Ads sur la couche commune, et le raisonnement croisé : commandes Shopify rapportées aux clics Meta — la seule mesure qui départage une publicité inefficace d'une boutique qui ne transforme pas, qu'aucune source ne calcule seule. Un CTR bas reste un fait dont la cause est une hypothèse, un ROAS sans volume ne fait pas une bonne campagne, et deux devises différentes interdisent tout rapprochement chiffré.",
   },
   {
+    file: "audits/funnel.test.ts",
+    minChecks: 50,
+    covers:
+      "Entonnoir et localisation de la fuite : à quelle marche le volume disparaît et ce que cela coûte par mois. Aucune marche n'est interpolée — une marche non mesurée est un trou nommé et la fuite n'est jamais cherchée au travers, ce qui empêche d'imputer un problème de checkout à la publicité.",
+  },
+  {
     file: "infra/no-lovable.test.ts",
     minChecks: 25,
     covers:
