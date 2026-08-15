@@ -91,6 +91,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Déclencheur périodique : sélection des audits à reprendre sans navigateur, plafond par passage, et refus de relancer un audit déjà en cours ou condamné.",
   },
   {
+    file: "audits/finding-graph.test.ts",
+    minChecks: 115,
+    covers:
+      "Chaîne causale, quatre niveaux de certitude et priorité justifiée : une conclusion sans preuve ne peut pas être déclarée critique, un symptôme n'est jamais proposé avant sa cause, et une causalité circulaire ne fait pas boucler le cron.",
+  },
+  {
     file: "infra/no-lovable.test.ts",
     minChecks: 25,
     covers:

@@ -165,6 +165,13 @@ export type Database = {
           applied_result: Json | null
           audit_id: string
           auto_correction: Json | null
+          blocks_count: number
+          caused_by: Json
+          chain_depth: number
+          epistemic_level: string | null
+          finding_key: string | null
+          priority_band: string | null
+          priority_reason: string | null
           category: Database["public"]["Enums"]["finding_category"]
           confidence: Database["public"]["Enums"]["confidence_level"]
           created_at: string
@@ -190,6 +197,13 @@ export type Database = {
           applied_result?: Json | null
           audit_id: string
           auto_correction?: Json | null
+          blocks_count?: number
+          caused_by?: Json
+          chain_depth?: number
+          epistemic_level?: string | null
+          finding_key?: string | null
+          priority_band?: string | null
+          priority_reason?: string | null
           category: Database["public"]["Enums"]["finding_category"]
           confidence?: Database["public"]["Enums"]["confidence_level"]
           created_at?: string
@@ -215,6 +229,13 @@ export type Database = {
           applied_result?: Json | null
           audit_id?: string
           auto_correction?: Json | null
+          blocks_count?: number
+          caused_by?: Json
+          chain_depth?: number
+          epistemic_level?: string | null
+          finding_key?: string | null
+          priority_band?: string | null
+          priority_reason?: string | null
           category?: Database["public"]["Enums"]["finding_category"]
           confidence?: Database["public"]["Enums"]["confidence_level"]
           created_at?: string

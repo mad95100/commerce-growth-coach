@@ -1,11 +1,7 @@
 import type { Db } from "@/lib/actions.server";
 import { currencyLabel, normalizeCurrency } from "@/lib/currency";
-import {
-  computeCategoryScores,
-  computeGlobalScore,
-  computePotential,
-  computePriority,
-} from "@/lib/scoring";
+import { computeCategoryScores, computeGlobalScore, computePotential } from "@/lib/scoring";
+import { analyseFindings } from "@/lib/finding-graph";
 import { AUDIT_MODEL, SYSTEM_PROMPT } from "@/lib/audit-prompt";
 import { extractJsonBlock } from "@/lib/audit-parse";
 
@@ -132,6 +128,15 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
               type: "object",
               additionalProperties: false,
               properties: {
+                key: {
+                  type: "string",
+                  description: "Identifiant court en minuscules avec tirets, unique dans cet audit",
+                },
+                caused_by: {
+                  type: "array",
+                  description: "Clés des problèmes qui causent celui-ci. Vide si aucun.",
+                  items: { type: "string" },
+                },
                 category: {
                   type: "string",
                   enum: [
@@ -184,6 +189,8 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
                 },
               },
               required: [
+                "key",
+                "caused_by",
                 "category",
                 "severity",
                 "title",
@@ -243,6 +250,8 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     verdict: string;
     summary: string;
     findings: Array<{
+      key?: string;
+      caused_by?: string[];
       category: string;
       severity: string;
       title: string;
@@ -265,9 +274,13 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
   const globalScore = computeGlobalScore(categoryScores);
   const potential = computePotential(parsed.findings);
 
-  const ranked = parsed.findings
-    .map((f) => ({ f, priority: computePriority(f) }))
-    .sort((a, b) => b.priority - a.priority);
+  // Le modèle a proposé des liens de cause à effet ; c'est ici qu'ils deviennent
+  // un ordre d'exécution. `analyseFindings` écarte ce qui ne tient pas debout
+  // (renvois vers un problème inexistant, causalité circulaire), classe chaque
+  // conclusion selon ce qui la soutient, et interdit à une conclusion sans
+  // preuve d'être annoncée comme critique. Le tableau revient trié : les causes
+  // avant leurs symptômes, le plus rentable d'abord à contrainte satisfaite.
+  const analysis = analyseFindings(parsed.findings);
 
   await supabase
     .from("audits")
@@ -283,26 +296,36 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     })
     .eq("id", auditId);
 
-  if (ranked.length > 0) {
-    const rows = ranked.map(({ f, priority }, i) => ({
-      audit_id: auditId,
-      category: f.category,
-      severity: f.severity,
-      title: f.title,
-      root_cause: f.root_cause,
-      impact_description: f.impact_description,
-      estimated_gain_min: f.estimated_gain_min,
-      estimated_gain_max: f.estimated_gain_max,
-      action_steps: f.action_steps,
-      auto_correction: f.auto_correction ?? null,
-      timeframe: f.timeframe,
-      difficulty: Math.min(5, Math.max(1, f.difficulty ?? 2)),
-      time_minutes: f.time_minutes ?? 30,
-      confidence: f.confidence === "high" || f.confidence === "low" ? f.confidence : "medium",
-      evidence: f.evidence ?? {},
-      priority_score: priority,
-      sort_order: i,
-    }));
+  if (analysis.findings.length > 0) {
+    const rows = analysis.findings.map((a) => {
+      const f = parsed.findings[a.index];
+      return {
+        audit_id: auditId,
+        category: f.category,
+        severity: f.severity,
+        title: f.title,
+        root_cause: f.root_cause,
+        impact_description: f.impact_description,
+        estimated_gain_min: f.estimated_gain_min,
+        estimated_gain_max: f.estimated_gain_max,
+        action_steps: f.action_steps,
+        auto_correction: f.auto_correction ?? null,
+        timeframe: f.timeframe,
+        difficulty: Math.min(5, Math.max(1, f.difficulty ?? 2)),
+        time_minutes: f.time_minutes ?? 30,
+        confidence: f.confidence === "high" || f.confidence === "low" ? f.confidence : "medium",
+        evidence: f.evidence ?? {},
+        priority_score: a.priority,
+        sort_order: a.order,
+        finding_key: a.key,
+        caused_by: a.causes,
+        priority_band: a.band,
+        priority_reason: a.justification,
+        epistemic_level: a.epistemic,
+        blocks_count: a.blocks,
+        chain_depth: a.chain_depth,
+      };
+    });
     const { error: fErr } = await supabase.from("audit_findings").insert(rows);
     if (fErr) throw fErr;
   }

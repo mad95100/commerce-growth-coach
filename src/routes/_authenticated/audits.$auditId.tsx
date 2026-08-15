@@ -16,6 +16,15 @@ import {
 } from "@/lib/actions.functions";
 import { ActionPreview } from "@/components/ActionPreview";
 import type { ActionProposal } from "@/lib/action-plan";
+import {
+  BAND_EMOJI,
+  BAND_LABELS,
+  EPISTEMIC_HINTS,
+  EPISTEMIC_LABELS,
+  toEpistemicLevel,
+  toPriorityBand,
+  type PriorityBand,
+} from "@/lib/finding-graph";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -31,6 +40,9 @@ import {
   Sparkles,
   ExternalLink,
   Undo2,
+  CornerDownRight,
+  GitBranch,
+  HelpCircle,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -55,6 +67,23 @@ type Finding = {
   sort_order: number;
   applied_at: string | null;
   applied_result: unknown;
+  // Champs produits par `finding-graph.ts`. Nuls sur les audits antérieurs :
+  // l'affichage doit s'en passer sans rien inventer.
+  finding_key: string | null;
+  caused_by: unknown;
+  priority_band: string | null;
+  priority_reason: string | null;
+  epistemic_level: string | null;
+  blocks_count: number | null;
+  chain_depth: number | null;
+};
+
+/** Habillage de chaque bande de priorité. Le rouge se mérite. */
+const BAND_STYLE: Record<PriorityBand, string> = {
+  critique: "bg-destructive/15 text-destructive border-destructive/30",
+  important: "bg-warning/15 text-warning border-warning/30",
+  opportunite: "bg-info/15 text-info border-info/30",
+  optimisation: "bg-muted text-muted-foreground border-border",
 };
 
 function AuditPage() {
@@ -251,6 +280,17 @@ function AuditPage() {
   const totalGainMax = findings.reduce((s, f) => s + (Number(f.estimated_gain_max) || 0), 0);
   const doneCount = findings.filter((f) => f.status === "done").length;
 
+  // La base ne stocke que des clés dans `caused_by` ; les cartes ont besoin des
+  // titres pour nommer les causes en clair.
+  const titleByKey = new Map(
+    findings.filter((f) => f.finding_key).map((f) => [f.finding_key as string, f.title]),
+  );
+
+  // Ce que l'audit n'a PAS pu établir. L'annoncer est un résultat, pas un aveu :
+  // sur ces points la première action est d'aller chercher la donnée, et
+  // sûrement pas de corriger à l'aveugle.
+  const unverified = findings.filter((f) => f.epistemic_level === "donnee_manquante");
+
   return (
     <AppShell>
       <Link
@@ -321,6 +361,28 @@ function AuditPage() {
             </div>
           )}
 
+          {/* Ce que l'audit ne sait pas encore */}
+          {unverified.length > 0 && (
+            <div className="mt-6 rounded-xl border border-dashed border-border bg-surface p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                Ce qu'il me manque pour conclure
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Sur ces {unverified.length} point{unverified.length > 1 ? "s" : ""}, je n'ai pas la
+                donnée. Je te les signale quand même, mais ne dépense rien dessus avant de les avoir
+                vérifiés.
+              </p>
+              <ul className="mt-3 space-y-1">
+                {unverified.map((f) => (
+                  <li key={f.id} className="text-sm">
+                    • {f.title}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Tabs */}
           <Tabs defaultValue="problems" className="mt-8">
             <TabsList>
@@ -335,6 +397,7 @@ function AuditPage() {
                   key={f.id}
                   finding={f}
                   storeCurrency={storeCurrency}
+                  titleByKey={titleByKey}
                   onToggle={toggleDone}
                   onGenerateFix={handleGenerateFix}
                   onProposeFix={handleProposeFix}
@@ -380,6 +443,7 @@ function AuditPage() {
                           storeCurrency={storeCurrency}
                           key={f.id}
                           finding={f}
+                          titleByKey={titleByKey}
                           onToggle={toggleDone}
                           onGenerateFix={handleGenerateFix}
                           onProposeFix={handleProposeFix}
@@ -459,10 +523,13 @@ function FindingCard({
   applying,
   reverting,
   compact,
+  titleByKey,
 }: {
   /** Devise de la boutique, pour chiffrer les gains estimés. `null` si inconnue. */
   storeCurrency: string | null;
   finding: Finding;
+  /** Titres des autres problèmes de l'audit, pour nommer les causes en clair. */
+  titleByKey?: Map<string, string>;
   onToggle: (id: string, current: string) => void;
   onGenerateFix: (id: string) => void;
   onProposeFix: (id: string) => void;
@@ -484,6 +551,16 @@ function FindingCard({
       medium: "bg-info/15 text-info border-info/30",
       low: "bg-muted text-muted-foreground border-border",
     }[finding.severity] || "bg-muted";
+
+  // Bande, certitude et chaîne causale : absentes des audits antérieurs, auquel
+  // cas on retombe sur l'ancien affichage par sévérité plutôt que d'inventer.
+  const band = toPriorityBand(finding.priority_band);
+  const epistemic = toEpistemicLevel(finding.epistemic_level);
+  const blocks = finding.blocks_count ?? 0;
+  const causeTitles = (Array.isArray(finding.caused_by) ? finding.caused_by : [])
+    .map((key) => titleByKey?.get(String(key)))
+    .filter((title): title is string => Boolean(title));
+
   const steps = Array.isArray(finding.action_steps)
     ? (finding.action_steps as Array<{ text: string }>)
     : [];
@@ -509,22 +586,66 @@ function FindingCard({
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${sevColor}`}
-            >
-              {finding.severity === "critical"
-                ? "Critique"
-                : finding.severity === "high"
-                  ? "Important"
-                  : finding.severity === "medium"
-                    ? "Moyen"
-                    : "Mineur"}
-            </span>
+            {band ? (
+              <span
+                className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${BAND_STYLE[band]}`}
+                title={finding.priority_reason ?? undefined}
+              >
+                {BAND_EMOJI[band]} {BAND_LABELS[band]}
+              </span>
+            ) : (
+              <span
+                className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${sevColor}`}
+              >
+                {finding.severity === "critical"
+                  ? "Critique"
+                  : finding.severity === "high"
+                    ? "Important"
+                    : finding.severity === "medium"
+                      ? "Moyen"
+                      : "Mineur"}
+              </span>
+            )}
+            {epistemic && (
+              <span
+                className="inline-flex rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground"
+                title={EPISTEMIC_HINTS[epistemic]}
+              >
+                {EPISTEMIC_LABELS[epistemic]}
+              </span>
+            )}
             <span className="text-xs text-muted-foreground uppercase">{finding.category}</span>
           </div>
           <h3 className={`mt-2 font-display text-lg font-bold ${done ? "line-through" : ""}`}>
             {finding.title}
           </h3>
+
+          {/* Place dans la chaîne causale. Corriger un symptôme sans sa cause ne
+              produit rien : c'est dit ici, à l'endroit où la décision se prend. */}
+          {causeTitles.length > 0 && (
+            <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+              <CornerDownRight className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>
+                Conséquence de {causeTitles.map((t) => `« ${t} »`).join(" et ")} — à corriger
+                d'abord.
+              </span>
+            </p>
+          )}
+          {blocks > 0 && (
+            <p className="mt-2 flex items-start gap-1.5 text-xs text-primary">
+              <GitBranch className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>
+                Cause racine : {blocks} autre{blocks > 1 ? "s" : ""} problème
+                {blocks > 1 ? "s" : ""} de cette liste {blocks > 1 ? "en découlent" : "en découle"}.
+              </span>
+            </p>
+          )}
+          {!compact && finding.priority_reason && (
+            <div className="mt-3">
+              <div className="text-xs uppercase text-muted-foreground">Pourquoi cette priorité</div>
+              <p className="mt-1 text-sm text-muted-foreground">{finding.priority_reason}</p>
+            </div>
+          )}
           {!compact && finding.root_cause && (
             <div className="mt-3">
               <div className="text-xs uppercase text-muted-foreground">Pourquoi</div>
