@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { METRIC_WINDOW_DAYS } from "../../src/lib/metrics";
+import { verdictBasis } from "../../src/lib/measure";
 import {
   MAX_STORES_PER_MEASURE_TICK,
   MAX_TRACKING_DAYS,
@@ -267,7 +269,87 @@ export default defineSuite("Mesure — chemin réel et équité de la file", (t)
   t.check("et seulement à son apparition", tracking.includes('row.verdict !== "regression"'), true);
 
   // =========================================================================
-  // 5. La migration reste additive et rejouable
+  // 5. VERDICT : jamais annoncé sans ce sur quoi il repose
+  // =========================================================================
+  // Le moteur calculait depuis toujours la durée écoulée et la couverture de la
+  // fenêtre. L'écran de suivi n'affichait que le verdict : « impact confirmé »
+  // posé sur cinq jours de recul se lisait exactement comme un verdict établi.
+
+  t.check(
+    "sans durée ni couverture, on n'invente aucune certitude",
+    verdictBasis({ days: null, coverage: null }),
+    null,
+  );
+  t.check(
+    "une couverture illisible non plus",
+    verdictBasis({ days: 10, coverage: Number.NaN }),
+    null,
+  );
+
+  const early = verdictBasis({ days: 3, coverage: 0.1 });
+  t.check("un verdict précoce est daté", early?.days, 3);
+  t.check("sa couverture est chiffrée", early?.coveragePct, 10);
+  t.check("la fenêtre de référence est nommée", early?.windowDays, METRIC_WINDOW_DAYS);
+  t.check(
+    "et le résumé porte les deux chiffres",
+    early?.summary.includes("3 jours de recul") && early?.summary.includes("10 %"),
+    true,
+  );
+  t.check(
+    "sous le seuil de couverture, la conclusion est explicitement interdite",
+    early?.caveat?.includes("Trop tôt pour conclure"),
+    true,
+  );
+  t.check("et une échéance est donnée", /Reviens dans \d+ jour/.test(early?.caveat ?? ""), true);
+
+  const partial = verdictBasis({ days: 15, coverage: 0.5 });
+  t.check(
+    "à mi-fenêtre, la nuance porte sur ce qui reste antérieur",
+    partial?.caveat?.includes("50 % restants"),
+    true,
+  );
+  t.check(
+    "et rappelle que l'écart est ramené à fenêtre pleine",
+    partial?.caveat?.includes("ramené à fenêtre pleine"),
+    true,
+  );
+
+  const full = verdictBasis({ days: 32, coverage: 1 });
+  t.check("fenêtre pleine : plus rien à nuancer", full?.caveat, null);
+  t.check("mais la période reste affichée", full?.summary.includes("100 %"), true);
+
+  const overflow = verdictBasis({ days: 40, coverage: 1.4 });
+  t.check("une couverture aberrante est ramenée à 100 %", overflow?.coveragePct, 100);
+  const negative = verdictBasis({ days: -3, coverage: -0.2 });
+  t.check("une couverture négative est ramenée à 0 %", negative?.coveragePct, 0);
+  t.check("et une durée négative à zéro jour", negative?.days, 0);
+  t.check(
+    "un jour s'écrit au singulier",
+    verdictBasis({ days: 1, coverage: 0.03 })?.summary.includes("1 jour de recul"),
+    true,
+  );
+
+  const page = read("src/routes/_authenticated/tracking.$storeId.tsx");
+  t.check("l'écran de suivi affiche cette base", page.includes("verdictBasis("), true);
+  t.check("y compris la réserve quand il y en a une", page.includes("basis.caveat"), true);
+  t.check(
+    "il distingue les métriques décisives des autres",
+    page.includes("decisive.get(d.key)") && page.includes("garde-fou"),
+    true,
+  );
+  t.check(
+    "et le gain attendu porte sa devise",
+    page.includes("formatMoney(o.expected_gain_min, gainCurrency)"),
+    true,
+  );
+  t.check(
+    "la devise vient de la boutique, pas d'une supposition",
+    read("src/lib/tracking.functions.ts").includes("stores(currency)"),
+    true,
+  );
+
+  // =========================================================================
+  // 6. La migration reste additive et rejouable
   // =========================================================================
   const migration = read("supabase/migrations/20260816220000_measure_attempts.sql")
     .split("\n")

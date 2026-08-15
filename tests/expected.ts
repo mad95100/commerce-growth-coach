@@ -194,9 +194,9 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/measure-path.test.ts",
-    minChecks: 38,
+    minChecks: 58,
     covers:
-      "Chemin de la mesure : file équitable même quand une boutique échoue à répétition, verdicts définitifs jamais recalculés sur une fenêtre qui ne recouvre plus la correction, et outil attribué à partir des seules écritures abouties.",
+      "Chemin de la mesure et du verdict : file équitable même quand une boutique échoue à répétition, verdicts définitifs jamais recalculés sur une fenêtre qui ne recouvre plus la correction, outil attribué à partir des seules écritures abouties, et aucun verdict affiché sans sa période ni sa couverture.",
   },
   {
     file: "actions/execution.test.ts",

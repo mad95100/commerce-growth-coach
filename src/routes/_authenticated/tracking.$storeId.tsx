@@ -6,7 +6,14 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getStoreTracking, refreshTracking } from "@/lib/tracking.functions";
-import { VERDICT_EMOJI, VERDICT_LABELS, type Verdict, VERDICTS } from "@/lib/measure";
+import {
+  VERDICT_EMOJI,
+  VERDICT_LABELS,
+  verdictBasis,
+  type JudgedMetric,
+  type Verdict,
+  VERDICTS,
+} from "@/lib/measure";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -69,6 +76,9 @@ type Outcome = {
   rollback_reason: string | null;
   expected_gain_min: number | null;
   expected_gain_max: number | null;
+  /** Métriques qui ont DÉCIDÉ du verdict, et celles qui pouvaient l'annuler. */
+  drivers: JudgedMetric[] | null;
+  guards: JudgedMetric[] | null;
   delta: Delta[] | null;
   audit_findings: {
     id: string;
@@ -77,6 +87,8 @@ type Outcome = {
     severity: string;
     audit_id: string;
   } | null;
+  /** Devise de la boutique. `null` si elle n'a pas été renseignée. */
+  stores: { currency: string | null } | null;
 };
 
 const STATUS_META: Record<Outcome["status"], { label: string; className: string }> = {
@@ -225,6 +237,15 @@ function TrackingPage() {
               : null;
             const meta = STATUS_META[o.status];
             const deltas = o.delta ?? [];
+            // Sur quoi repose ce verdict. Sans période ni couverture, « impact
+            // confirmé » sur cinq jours de recul se lit comme un verdict établi.
+            const basis = verdictBasis({ days: o.measured_days, coverage: o.coverage });
+            // Les métriques qui ont DÉCIDÉ, distinguées de celles qui ne font
+            // que décrire : la grille ci-dessous les mélange toutes.
+            const decisive = new Map<string, "driver" | "guard">();
+            for (const m of o.drivers ?? []) decisive.set(m.key, "driver");
+            for (const m of o.guards ?? []) decisive.set(m.key, "guard");
+            const gainCurrency = o.stores?.currency ?? null;
             return (
               <div key={o.id} className="card-elevated rounded-2xl p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -236,8 +257,11 @@ function TrackingPage() {
                       Appliquée le {new Date(o.applied_at).toLocaleDateString("fr-FR")}
                       {o.checked_at &&
                         ` · dernière mesure le ${new Date(o.checked_at).toLocaleDateString("fr-FR")}`}
-                      {o.expected_gain_min != null && ` · gain estimé ${o.expected_gain_min}`}
-                      {o.expected_gain_max != null && ` – ${o.expected_gain_max}`}
+                      {/* Un montant sans devise n'est pas un montant. */}
+                      {o.expected_gain_min != null &&
+                        ` · gain estimé ${formatMoney(o.expected_gain_min, gainCurrency)}`}
+                      {o.expected_gain_max != null &&
+                        ` – ${formatMoney(o.expected_gain_max, gainCurrency)}`}
                     </p>
                   </div>
                   {verdict ? (
@@ -248,6 +272,16 @@ function TrackingPage() {
                     <Badge className={meta.className}>{meta.label}</Badge>
                   )}
                 </div>
+
+                {/* Sur quoi repose ce verdict : période, couverture, et ce que
+                    cette couverture interdit encore de conclure. Un verdict sans
+                    ces trois-là est une affirmation, pas une mesure. */}
+                {basis && (
+                  <div className="mt-3 rounded-lg border border-border/60 bg-card/40 px-3 py-2">
+                    <p className="text-xs text-muted-foreground">{basis.summary}</p>
+                    {basis.caveat && <p className="mt-1 text-xs text-yellow-500">{basis.caveat}</p>}
+                  </div>
+                )}
 
                 {/* Le raisonnement, pas seulement la conclusion : c'est ce qui
                     permet au marchand de contester le verdict. */}
@@ -284,13 +318,36 @@ function TrackingPage() {
                           : good
                             ? "text-primary"
                             : "text-destructive";
+                      // Toutes les métriques sont affichées, mais elles n'ont
+                      // pas toutes pesé : le rôle dit lesquelles ont tranché.
+                      const role = decisive.get(d.key);
                       return (
                         <div
                           key={d.key}
-                          className="rounded-xl border border-border/60 bg-card/40 p-4"
+                          className={`rounded-xl border bg-card/40 p-4 ${
+                            role === "driver" ? "border-primary/40" : "border-border/60"
+                          }`}
                         >
-                          <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                            {d.label}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                              {d.label}
+                            </div>
+                            {role && (
+                              <span
+                                className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                  role === "driver"
+                                    ? "bg-primary/15 text-primary"
+                                    : "bg-muted text-muted-foreground"
+                                }`}
+                                title={
+                                  role === "driver"
+                                    ? "Cette métrique a décidé du verdict."
+                                    : "Cette métrique ne pouvait qu'annuler le verdict, pas le produire."
+                                }
+                              >
+                                {role === "driver" ? "décisive" : "garde-fou"}
+                              </span>
+                            )}
                           </div>
                           <div className="mt-2 flex items-baseline gap-2">
                             <span className="text-sm text-muted-foreground line-through">

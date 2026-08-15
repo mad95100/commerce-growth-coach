@@ -9,7 +9,9 @@ export const getStoreTracking = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await context.supabase
       .from("fix_outcomes")
-      .select("*, audit_findings(id, title, category, severity, audit_id)")
+      // La devise de la boutique accompagne le suivi : les gains attendus sont
+      // des montants, et un montant sans unité n'est pas une information.
+      .select("*, audit_findings(id, title, category, severity, audit_id), stores(currency)")
       .eq("store_id", data.storeId)
       .order("applied_at", { ascending: false });
     if (error) throw error;

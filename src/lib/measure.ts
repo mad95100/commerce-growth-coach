@@ -263,6 +263,69 @@ export type MeasureOutcome = {
 };
 
 // ---------------------------------------------------------------------------
+// Ce qui accompagne obligatoirement un verdict à l'écran
+// ---------------------------------------------------------------------------
+
+/**
+ * Sur quoi repose ce verdict, en une ligne lisible.
+ *
+ * LE DÉFAUT QUE CELA CORRIGE. Le moteur calcule depuis toujours la durée écoulée
+ * et la part de la fenêtre réellement postérieure à la correction — et l'écran de
+ * suivi affichait le verdict seul. Un « ✅ Impact confirmé » posé sur cinq jours
+ * de recul se lit exactement comme un verdict posé sur trente : le marchand n'a
+ * aucun moyen de faire la différence, alors que la première conclusion est
+ * fragile et la seconde établie.
+ *
+ * Un verdict sans sa période, sa couverture et son échantillon n'est pas un
+ * verdict : c'est une affirmation.
+ */
+export type VerdictBasis = {
+  /** Jours écoulés depuis la correction, arrondis. */
+  days: number;
+  /** Part de la fenêtre postérieure à la correction, en pourcentage entier. */
+  coveragePct: number;
+  /** Longueur de la fenêtre glissante, en jours. */
+  windowDays: number;
+  /** « 8 jours de recul · 27 % de la fenêtre mesure la correction ». */
+  summary: string;
+  /**
+   * Ce que cette couverture interdit de conclure. `null` quand la fenêtre est
+   * entièrement postérieure à la correction : il n'y a alors rien à nuancer.
+   */
+  caveat: string | null;
+};
+
+export function verdictBasis(input: {
+  days: number | null | undefined;
+  coverage: number | null | undefined;
+}): VerdictBasis | null {
+  // Sans ces deux chiffres, on ne sait pas sur quoi repose le verdict — et on ne
+  // fabrique pas une certitude pour remplir la ligne. `Number(null)` valant 0,
+  // l'absence doit être écartée AVANT toute conversion : sans cela, un suivi
+  // jamais mesuré afficherait « 0 jour de recul » comme s'il l'avait été.
+  if (input.days == null || input.coverage == null) return null;
+  const days = Number(input.days);
+  const coverage = Number(input.coverage);
+  if (!Number.isFinite(days) || !Number.isFinite(coverage)) return null;
+
+  const bounded = Math.min(1, Math.max(0, coverage));
+  const coveragePct = Math.round(bounded * 100);
+  const rounded = Math.max(0, Math.round(days));
+
+  const summary = `${rounded} jour${rounded > 1 ? "s" : ""} de recul · ${coveragePct} % de la fenêtre de ${METRIC_WINDOW_DAYS} jours mesure la correction`;
+
+  let caveat: string | null = null;
+  if (bounded < MIN_COVERAGE) {
+    const remaining = Math.max(1, Math.ceil(METRIC_WINDOW_DAYS * MIN_COVERAGE - rounded));
+    caveat = `Trop tôt pour conclure : l'essentiel de ce qui est mesuré est encore antérieur à la correction. Reviens dans ${remaining} jour(s).`;
+  } else if (bounded < 1) {
+    caveat = `Les ${100 - coveragePct} % restants de la fenêtre décrivent encore la période d'avant : l'écart affiché est ramené à fenêtre pleine, pas constaté tel quel.`;
+  }
+
+  return { days: rounded, coveragePct, windowDays: METRIC_WINDOW_DAYS, summary, caveat };
+}
+
+// ---------------------------------------------------------------------------
 // Jugement
 // ---------------------------------------------------------------------------
 
