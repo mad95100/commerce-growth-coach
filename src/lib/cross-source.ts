@@ -85,11 +85,20 @@ function certaintyFromSample(sample: number, strong: number, weak: number): Cros
 export function crossSignals(observations: Observation[]): CrossSignal[] {
   const signals: CrossSignal[] = [];
 
-  const clicks = findObservation(observations, "meta.clicks_30d");
+  const metaClicks = findObservation(observations, "meta.clicks_30d");
+  const googleClicks = findObservation(observations, "google.clicks_30d");
+  // Le trafic payant est la SOMME des canaux. Rapporter les commandes aux
+  // seuls clics Meta sur une boutique qui fait aussi du Google surestimerait
+  // le taux de transformation d'un facteur égal à la part de Google — et
+  // ferait conclure que la boutique va bien alors qu'elle perd du monde.
+  const clicks = combineClicks(metaClicks, googleClicks);
   const orders = findObservation(observations, "shopify.orders_30d");
   const spend = findObservation(observations, "meta.spend_30d");
   const revenue = findObservation(observations, "shopify.revenue_30d");
   const ctr = observationValue(observations, "meta.ctr_30d");
+  const googleCtr = observationValue(observations, "google.ctr_30d");
+  const googleRoas = findObservation(observations, "google.roas_30d");
+  const googleSpend = findObservation(observations, "google.spend_30d");
   const roas = findObservation(observations, "meta.roas_30d");
   const metaPurchases = observationValue(observations, "meta.purchases_30d");
   const abandonment = observationValue(observations, "shopify.cart_abandonment_rate");
@@ -255,7 +264,129 @@ export function crossSignals(observations: Observation[]): CrossSignal[] {
     }
   }
 
+  // --- ATTRIBUTION ENTRE CANAUX -------------------------------------------
+  // LE piège que Google corrige. Sans lui, une boutique dont Meta va mal
+  // recevrait « ton acquisition ne fonctionne pas » — faux si Google marche,
+  // et coûteux : le marchand coupe ce qui marchait ou refait ce qui marche.
+  const metaRoas = roas?.value ?? null;
+  const googleRoasValue = googleRoas?.value ?? null;
+  if (metaRoas !== null && googleRoasValue !== null) {
+    const metaWeak = metaRoas < 1.5;
+    const googleWeak = googleRoasValue < 1.5;
+    const evidence = [roas!.evidence, googleRoas!.evidence];
+
+    if (metaWeak !== googleWeak) {
+      const weakName = metaWeak ? "Meta" : "Google";
+      const strongName = metaWeak ? "Google" : "Meta";
+      signals.push({
+        id: "cross.canal_isole",
+        statement: `${weakName} rapporte ${(metaWeak ? metaRoas : googleRoasValue).toFixed(2)}x quand ${strongName} rapporte ${(metaWeak ? googleRoasValue : metaRoas).toFixed(2)}x. L'écart est entre les deux canaux, pas dans l'acquisition en général.`,
+        investigate: [
+          `Ce qui distingue ${weakName} de ${strongName} : audience, intention, format, moment d'exposition.`,
+          `Le ciblage et les créations de ${weakName} spécifiquement — pas la stratégie d'ensemble.`,
+          `Ce que ${strongName} fait bien et qui pourrait être transposé.`,
+        ],
+        doNotConclude: `Ne conclus SURTOUT PAS que l'acquisition ne fonctionne pas : ${strongName} fonctionne. Couper les deux ferait perdre ce qui marche.`,
+        certainty: "deduction_forte",
+        evidence,
+      });
+    } else if (metaWeak && googleWeak) {
+      signals.push({
+        id: "cross.acquisition_globale",
+        statement: `Les deux canaux payants rapportent peu : ${metaRoas.toFixed(2)}x sur Meta, ${googleRoasValue.toFixed(2)}x sur Google.`,
+        investigate: [
+          "Ce qui est commun aux deux : la destination, l'offre, le prix, la promesse.",
+          "Le panier moyen, qui décide de ce qu'on peut se permettre de payer un clic.",
+          "La marge : un ROAS de 2 est rentable ici et ruineux ailleurs.",
+        ],
+        // Le raisonnement facile serait « les deux régies sont mauvaises ».
+        // Deux canaux indépendants qui échouent de la même façon désignent
+        // plutôt ce qu'ils ont en commun.
+        doNotConclude:
+          "Ne conclus pas que les deux régies sont mal réglées. Deux canaux indépendants qui échouent ensemble désignent d'abord ce qu'ils partagent : la boutique, l'offre et le prix.",
+        certainty: "deduction_forte",
+        evidence,
+      });
+    }
+  } else if ((metaRoas !== null) !== (googleRoasValue !== null)) {
+    // Un seul canal mesuré : le dire, pour que le modèle baisse sa certitude
+    // au lieu de généraliser depuis l'unique canal qu'il voit.
+    const missing = metaRoas === null ? "Meta" : "Google";
+    signals.push({
+      id: "cross.canal_manquant",
+      statement: `${missing} n'est pas mesuré : le diagnostic d'acquisition ne porte que sur un canal.`,
+      investigate: [
+        `Connecter ${missing} avant de conclure quoi que ce soit sur l'acquisition dans son ensemble.`,
+      ],
+      doNotConclude: `Ne généralise pas à toute l'acquisition ce que tu observes sur un seul canal. Sans ${missing}, une contre-performance peut être locale.`,
+      certainty: "fait",
+      evidence: [],
+    });
+  }
+
+  // CTR faible sur Google : même règle que Meta, un fait dont la cause est
+  // une hypothèse — mais les causes ne sont pas les mêmes.
+  if (googleCtr != null && googleCtr < LOW_CTR_PCT) {
+    signals.push({
+      id: "cross.ctr_google_faible",
+      statement: `Le taux de clic Google est de ${googleCtr.toFixed(2)} %.`,
+      investigate: [
+        "Les mots-clés : correspondent-ils à ce que le client cherche vraiment ?",
+        "Les annonces : reprennent-elles les termes de la recherche ?",
+        "La concurrence sur ces requêtes, qui déplace le taux de clic sans que rien n'ait changé chez toi.",
+      ],
+      doNotConclude:
+        "Sur Google, un taux de clic bas vient plus souvent d'un décalage entre la requête et l'annonce que d'un problème de création. Le constat est un fait, sa cause est une hypothèse.",
+      certainty: "hypothese",
+      evidence: [],
+    });
+  }
+
+  // Devises publicitaires différentes entre régies : additionner deux budgets
+  // dans deux monnaies produit un total qui ne veut rien dire.
+  if (spend?.currency && googleSpend?.currency && spend.currency !== googleSpend.currency) {
+    signals.push({
+      id: "cross.devises_regies",
+      statement: `Le compte Meta facture en ${spend.currency} et le compte Google en ${googleSpend.currency}.`,
+      investigate: ["Raisonner canal par canal : aucun budget total n'a de sens ici."],
+      doNotConclude:
+        "N'additionne JAMAIS ces deux budgets et ne compare pas leurs coûts par clic. Aucun taux de change n'est disponible.",
+      certainty: "fait",
+      evidence: [spend.evidence, googleSpend.evidence],
+    });
+  }
+
   return signals;
+}
+
+/**
+ * Somme des clics payants de tous les canaux mesurés.
+ *
+ * Renvoie `null` si aucun canal n'est mesuré. La preuve cite les canaux
+ * réellement additionnés : sans cela, un taux calculé sur Meta seul passerait
+ * pour un taux sur tout le trafic payant.
+ */
+function combineClicks(
+  meta: Observation | undefined,
+  google: Observation | undefined,
+): Observation | undefined {
+  const parts = [meta, google].filter(
+    (o): o is Observation => o?.value != null && Number.isFinite(o.value),
+  );
+  if (parts.length === 0) return undefined;
+  if (parts.length === 1) return parts[0];
+
+  const total = parts.reduce((sum, o) => sum + (o.value ?? 0), 0);
+  return {
+    ...parts[0],
+    id: "paid.clicks_30d",
+    label: "Clics payants, tous canaux",
+    value: total,
+    evidence: `${Math.round(total)} clics payants au total : ${parts
+      .map((o) => `${Math.round(o.value!)} ${o.source}`)
+      .join(" + ")}`,
+    sample: Math.round(total),
+  };
 }
 
 const CERTAINTY_LABEL: Record<CrossCertainty, string> = {

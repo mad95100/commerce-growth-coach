@@ -174,7 +174,42 @@ export const DIAGNOSTICS: Diagnostic[] = [
       "Le ROAS déclaré par Meta repose sur son attribution. Rapporté au chiffre d'affaires réel, le rapport change souvent d'ordre de grandeur.",
   },
 
+  // --- Google Ads : ce qu'il établit seul ----------------------------------
+  {
+    id: "acquisition.google_depense_sans_resultat",
+    question: "Des campagnes Google dépensent-elles sans convertir ?",
+    domain: "acquisition",
+    requires: ["google.spend_30d", "google.campaigns_without_result"],
+    refines: ["google.wasted_spend_30d"],
+    concludes:
+      "Une campagne Google qui dépense sans une seule conversion est un gaspillage constatable, sans interprétation.",
+  },
+  {
+    id: "acquisition.google_requete",
+    question: "Les annonces Google répondent-elles à ce que les gens cherchent ?",
+    domain: "acquisition",
+    requires: ["google.ctr_30d", "google.impressions_30d"],
+    concludes:
+      "Sur Google, un taux de clic bas vient plus souvent d'un décalage entre la requête et l'annonce que d'un problème de création.",
+  },
+  {
+    id: "acquisition.flux_produit",
+    question: "Le flux produit porte-t-il une part significative du budget Google ?",
+    domain: "produit",
+    requires: ["google.shopping_spend_share", "shopify.products_without_description"],
+    concludes:
+      "Shopping et Performance Max se pilotent par le flux produit : titres, images et disponibilité y décident de la diffusion, pas les mots-clés.",
+  },
+
   // --- LE croisement : ce qu'aucune source ne peut établir seule ------------
+  {
+    id: "croisement.attribution_canal",
+    question: "Le problème d'acquisition est-il général, ou propre à un canal ?",
+    domain: "acquisition",
+    requires: ["meta.roas_30d", "google.roas_30d"],
+    concludes:
+      "Deux canaux mesurés séparent une contre-performance locale d'un problème d'offre commun aux deux. Avec un seul canal, les deux se confondent — et on coupe ce qui marchait.",
+  },
   {
     id: "croisement.apres_clic",
     question: "Le trafic payant achète-t-il une fois arrivé sur la boutique ?",

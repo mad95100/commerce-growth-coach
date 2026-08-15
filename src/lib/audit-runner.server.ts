@@ -85,6 +85,15 @@ export async function executeAuditWork(input: {
       const { fetchMetaObservations } = await import("@/lib/connectors/meta-observe.server");
       reports.push(await fetchMetaObservations(creds.meta.accountId, creds.meta.encryptedToken));
     }
+    // Google appartient au chemin de diagnostic, pas aux statistiques : sans
+    // lui, une boutique dont Meta va mal et Google va bien reçoit « ton
+    // acquisition ne fonctionne pas » — faux, et coûteux.
+    if (creds.google) {
+      const { fetchGoogleObservations } = await import("@/lib/connectors/google-observe.server");
+      reports.push(
+        await fetchGoogleObservations(creds.google.customerId, creds.google.encryptedRefreshToken),
+      );
+    }
   } catch (err) {
     // Une collecte en échec ne doit pas faire échouer l'audit : il repart
     // alors sur les seules données déclarées, en le disant.

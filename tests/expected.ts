@@ -157,6 +157,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le briefing du directeur : neuf réponses assemblées depuis le moteur, jamais écrites en dur. Un montant non chiffrable ne devient pas zéro, une étape non mesurée ne devient pas une barre vide, et « Corriger maintenant » n'apparaît que là où une correction existe — le bouton ouvre un aperçu, il n'exécute rien.",
   },
   {
+    file: "audits/google-attribution.test.ts",
+    minChecks: 75,
+    covers:
+      "Google Ads dans le chemin de diagnostic, et l'attribution entre canaux : Meta faible avec Google fort ne condamne pas l'acquisition entière, deux canaux faibles désignent ce qu'ils partagent plutôt que les régies, un seul canal mesuré fait baisser la certitude, et le trafic payant est la somme des canaux — sur Meta seul la fuite après clic serait manquée.",
+  },
+  {
     file: "infra/no-lovable.test.ts",
     minChecks: 25,
     covers:

@@ -128,11 +128,45 @@ export type Funnel = {
  * c'est la seule reconstitution possible, et elle est exacte — un panier ouvert
  * a soit abouti, soit été abandonné.
  */
+/**
+ * Additionne une métrique sur tous les canaux payants.
+ *
+ * La preuve nomme les canaux réellement additionnés : sans cela, un entonnoir
+ * bâti sur Meta seul passerait pour un entonnoir du trafic payant entier, et
+ * la marche suivante paraîtrait fuir alors qu'elle reçoit aussi du Google.
+ */
+function combinePaid(
+  observations: Observation[],
+  suffix: string,
+  label: string,
+): Observation | undefined {
+  const parts = ["meta", "google"]
+    .map((source) => findObservation(observations, `${source}.${suffix}`))
+    .filter((o): o is Observation => o?.value != null && Number.isFinite(o.value));
+  if (parts.length === 0) return undefined;
+  if (parts.length === 1) return parts[0];
+
+  const total = parts.reduce((sum, o) => sum + (o.value ?? 0), 0);
+  return {
+    ...parts[0],
+    id: `paid.${suffix}`,
+    label,
+    value: total,
+    evidence: `${Math.round(total)} au total : ${parts
+      .map((o) => `${Math.round(o.value!)} ${o.source}`)
+      .join(" + ")}`,
+    sample: Math.round(total),
+  };
+}
+
 export function buildFunnel(observations: Observation[]): Funnel {
   const orders = findObservation(observations, "shopify.orders_30d");
   const abandoned = findObservation(observations, "shopify.abandoned_checkouts_30d");
-  const impressions = findObservation(observations, "meta.impressions_30d");
-  const clicks = findObservation(observations, "meta.clicks_30d");
+  // Impressions et clics de TOUS les canaux payants. N'en compter qu'un
+  // rétrécirait l'entonnoir à ce canal, et ferait apparaître une fuite là où
+  // il n'y a qu'une source manquante.
+  const impressions = combinePaid(observations, "impressions_30d", "Impressions payantes");
+  const clicks = combinePaid(observations, "clicks_30d", "Clics payants");
   const refundRate = observationValue(observations, "shopify.refund_rate_30d");
   const aov = findObservation(observations, "shopify.aov");
 
