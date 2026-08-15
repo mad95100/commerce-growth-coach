@@ -338,6 +338,49 @@ export function guardGooglePause(input: {
   return allow({ cost: cost30d, conversions: conversions30d });
 }
 
+/**
+ * Budget quotidien RÉTABLI par une annulation.
+ *
+ * Le défaut corrigé ici : `guardDailyBudget` refuse toute hausse au-delà de
+ * `BUDGET_ABSOLUTE_CAP`. Or une annulation qui rétablit un budget que le
+ * marchand avait lui-même fixé au-dessus de ce plafond est vue comme une hausse
+ * interdite. Concrètement, une campagne à 120/jour ramenée à 60 par EcomPilot ne
+ * pouvait plus jamais remonter à 120 — alors que l'aperçu avait promis « tu
+ * pourras annuler cette action et revenir à l'état précédent ».
+ *
+ * Rétablir un état qu'on a soi-même écrasé n'est pas une hausse de budget :
+ * c'est rendre au marchand ce qui était à lui. Le plancher produit ne s'y
+ * applique pas non plus — si son budget valait 3 avant notre écriture, le
+ * remettre à 3 restaure SON choix.
+ *
+ * Ne subsiste qu'un garde-fou d'aberration : la valeur doit être un nombre fini
+ * strictement positif, et rester sous une borne haute au-delà de laquelle on
+ * refuse plutôt que d'écrire un montant manifestement corrompu.
+ */
+export const BUDGET_RESTORE_SANITY_CAP = 10_000;
+
+export function guardRestoreBudget(input: {
+  targetLabel: string;
+  currency: string | null;
+  previousDailyBudget: number;
+}): GuardResult<number> {
+  const { targetLabel, previousDailyBudget, currency } = input;
+
+  if (!Number.isFinite(previousDailyBudget) || previousDailyBudget <= 0) {
+    return refuse(
+      `Le budget précédent de ${targetLabel} n'a pas été enregistré : je ne peux pas le rétablir à l'aveugle. Rien n'a été modifié.`,
+    );
+  }
+
+  if (previousDailyBudget > BUDGET_RESTORE_SANITY_CAP) {
+    return refuse(
+      `Le budget à rétablir sur ${targetLabel} (${amount(previousDailyBudget, currency)}/jour) est aberrant : je refuse de l'écrire. Rétablis-le à la main dans ton compte. Rien n'a été modifié.`,
+    );
+  }
+
+  return allow(previousDailyBudget);
+}
+
 /** Code promo : remise et durée dans des bornes commercialement raisonnables. */
 export function guardDiscount(input: {
   percentage: number;
@@ -365,17 +408,34 @@ export function guardDiscount(input: {
 // ---------------------------------------------------------------------------
 
 /**
- * `actions` est modifiable par le client via PostgREST : `before_value` et
- * `after_value` sont des entrées non fiables. Une annulation de budget rejoue une
- * ÉCRITURE, donc ces valeurs repassent par un schéma strict ici, puis par
- * `guardDailyBudget` avant d'atteindre l'API.
+ * `before_value` et `after_value` relus depuis la table `actions` sont validés
+ * par schéma avant d'être réécrits chez le partenaire.
+ *
+ * Depuis le durcissement RLS, `actions` n'est plus modifiable depuis un
+ * navigateur : ces colonnes sont nos propres écritures, pas des entrées
+ * utilisateur. La validation reste, en défense en profondeur — une annulation
+ * de budget rejoue une ÉCRITURE réelle, et une valeur corrompue en base ne doit
+ * pas devenir un montant écrit sur un compte publicitaire.
  *
  * Les statuts sont restreints aux seules valeurs qu'on s'autorise à écrire : un
  * ensemble archivé ou une campagne supprimée ne sont pas rétablis par nos soins.
  */
 const REVERT_SCHEMAS = {
   update_product: z.object({
-    before: z.object({ title: text(255), body_html: text() }),
+    /**
+     * `body_html` accepte le vide, et c'est essentiel : la correction Shopify la
+     * plus fréquente réécrit une fiche QUI N'AVAIT PAS DE DESCRIPTION. Avec un
+     * schéma exigeant un texte non vide, l'état antérieur — vide — était jugé
+     * invalide et l'annulation refusée. L'aperçu promettait une réversibilité
+     * que le produit ne savait pas tenir, précisément sur son cas nominal.
+     *
+     * Le titre, lui, reste obligatoire : Shopify refuse un produit sans titre,
+     * et aucune fiche n'a jamais eu un titre vide avant notre écriture.
+     */
+    before: z.object({
+      title: text(255),
+      body_html: z.union([z.string(), z.null(), z.undefined()]).transform((value) => value ?? ""),
+    }),
   }),
   create_discount_code: z.object({
     after: z.object({ price_rule_id: positiveId }),

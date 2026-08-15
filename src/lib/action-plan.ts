@@ -120,6 +120,171 @@ export function isProposalExpired(expiresAt: string, now = Date.now()): boolean 
   return !Number.isFinite(deadline) || now > deadline;
 }
 
+// ---------------------------------------------------------------------------
+// Issue réelle d'une écriture — distincte de l'intention de l'écrire
+// ---------------------------------------------------------------------------
+
+/**
+ * Où en est l'appel partenaire.
+ *
+ * Le verrou d'idempotence bascule la ligne en `applied` AVANT d'appeler Shopify,
+ * Meta ou Google : c'est la seule façon d'empêcher deux exécutions simultanées.
+ * Mais entre ce basculement et la réponse du partenaire, l'issue est inconnue —
+ * et un worker peut mourir exactement là.
+ */
+export type ActionRunState = "reserve" | "ecrit" | "echoue";
+
+/**
+ * Au-delà de ce délai, une écriture encore « réservée » n'est plus en vol : le
+ * processus qui la portait a disparu. Généreux à dessein — une collecte d'état
+ * suivie d'un appel d'écriture peut être lente, et déclarer trop tôt une issue
+ * inconnue serait une fausse alerte.
+ */
+export const EXECUTION_UNKNOWN_AFTER_MINUTES = 5;
+
+export type ExecutionOutcome =
+  /** En attente de confirmation. Rien n'est parti. */
+  | "proposee"
+  /** Verrou posé, appel partenaire en vol. */
+  | "en_cours"
+  /** Réservée depuis trop longtemps : on ignore si l'écriture a abouti. */
+  | "issue_inconnue"
+  /** Le partenaire a répondu, le résultat est consigné. */
+  | "appliquee"
+  | "echouee"
+  | "annulee";
+
+/**
+ * Issue d'une action, telle qu'on a le droit de l'annoncer.
+ *
+ * `run_state` à `null` désigne une ligne écrite avant l'introduction de la
+ * colonne : l'ancien code ne connaissait que `applied` après retour du
+ * partenaire, donc ces lignes sont bien appliquées.
+ */
+export function executionOutcome(
+  row: {
+    status: "proposed" | "applied" | "failed" | "reverted";
+    run_state?: ActionRunState | string | null;
+    updated_at?: string | null;
+  },
+  now = Date.now(),
+): ExecutionOutcome {
+  if (row.status === "proposed") return "proposee";
+  if (row.status === "failed") return "echouee";
+  if (row.status === "reverted") return "annulee";
+
+  if (row.run_state === "echoue") return "echouee";
+  if (row.run_state !== "reserve") return "appliquee";
+
+  const since = row.updated_at ? new Date(row.updated_at).getTime() : Number.NaN;
+  // Horodatage illisible : on ne suppose pas que l'appel est encore en vol.
+  if (!Number.isFinite(since)) return "issue_inconnue";
+  return now - since < EXECUTION_UNKNOWN_AFTER_MINUTES * 60_000 ? "en_cours" : "issue_inconnue";
+}
+
+/** Ce qu'on dit au marchand, sans jamais présenter une issue inconnue comme un succès. */
+export function executionNotice(outcome: ExecutionOutcome, targetLabel: string | null): string {
+  const cible = targetLabel ? ` sur ${targetLabel}` : "";
+  switch (outcome) {
+    case "proposee":
+      return "Proposée, pas encore appliquée. Rien n'a été modifié.";
+    case "en_cours":
+      return `Application en cours${cible}. Attends la fin avant de relancer.`;
+    case "issue_inconnue":
+      return `Je ne sais pas si cette correction${cible} est partie : l'exécution a été interrompue avant que le résultat me revienne. Vérifie dans ton compte avant de relancer — je ne rejoue rien tout seul, au risque de l'appliquer deux fois.`;
+    case "appliquee":
+      return "Appliquée sur ton compte.";
+    case "echouee":
+      return "Échec : rien n'a été modifié.";
+    case "annulee":
+      return "Annulée, l'état précédent a été rétabli.";
+  }
+}
+
+/** Une issue inconnue ne se rejoue pas, et ne s'annule pas non plus. */
+export function isSettledExecution(outcome: ExecutionOutcome): boolean {
+  return outcome !== "en_cours" && outcome !== "issue_inconnue";
+}
+
+// ---------------------------------------------------------------------------
+// Décisions de confirmation et d'annulation
+// ---------------------------------------------------------------------------
+
+export type ActionDecision = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Peut-on exécuter cette proposition ?
+ *
+ * `alreadyAppliedOnFinding` est la barrière qui manquait. La vérification de
+ * fraîcheur compare l'état amont à celui montré dans l'aperçu, ce qui suffit
+ * pour tout ce qui ÉCRASE un état existant : une seconde confirmation trouve un
+ * état modifié et refuse. Mais une action ADDITIVE n'écrase rien —
+ * `create_discount_code` a un état antérieur nul, `google_add_negative_keywords`
+ * un état vide — donc la comparaison passe toujours. Deux propositions faites
+ * sur le même problème, dans deux onglets, créaient deux codes promo.
+ */
+export function canConfirmProposal(input: {
+  status: "proposed" | "applied" | "failed" | "reverted";
+  hasFindingId: boolean;
+  expiresAt?: string | null;
+  alreadyAppliedOnFinding: boolean;
+  now?: number;
+}): ActionDecision {
+  if (input.status !== "proposed") {
+    return {
+      ok: false,
+      reason:
+        input.status === "applied"
+          ? "Cette correction a déjà été appliquée."
+          : "Cette proposition n'est plus applicable. Relance la correction.",
+    };
+  }
+  if (!input.hasFindingId) {
+    return { ok: false, reason: "Proposition incomplète : problème d'origine inconnu." };
+  }
+  if (input.expiresAt && isProposalExpired(input.expiresAt, input.now ?? Date.now())) {
+    return {
+      ok: false,
+      reason: `Cette proposition a plus de ${PROPOSAL_TTL_MINUTES} minutes : l'état de ton compte a pu changer. Relance la correction.`,
+    };
+  }
+  if (input.alreadyAppliedOnFinding) {
+    return {
+      ok: false,
+      reason:
+        "Une correction a déjà été appliquée sur ce problème. Je n'en applique pas une seconde par-dessus : annule la première si tu veux repartir de l'état d'origine.",
+    };
+  }
+  return { ok: true };
+}
+
+/** Peut-on annuler cette action ? Une issue inconnue n'est jamais annulable. */
+export function canRevertAction(input: {
+  status: "proposed" | "applied" | "failed" | "reverted";
+  run_state?: ActionRunState | string | null;
+  updated_at?: string | null;
+  hasFindingId: boolean;
+  now?: number;
+}): ActionDecision {
+  if (input.status !== "applied") {
+    return {
+      ok: false,
+      reason:
+        input.status === "reverted"
+          ? "Cette correction a déjà été annulée."
+          : "Cette action n'a pas été appliquée : il n'y a rien à annuler.",
+    };
+  }
+  const outcome = executionOutcome(input, input.now ?? Date.now());
+  if (outcome !== "appliquee") {
+    return { ok: false, reason: executionNotice(outcome, null) };
+  }
+  if (!input.hasFindingId) {
+    return { ok: false, reason: "Action incomplète : problème d'origine inconnu." };
+  }
+  return { ok: true };
+}
+
 export function revertibilityNotice(tool: string): string {
   return isRevertible(tool)
     ? "Tu pourras annuler cette action et revenir à l'état précédent."

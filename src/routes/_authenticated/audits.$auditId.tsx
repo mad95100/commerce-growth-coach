@@ -240,12 +240,26 @@ function AuditPage() {
     queryFn: () => listActionsFn({ data: { findingIds } }),
   });
 
-  /** Dernière action encore appliquée par problème — c'est elle qui est annulable. */
+  /**
+   * Dernière action encore appliquée par problème — c'est elle qui est annulable.
+   *
+   * Le critère est l'ISSUE constatée, pas le statut du journal : une écriture
+   * réservée puis interrompue reste `applied` en base sans qu'on sache si elle
+   * est partie. La proposer à l'annulation reviendrait à écrire à l'aveugle.
+   */
   const appliedActionByFinding = new Map<string, { id: string; revertible: boolean }>();
+  /** Écritures dont l'issue est inconnue : à signaler, jamais à rejouer seul. */
+  const unknownActionByFinding = new Map<string, { targetLabel: string | null }>();
   for (const a of actionsQ.data ?? []) {
-    if (a.status !== "applied" || !a.finding_id) continue;
-    if (!appliedActionByFinding.has(a.finding_id)) {
+    if (!a.finding_id) continue;
+    if (a.outcome === "appliquee" && !appliedActionByFinding.has(a.finding_id)) {
       appliedActionByFinding.set(a.finding_id, { id: a.id, revertible: a.revertible });
+    }
+    if (
+      (a.outcome === "issue_inconnue" || a.outcome === "en_cours") &&
+      !unknownActionByFinding.has(a.finding_id)
+    ) {
+      unknownActionByFinding.set(a.finding_id, { targetLabel: a.target_label });
     }
   }
 
@@ -409,6 +423,7 @@ function AuditPage() {
                   onCancelProposal={handleCancelProposal}
                   proposal={proposals[f.id]}
                   appliedAction={appliedActionByFinding.get(f.id)}
+                  unknownAction={unknownActionByFinding.get(f.id)}
                   onRevert={handleRevert}
                   fixing={fixingId === f.id}
                   proposing={proposingId === f.id}
@@ -455,6 +470,7 @@ function AuditPage() {
                           onCancelProposal={handleCancelProposal}
                           proposal={proposals[f.id]}
                           appliedAction={appliedActionByFinding.get(f.id)}
+                          unknownAction={unknownActionByFinding.get(f.id)}
                           onRevert={handleRevert}
                           fixing={fixingId === f.id}
                           proposing={proposingId === f.id}
@@ -522,6 +538,7 @@ function FindingCard({
   onRevert,
   proposal,
   appliedAction,
+  unknownAction,
   fixing,
   proposing,
   applying,
@@ -542,6 +559,8 @@ function FindingCard({
   onRevert: (findingId: string, actionId: string) => void;
   proposal?: ActionProposal;
   appliedAction?: { id: string; revertible: boolean };
+  /** Écriture dont l'issue n'est pas connue. Signalée, jamais rejouée seule. */
+  unknownAction?: { targetLabel: string | null };
   fixing?: boolean;
   proposing?: boolean;
   applying?: boolean;
@@ -690,6 +709,25 @@ function FindingCard({
                   </li>
                 ))}
               </ol>
+            </div>
+          )}
+          {/*
+            Écriture interrompue avant que le partenaire ne réponde. On ne sait
+            pas si elle est partie, donc on ne l'annonce ni comme faite ni comme
+            échouée, et on ne propose surtout pas de la relancer : la rejouer
+            créerait un second code promo ou une seconde hausse de budget.
+          */}
+          {!applied && unknownAction && (
+            <div className="mt-4 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm">
+              <div className="flex items-center gap-2 font-medium text-warning">
+                <HelpCircle className="h-4 w-4" /> Issue inconnue
+              </div>
+              <p className="mt-1 text-muted-foreground">
+                L'application de cette correction
+                {unknownAction.targetLabel ? ` sur ${unknownAction.targetLabel}` : ""} a été
+                interrompue avant que le résultat me revienne. Vérifie dans ton compte avant de
+                relancer : je ne rejoue rien tout seul, au risque de l'appliquer deux fois.
+              </p>
             </div>
           )}
           {applied && (

@@ -89,6 +89,7 @@ export type Database = {
           reason: string | null
           reverted_at: string | null
           revertible: boolean
+          run_state: string | null
           status: Database["public"]["Enums"]["action_status"]
           store_id: string
           target_label: string | null
@@ -111,6 +112,7 @@ export type Database = {
           reason?: string | null
           reverted_at?: string | null
           revertible?: boolean
+          run_state?: string | null
           status?: Database["public"]["Enums"]["action_status"]
           store_id: string
           target_label?: string | null
@@ -133,6 +135,7 @@ export type Database = {
           reason?: string | null
           reverted_at?: string | null
           revertible?: boolean
+          run_state?: string | null
           status?: Database["public"]["Enums"]["action_status"]
           store_id?: string
           target_label?: string | null

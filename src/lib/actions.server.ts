@@ -5,13 +5,21 @@ import { normalizeLegacyStateKeys } from "@/lib/action-plan";
  * Toute écriture externe est précédée d'une ligne `proposed` et suivie d'une
  * transition `applied` ou `failed`. Aucune action ne part sans laisser de trace.
  *
- * Note de sécurité : `actions` est modifiable par le client via PostgREST
- * (policy `actions_owner_all … FOR ALL`). Rien de ce qui est lu ici n'est donc
- * digne de confiance — c'est `executePlannedAction` qui re-valide intégralement
- * les arguments et vérifie la fraîcheur de l'état avant d'écrire quoi que ce soit.
+ * DEUX AXES, ET IL FAUT LES DISTINGUER. `status` est l'état du journal :
+ * proposée, appliquée, échouée, annulée. `run_state` est l'issue de l'appel
+ * partenaire lui-même. Le verrou d'idempotence bascule `status` en `applied`
+ * AVANT d'appeler Shopify, Meta ou Google — sans quoi deux confirmations
+ * simultanées écriraient deux fois. Pendant cet appel, l'issue est inconnue, et
+ * c'est `run_state = 'reserve'` qui le dit. Une ligne qui reste dans cet état
+ * n'a jamais le droit d'être présentée comme appliquée.
+ *
+ * Note de sécurité : depuis le durcissement RLS, `actions` n'est plus
+ * modifiable depuis un navigateur — ses écritures passent par le rôle de
+ * service. La re-validation intégrale faite par `executePlannedAction` avant
+ * chaque écriture reste en place en défense en profondeur.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ActionChannel, PreviewLine } from "@/lib/action-plan";
+import type { ActionChannel, ActionRunState, PreviewLine } from "@/lib/action-plan";
 
 // Le client est fourni par la server function appelante. On ne le type pas plus
 // finement ici, comme dans `tracking.server.ts` : la sécurité ne repose pas sur ce
@@ -41,7 +49,11 @@ export type ProposalRow = {
   };
   revertible: boolean;
   status: "proposed" | "applied" | "failed" | "reverted";
+  /** Issue de l'appel partenaire. `null` sur les lignes antérieures à la colonne. */
+  run_state: ActionRunState | null;
   created_at: string;
+  /** Maintenu par trigger : sur une ligne réservée, c'est l'instant de la réservation. */
+  updated_at: string;
 };
 
 export async function insertProposal(
@@ -109,16 +121,47 @@ export async function loadProposal(supabase: Db, actionId: string): Promise<Prop
 }
 
 /**
+ * Une correction est-elle DÉJÀ appliquée sur ce problème ?
+ *
+ * La vérification de fraîcheur suffit à empêcher une double écriture sur tout ce
+ * qui ÉCRASE un état : la seconde confirmation trouve un état différent de
+ * l'aperçu et refuse. Elle ne protège rien sur les actions ADDITIVES — créer un
+ * code promo, ajouter des mots-clés à exclure — dont l'état antérieur est vide
+ * par nature. Deux propositions ouvertes sur le même problème créaient alors
+ * deux codes promo, sans qu'aucun garde-fou ne s'en aperçoive.
+ */
+export async function hasAppliedActionOnFinding(
+  supabase: Db,
+  findingId: string,
+  exceptActionId: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("actions")
+    .select("id")
+    .eq("finding_id", findingId)
+    .eq("status", "applied")
+    .neq("id", exceptActionId)
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
+/**
  * Réserve la proposition avant d'écrire chez le partenaire.
  *
  * La transition est conditionnée à `status = 'proposed'` : une seconde
  * confirmation (double-clic, second onglet, rejeu réseau) ne renvoie aucune ligne
  * et n'exécute donc rien. C'est le verrou d'idempotence.
+ *
+ * `applied_at` n'est PAS renseigné ici. Il l'était, et c'était le défaut : une
+ * ligne réservée puis interrompue portait une date d'application pour une
+ * écriture dont personne ne connaissait le sort. La date n'est posée qu'au
+ * retour du partenaire, par `finalizeApplied`.
  */
 export async function claimProposal(supabase: Db, actionId: string): Promise<ProposalRow | null> {
   const { data, error } = await supabase
     .from("actions")
-    .update({ status: "applied", applied_at: new Date().toISOString(), error_message: null })
+    .update({ status: "applied", run_state: "reserve", applied_at: null, error_message: null })
     .eq("id", actionId)
     .eq("status", "proposed")
     .select();
@@ -131,7 +174,12 @@ export async function claimProposal(supabase: Db, actionId: string): Promise<Pro
 export async function markFailed(supabase: Db, actionId: string, message: string): Promise<void> {
   await supabase
     .from("actions")
-    .update({ status: "failed", applied_at: null, error_message: message.slice(0, 2000) })
+    .update({
+      status: "failed",
+      run_state: "echoue",
+      applied_at: null,
+      error_message: message.slice(0, 2000),
+    })
     .eq("id", actionId);
 }
 
@@ -148,7 +196,16 @@ export async function finalizeApplied(
   afterValue: Record<string, unknown>,
   revertible: boolean,
 ): Promise<void> {
-  await supabase.from("actions").update({ after_value: afterValue, revertible }).eq("id", actionId);
+  await supabase
+    .from("actions")
+    .update({
+      after_value: afterValue,
+      revertible,
+      // Seul endroit qui pose ces deux marques : le partenaire a répondu.
+      run_state: "ecrit",
+      applied_at: new Date().toISOString(),
+    })
+    .eq("id", actionId);
 }
 
 /**
@@ -166,6 +223,11 @@ export async function claimRevert(supabase: Db, actionId: string): Promise<Propo
     .eq("id", actionId)
     .eq("status", "applied")
     .eq("revertible", true)
+    // Une écriture encore en vol ne s'annule pas : on ignore ce qu'il y aurait à
+    // défaire. Les lignes antérieures à la colonne portent `null` et restent
+    // annulables — d'où le `or` plutôt qu'un simple `neq`, qui les exclurait
+    // toutes (en SQL, `null <> 'reserve'` ne vaut pas vrai).
+    .or("run_state.is.null,run_state.neq.reserve")
     .select();
   if (error) throw error;
   const rows = (data ?? []) as ProposalRow[];

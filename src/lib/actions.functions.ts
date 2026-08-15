@@ -3,8 +3,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 import {
   PROPOSAL_TTL_MINUTES,
-  isProposalExpired,
+  canConfirmProposal,
+  canRevertAction,
+  executionOutcome,
   type ActionChannel,
+  type ActionRunState,
   type ProposeOutcome,
 } from "@/lib/action-plan";
 // Import de type uniquement : effacé à la compilation, donc aucun code serveur
@@ -212,9 +215,9 @@ export const confirmAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => ACTION_INPUT.parse(input))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
 
-    const { loadProposal, claimProposal, markFailed, finalizeApplied } =
+    const { loadProposal, claimProposal, markFailed, finalizeApplied, hasAppliedActionOnFinding } =
       await import("@/lib/actions.server");
     // Le journal `actions` n'est plus modifiable depuis le navigateur : ses
     // écritures passent par le rôle de service. L'appartenance reste garantie
@@ -227,22 +230,23 @@ export const confirmAction = createServerFn({ method: "POST" })
     // l'appartenance, RLS refusant toute action d'une autre boutique.
     const proposal = await loadProposal(supabase as never, data.actionId);
     if (!proposal) throw new Error("Cette proposition est introuvable.");
-    if (proposal.status !== "proposed") {
-      throw new Error(
-        proposal.status === "applied"
-          ? "Cette correction a déjà été appliquée."
-          : "Cette proposition n'est plus applicable. Relance la correction.",
-      );
-    }
-    if (!proposal.finding_id)
-      throw new Error("Proposition incomplète : problème d'origine inconnu.");
-    if (proposal.payload?.expires_at && isProposalExpired(proposal.payload.expires_at)) {
-      throw new Error(
-        `Cette proposition a plus de ${PROPOSAL_TTL_MINUTES} minutes : l'état de ton compte a pu changer. Relance la correction.`,
-      );
-    }
 
-    const { finding, store, storeId } = await loadFindingContext(supabase, proposal.finding_id);
+    // Une correction déjà appliquée sur ce problème interdit la suivante : c'est
+    // la seule barrière qui protège les actions ADDITIVES, dont l'état antérieur
+    // vide laisse toujours passer la vérification de fraîcheur.
+    const alreadyAppliedOnFinding = proposal.finding_id
+      ? await hasAppliedActionOnFinding(supabase as never, proposal.finding_id, proposal.id)
+      : false;
+
+    const verdict = canConfirmProposal({
+      status: proposal.status,
+      hasFindingId: Boolean(proposal.finding_id),
+      expiresAt: proposal.payload?.expires_at ?? null,
+      alreadyAppliedOnFinding,
+    });
+    if (!verdict.ok) throw new Error(verdict.reason);
+
+    const { finding, store, storeId } = await loadFindingContext(supabase, proposal.finding_id!);
     const channels = await loadChannels(supabase, storeId);
 
     // Verrou d'idempotence : une seule confirmation peut réserver la proposition.
@@ -265,6 +269,19 @@ export const confirmAction = createServerFn({ method: "POST" })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await markFailed(journal as never, data.actionId, message);
+
+      // L'unité de correction avait été décomptée à la proposition. L'écriture
+      // n'a pas eu lieu — état amont modifié, cible disparue, partenaire en
+      // erreur — donc rien n'a été livré : on ne fait pas payer un refus. Le
+      // remboursement ne peut pas se produire deux fois, la réservation ayant
+      // déjà consommé l'unique transition depuis `proposed`.
+      const { supabaseAdmin: wallet } = await import("@/integrations/supabase/client.server");
+      const { refundQuota } = await import("@/lib/billing.server");
+      await refundQuota(wallet, userId, "fixes").catch(() => {
+        // Un remboursement raté ne doit pas masquer la cause réelle de l'échec,
+        // qui est ce que l'utilisateur doit lire.
+      });
+
       throw err;
     }
 
@@ -351,16 +368,19 @@ export const revertAction = createServerFn({ method: "POST" })
     // Lecture avec le client de l'utilisateur : elle prouve l'appartenance.
     const action = await loadProposal(supabase as never, data.actionId);
     if (!action) throw new Error("Cette action est introuvable.");
-    if (action.status !== "applied") {
-      throw new Error(
-        action.status === "reverted"
-          ? "Cette correction a déjà été annulée."
-          : "Cette action n'a pas été appliquée : il n'y a rien à annuler.",
-      );
-    }
-    if (!action.finding_id) throw new Error("Action incomplète : problème d'origine inconnu.");
 
-    const { finding, store, storeId } = await loadFindingContext(supabase, action.finding_id);
+    // Une écriture dont l'issue est inconnue n'est pas annulable : on ignore ce
+    // qu'il y aurait à défaire, et « annuler » ce qui n'est peut-être jamais
+    // parti reviendrait à écrire à l'aveugle sur le compte du marchand.
+    const verdict = canRevertAction({
+      status: action.status,
+      run_state: action.run_state,
+      updated_at: action.updated_at,
+      hasFindingId: Boolean(action.finding_id),
+    });
+    if (!verdict.ok) throw new Error(verdict.reason);
+
+    const { finding, store, storeId } = await loadFindingContext(supabase, action.finding_id!);
     const channels = await loadChannels(supabase, storeId);
 
     // Verrou d'idempotence : une seule annulation peut réserver l'action.
@@ -417,12 +437,12 @@ export const listActionsForFindings = createServerFn({ method: "POST" })
     const { data: rows, error } = await context.supabase
       .from("actions")
       .select(
-        "id, finding_id, tool_name, title, target_label, channel, status, applied_at, reverted_at, revertible, error_message",
+        "id, finding_id, tool_name, title, target_label, channel, status, run_state, updated_at, applied_at, reverted_at, revertible, error_message",
       )
       .in("finding_id", data.findingIds)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return (rows ?? []) as Array<{
+    type Row = {
       id: string;
       finding_id: string | null;
       tool_name: string;
@@ -430,11 +450,20 @@ export const listActionsForFindings = createServerFn({ method: "POST" })
       target_label: string | null;
       channel: ActionChannel;
       status: "proposed" | "applied" | "failed" | "reverted";
+      run_state: ActionRunState | null;
+      updated_at: string;
       applied_at: string | null;
       reverted_at: string | null;
       revertible: boolean;
       error_message: string | null;
-    }>;
+    };
+    // L'issue est calculée ici, une fois, plutôt que déduite du seul `status`
+    // par chaque écran : c'est ce qui empêche l'interface d'annoncer « corrigé »
+    // pour une écriture dont on ne connaît pas le sort.
+    return (rows ?? []).map((row) => ({
+      ...(row as Row),
+      outcome: executionOutcome(row as Row),
+    }));
   });
 
 /**

@@ -12,7 +12,7 @@ import { formatMoney } from "@/lib/currency";
  */
 import { collectChannelState, type ApplyContext } from "@/lib/apply-fix.server";
 import {
-  guardDailyBudget,
+  guardRestoreBudget,
   guardTargetExists,
   isRevertableTool,
   parseRevertPayload,
@@ -121,13 +121,15 @@ export async function executeRevert(
       ) {
         throw changedSince(`Le budget de « ${adset.name} »`);
       }
-      // Le budget à rétablir repasse par le même plafond que n'importe quelle écriture.
+      // Rétablir n'est pas augmenter : le budget antérieur est celui du marchand,
+      // pas une valeur proposée par un modèle. Il ne repasse donc pas par le
+      // plafond des hausses, qui rendait irréversible toute baisse partant d'un
+      // budget déjà supérieur à ce plafond.
       const budget = unwrapGuard(
-        guardDailyBudget({
+        guardRestoreBudget({
           targetLabel: `« ${adset.name} »`,
           currency: state.metaSnap.currency,
-          requested: before.daily_budget,
-          currentDailyBudget: adset.daily_budget,
+          previousDailyBudget: before.daily_budget,
         }),
       );
       await metaUpdateBudget(adset.id, state.metaTok, budget);
@@ -178,11 +180,10 @@ export async function executeRevert(
         throw changedSince(`Le budget de « ${campaign.name} »`);
       }
       const budget = unwrapGuard(
-        guardDailyBudget({
+        guardRestoreBudget({
           targetLabel: `« ${campaign.name} »`,
           currency: state.googleSnap.currency,
-          requested: before.daily_budget,
-          currentDailyBudget: campaign.daily_budget,
+          previousDailyBudget: before.daily_budget,
         }),
       );
       await googleUpdateBudget(

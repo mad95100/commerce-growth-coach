@@ -192,6 +192,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
     covers:
       "Comparaison d'état indépendante de l'ordre des clés : `jsonb` ne le préserve pas, et une comparaison naïve refusait des corrections légitimes.",
   },
+  {
+    file: "actions/execution.test.ts",
+    minChecks: 60,
+    covers:
+      "Chemin « corriger maintenant » : une écriture interrompue n'est jamais annoncée comme faite, deux propositions sur un même problème n'écrivent pas deux fois, une correction non appliquée est remboursée, et la réversibilité promise est réellement tenue.",
+  },
 ];
 
 /** Total minimal, tous domaines confondus. */
