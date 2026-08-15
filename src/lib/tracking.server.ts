@@ -6,7 +6,19 @@ import {
   type StoreMetrics,
 } from "@/lib/metrics.server";
 import { measureOutcome } from "@/lib/measure";
+import { hasSomethingToLearn, type MeasurableOutcome } from "@/lib/measure-tick";
 import { attemptSignature } from "@/lib/attempt-history";
+
+/**
+ * Forme exploitée d'une ligne de suivi, nommée plutôt que laissée en `any` : le
+ * compilateur signale alors toute colonne mal orthographiée.
+ */
+type MeasurableRow = MeasurableOutcome & {
+  finding_id: string;
+  baseline: StoreMetrics | null;
+  expected_gain_min: number | null;
+  audit_findings: { title: string; category: string; finding_key: string | null } | null;
+};
 
 /** Verdicts qui ne bougeront plus. Voir `settled_at` dans la migration. */
 const FINAL_VERDICTS = new Set(["confirme", "nul", "regression"]);
@@ -108,13 +120,23 @@ export async function recordFixBaseline(
       },
       { onConflict: "finding_id" },
     );
-  } catch {
-    /* le suivi ne doit jamais faire échouer la correction */
+  } catch (err) {
+    // Le suivi ne doit jamais faire échouer la correction — mais une correction
+    // sans ligne de suivi ne sera JAMAIS mesurée, et personne ne le saurait si
+    // l'échec restait muet.
+    console.error("[mesure] instantané « avant » non enregistré :", err);
   }
 }
 
-/** Re-mesure tous les suivis d'une boutique et met à jour écarts, statut et alertes. */
-export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
+/**
+ * Re-mesure les suivis d'une boutique et met à jour écarts, verdicts et alertes.
+ *
+ * Ne touche que les lignes qui ont encore quelque chose à apprendre. Une
+ * correction dont le verdict est définitif n'est pas recalculée : des semaines
+ * plus tard, la fenêtre glissante ne recouvre plus le geste, et la « mesure »
+ * porterait sur la saison.
+ */
+export async function refreshStoreOutcomes(supabase: Db, storeId: string, now: Date = new Date()) {
   const { data: rows, error } = await supabase
     .from("fix_outcomes")
     // Le domaine du problème corrigé détermine quelles métriques comptent :
@@ -122,7 +144,13 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
     .select("*, audit_findings(title, category, finding_key)")
     .eq("store_id", storeId);
   if (error) throw error;
-  if (!rows || rows.length === 0) return { updated: 0, regressions: [] };
+  if (!rows || rows.length === 0) return { updated: 0, skipped: 0, regressions: [] };
+
+  // Tri AVANT tout appel réseau : si tous les verdicts sont définitifs, il n'y a
+  // aucune raison d'interroger Shopify, Meta et Google.
+  const measurable = (rows as MeasurableRow[]).filter((row) => hasSomethingToLearn(row, now));
+  const skipped = rows.length - measurable.length;
+  if (measurable.length === 0) return { updated: 0, skipped, regressions: [] };
 
   const creds = await loadChannelCredentials(supabase, storeId);
   if (!creds.shopify && !creds.meta && !creds.google) {
@@ -138,18 +166,7 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
   // l'appelant, donc filtrées par RLS sur ses propres boutiques.
   const { supabaseAdmin: journal } = await import("@/integrations/supabase/client.server");
 
-  // Forme exploitée d'une ligne de suivi, nommée plutôt que laissée en `any` :
-  // le compilateur signale alors toute colonne mal orthographiée.
-  type OutcomeRow = {
-    id: string;
-    finding_id: string;
-    baseline: StoreMetrics | null;
-    applied_at: string;
-    expected_gain_min: number | null;
-    verdict: string | null;
-    audit_findings: { title: string; category: string; finding_key: string | null } | null;
-  };
-  const outcomes = (rows ?? []) as OutcomeRow[];
+  const outcomes = measurable;
 
   // Comment la correction a été appliquée, quand elle est passée par une
   // action automatique. L'outil dit quelles métriques regarder — couper un
@@ -160,6 +177,13 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
     .select("id, finding_id, tool_name, revertible, applied_at")
     .eq("store_id", storeId)
     .eq("status", "applied")
+    // `applied_at` n'est posé qu'au retour du partenaire. L'exiger écarte les
+    // écritures encore en vol ou interrompues, dont on ignore si elles sont
+    // parties : attribuer un verdict à l'outil d'une action qui n'a peut-être
+    // jamais eu lieu fausserait la mesure et la mémoire. C'est aussi ce qui
+    // évite qu'une telle ligne, triée en tête faute de date, se fasse passer
+    // pour la correction en vigueur.
+    .not("applied_at", "is", null)
     .in(
       "finding_id",
       outcomes.map((o) => o.finding_id),
@@ -238,7 +262,9 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
         guards: outcome.guards,
         tool_name: action?.tool_name ?? null,
         action_id: action?.id ?? null,
-        checked_at: new Date().toISOString(),
+        // Un passage est UNE mesure : toutes ses lignes portent le même instant.
+        checked_at: measuredAt,
+        attempted_at: measuredAt,
       })
       .eq("id", row.id);
 
@@ -295,5 +321,5 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string) {
     }
   }
 
-  return { updated: outcomes.length, regressions };
+  return { updated: outcomes.length, skipped, regressions };
 }

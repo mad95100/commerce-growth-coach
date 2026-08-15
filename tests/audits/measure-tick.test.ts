@@ -215,7 +215,20 @@ export default defineSuite("Mesure — passage périodique", (t) => {
   );
   t.check(
     "une boutique en échec n'interrompt pas les suivantes",
-    /for \(const storeId of storeIds\)[\s\S]{0,200}try \{/.test(server),
+    // La fenêtre couvre l'horodatage de la tentative, posé entre l'entrée dans
+    // la boucle et l'appel : le `try` doit rester à l'intérieur de la boucle.
+    /for \(const storeId of storeIds\)[\s\S]{0,900}try \{/.test(server),
     true,
   );
+
+  // Une boutique qui échoue doit reculer dans la file. Sans cela, elle occupe
+  // l'un des deux créneaux du passage à chaque minute, indéfiniment, et les
+  // boutiques mesurables n'arrivent jamais jusqu'à la mesure.
+  const loop = server.slice(server.indexOf("for (const storeId of storeIds)"));
+  t.check(
+    "la tentative est datée avant l'appel, donc même en cas d'échec",
+    loop.indexOf("attempted_at") < loop.indexOf("refreshStoreOutcomes(supabaseAdmin"),
+    true,
+  );
+  t.check("et la file est ordonnée sur cette date", server.includes('.order("attempted_at"'), true);
 });

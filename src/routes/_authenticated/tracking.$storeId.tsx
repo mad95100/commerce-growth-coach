@@ -119,8 +119,23 @@ function TrackingPage() {
 
   const refreshM = useMutation({
     mutationFn: async () => refresh({ data: { storeId } }),
-    onSuccess: () => {
-      toast.success("Indicateurs remesurés.");
+    onSuccess: (res) => {
+      // Un suivi laissé de côté n'est pas un oubli : son verdict est définitif,
+      // et la fenêtre glissante ne recouvre plus la correction. Le dire évite de
+      // laisser croire que la mesure a échoué en silence.
+      const clos =
+        res.skipped > 0
+          ? ` ${res.skipped} verdict${res.skipped > 1 ? "s" : ""} définitif${
+              res.skipped > 1 ? "s" : ""
+            }, non recalculé${res.skipped > 1 ? "s" : ""}.`
+          : "";
+      toast.success(
+        res.updated > 0
+          ? `${res.updated} correction${res.updated > 1 ? "s" : ""} remesurée${
+              res.updated > 1 ? "s" : ""
+            }.${clos}`
+          : `Rien à remesurer.${clos}`,
+      );
       queryClient.invalidateQueries({ queryKey: ["tracking", storeId] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Mesure impossible"),

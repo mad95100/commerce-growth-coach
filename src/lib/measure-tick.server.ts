@@ -58,10 +58,13 @@ export async function runMeasureTick(now: Date = new Date()): Promise<MeasureTic
 
   const { data, error } = await supabaseAdmin
     .from("fix_outcomes")
-    .select("id, store_id, applied_at, checked_at, verdict, coverage")
-    // Les plus anciennement mesurés d'abord : la sélection retrie, mais la
+    .select("id, store_id, applied_at, checked_at, attempted_at, verdict, coverage")
+    // Les plus anciennement approchés d'abord : la sélection retrie, mais la
     // limite ci-dessous tronque, et il vaut mieux tronquer les plus frais.
-    .order("checked_at", { ascending: true, nullsFirst: true })
+    // `attempted_at` et non `checked_at` : une boutique qui échoue à chaque
+    // passage doit reculer dans la file comme une boutique mesurée, sinon elle
+    // occupe un créneau pour toujours.
+    .order("attempted_at", { ascending: true, nullsFirst: true })
     .limit(200);
 
   if (error) {
@@ -76,6 +79,19 @@ export async function runMeasureTick(now: Date = new Date()): Promise<MeasureTic
   const { refreshStoreOutcomes } = await import("@/lib/tracking.server");
 
   for (const storeId of storeIds) {
+    // La tentative est datée AVANT l'appel. Une boutique qui échoue — canal
+    // déconnecté, API en panne, jeton expiré — recule alors dans la file comme
+    // une boutique mesurée, au lieu de monopoliser un créneau à chaque passage.
+    const { error: stampError } = await supabaseAdmin
+      .from("fix_outcomes")
+      .update({ attempted_at: now.toISOString() })
+      .eq("store_id", storeId);
+    if (stampError) {
+      // Sans cette date, la boutique reviendra au prochain passage. Ce n'est pas
+      // une raison de ne pas la mesurer maintenant.
+      console.error(`[mesure] tentative non datée sur ${storeId} :`, stampError);
+    }
+
     try {
       const outcome = await refreshStoreOutcomes(supabaseAdmin, storeId);
       result.measured += outcome.updated;

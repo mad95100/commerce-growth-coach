@@ -612,6 +612,7 @@ export type Database = {
           tool_name: string | null
           verdict: string | null
           applied_at: string
+          attempted_at: string | null
           baseline: Json
           checked_at: string | null
           created_at: string
@@ -640,6 +641,7 @@ export type Database = {
           tool_name?: string | null
           verdict?: string | null
           applied_at?: string
+          attempted_at?: string | null
           baseline?: Json
           checked_at?: string | null
           created_at?: string
@@ -668,6 +670,7 @@ export type Database = {
           tool_name?: string | null
           verdict?: string | null
           applied_at?: string
+          attempted_at?: string | null
           baseline?: Json
           checked_at?: string | null
           created_at?: string

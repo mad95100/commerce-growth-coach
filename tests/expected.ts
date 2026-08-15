@@ -193,6 +193,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Comparaison d'état indépendante de l'ordre des clés : `jsonb` ne le préserve pas, et une comparaison naïve refusait des corrections légitimes.",
   },
   {
+    file: "audits/measure-path.test.ts",
+    minChecks: 38,
+    covers:
+      "Chemin de la mesure : file équitable même quand une boutique échoue à répétition, verdicts définitifs jamais recalculés sur une fenêtre qui ne recouvre plus la correction, et outil attribué à partir des seules écritures abouties.",
+  },
+  {
     file: "actions/execution.test.ts",
     minChecks: 60,
     covers:

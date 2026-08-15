@@ -34,8 +34,18 @@ export type MeasurableOutcome = {
   id: string;
   store_id: string;
   applied_at: string;
-  /** Dernière mesure. `null` si la correction n'a jamais été mesurée. */
+  /** Dernier verdict réellement calculé. `null` si jamais mesurée. */
   checked_at: string | null;
+  /**
+   * Dernière TENTATIVE, aboutie ou non.
+   *
+   * Sans elle, une boutique dont plus aucun canal n'est connecté échoue à chaque
+   * passage sans jamais faire avancer `checked_at` : elle reste en tête de file
+   * et occupe un créneau indéfiniment, pendant que les boutiques mesurables
+   * attendent. Une file d'attente ne s'ordonne pas sur la date d'un succès qui
+   * ne vient jamais.
+   */
+  attempted_at?: string | null;
   /** Verdict courant, `null` avant la première mesure. */
   verdict: string | null;
   /** Part de la fenêtre postérieure à la correction, entre 0 et 1. */
@@ -75,7 +85,25 @@ function millis(value: string | null | undefined): number | null {
  * ouvrir la porte à des mesures en boucle. Une date d'application illisible
  * écarte la ligne — sans elle, aucun verdict n'a de sens de toute façon.
  */
-export function isMeasurable(row: MeasurableOutcome, now: Date): boolean {
+/**
+ * Cette ligne a-t-elle encore quelque chose à APPRENDRE, indépendamment de la
+ * cadence ?
+ *
+ * Séparé de `isMeasurable` parce que les deux questions n'ont pas les mêmes
+ * clients. Le passage périodique demande « faut-il y aller MAINTENANT ? » et
+ * doit donc respecter la cadence. La mesure elle-même, une fois sur place,
+ * demande « cette ligne mérite-t-elle un nouveau verdict ? » — et la cadence n'y
+ * a plus rien à voir, puisque les appels partenaires sont déjà payés.
+ *
+ * LE DÉFAUT QUE CELA CORRIGE. `refreshStoreOutcomes` recalculait TOUS les suivis
+ * de la boutique, y compris ceux dont le verdict était déjà définitif. Des
+ * semaines plus tard, la fenêtre de trente jours ne recouvre plus du tout la
+ * correction : la comparaison mesure la saison, pas le geste. Un `confirme`
+ * pouvait ainsi devenir `insuffisant` sans que rien n'ait changé, et cette
+ * révision écrasait la mémoire de la boutique. Autrement dit, le produit
+ * désapprenait ce qu'il avait établi.
+ */
+export function hasSomethingToLearn(row: MeasurableOutcome, now: Date): boolean {
   const appliedAt = millis(row.applied_at);
   if (appliedAt === null) return false;
 
@@ -85,9 +113,30 @@ export function isMeasurable(row: MeasurableOutcome, now: Date): boolean {
   // Fenêtre pleine ET verdict tranché : il n'y a plus rien à en tirer.
   if ((row.coverage ?? 0) >= 1 && FINAL_VERDICTS.has(row.verdict ?? "")) return false;
 
-  const checkedAt = millis(row.checked_at);
-  if (checkedAt === null) return true;
-  return now.getTime() - checkedAt >= MEASURE_INTERVAL_MS;
+  return true;
+}
+
+export function isMeasurable(row: MeasurableOutcome, now: Date): boolean {
+  if (!hasSomethingToLearn(row, now)) return false;
+
+  const last = lastAttempt(row);
+  if (last === null) return true;
+  return now.getTime() - last >= MEASURE_INTERVAL_MS;
+}
+
+/**
+ * Instant du dernier passage sur cette ligne, réussi OU non.
+ *
+ * C'est cette date qui règle la cadence, et non `checked_at` seule : une
+ * tentative qui échoue coûte les mêmes appels partenaires qu'une mesure, et
+ * doit donc décaler la suivante autant.
+ */
+export function lastAttempt(row: MeasurableOutcome): number | null {
+  const checked = millis(row.checked_at);
+  const attempted = millis(row.attempted_at);
+  if (checked === null) return attempted;
+  if (attempted === null) return checked;
+  return Math.max(checked, attempted);
 }
 
 /**
@@ -106,10 +155,10 @@ export function selectStoresToMeasure(
 
   for (const row of rows) {
     if (!row.store_id || !isMeasurable(row, now)) continue;
-    // Jamais mesurée : priorité absolue, d'où `-Infinity`.
-    const checkedAt = millis(row.checked_at) ?? Number.NEGATIVE_INFINITY;
+    // Jamais approchée : priorité absolue, d'où `-Infinity`.
+    const seenAt = lastAttempt(row) ?? Number.NEGATIVE_INFINITY;
     const known = oldestByStore.get(row.store_id);
-    if (known === undefined || checkedAt < known) oldestByStore.set(row.store_id, checkedAt);
+    if (known === undefined || seenAt < known) oldestByStore.set(row.store_id, seenAt);
   }
 
   return [...oldestByStore.entries()]
