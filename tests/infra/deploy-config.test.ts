@@ -148,8 +148,23 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
   // --- Le déploiement provisionne les secrets d'exécution -------------------
   const deploy = read(".github/workflows/deploy.yml");
   t.check(
-    "le déploiement échoue tôt si les identifiants Cloudflare manquent",
+    "le déploiement échoue tôt si le jeton Cloudflare manque",
     /Secret\(s\) absent\(s\) des secrets du dépôt GitHub/.test(deploy),
+    true,
+  );
+  // L'identifiant de compte est facultatif : wrangler le déduit du jeton. En
+  // faire un blocage immobiliserait le déploiement pour rien — c'est arrivé.
+  t.check(
+    "l'identifiant de compte absent ne bloque pas le déploiement",
+    /CLOUDFLARE_ACCOUNT_ID non renseigné/.test(deploy),
+    true,
+  );
+  // Exporter une variable vide fait échouer wrangler au lieu de le laisser
+  // déduire le compte : elle doit être retirée de l'environnement.
+  t.check(
+    "un identifiant de compte vide est retiré de l'environnement",
+    (deploy.match(/\[ -n "\$CLOUDFLARE_ACCOUNT_ID" \] \|\| unset CLOUDFLARE_ACCOUNT_ID/g) ?? [])
+      .length >= 2,
     true,
   );
   t.check("l'environnement ciblé est explicite", /--env=""/.test(deploy), true);
