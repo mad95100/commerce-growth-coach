@@ -9,24 +9,30 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
-import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedStoresIndexRouteImport } from './routes/_authenticated/stores.index'
-import { Route as AuthenticatedTrackingStoreIdRouteImport } from './routes/_authenticated/tracking.$storeId'
-import { Route as AuthenticatedStoresStoreIdRouteImport } from './routes/_authenticated/stores.$storeId'
+import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedAuditsAuditIdRouteImport } from './routes/_authenticated/audits.$auditId'
-import { Route as ApiPublicOauthShopifyCallbackRouteImport } from './routes/api/public/oauth/shopify/callback'
-import { Route as ApiPublicOauthMetaCallbackRouteImport } from './routes/api/public/oauth/meta/callback'
+import { Route as AuthenticatedStoresIndexRouteImport } from './routes/_authenticated/stores.index'
+import { Route as AuthenticatedStoresStoreIdRouteImport } from './routes/_authenticated/stores.$storeId'
+import { Route as AuthenticatedTrackingStoreIdRouteImport } from './routes/_authenticated/tracking.$storeId'
+import { Route as ApiInternalJobsTickRouteImport } from './routes/api/internal/jobs/tick'
 import { Route as ApiPublicOauthGoogleCallbackRouteImport } from './routes/api/public/oauth/google/callback'
+import { Route as ApiPublicOauthMetaCallbackRouteImport } from './routes/api/public/oauth/meta/callback'
+import { Route as ApiPublicOauthShopifyCallbackRouteImport } from './routes/api/public/oauth/shopify/callback'
+import { Route as ApiPublicWebhooksShopifyTopicRouteImport } from './routes/api/public/webhooks/shopify/$topic'
 
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -34,18 +40,14 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
@@ -53,21 +55,21 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAuditsAuditIdRoute =
+  AuthenticatedAuditsAuditIdRouteImport.update({
+    id: '/audits/$auditId',
+    path: '/audits/$auditId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedStoresIndexRoute =
   AuthenticatedStoresIndexRouteImport.update({
     id: '/stores/',
     path: '/stores/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedTrackingStoreIdRoute =
-  AuthenticatedTrackingStoreIdRouteImport.update({
-    id: '/tracking/$storeId',
-    path: '/tracking/$storeId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedStoresStoreIdRoute =
@@ -76,16 +78,21 @@ const AuthenticatedStoresStoreIdRoute =
     path: '/stores/$storeId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedAuditsAuditIdRoute =
-  AuthenticatedAuditsAuditIdRouteImport.update({
-    id: '/audits/$auditId',
-    path: '/audits/$auditId',
+const AuthenticatedTrackingStoreIdRoute =
+  AuthenticatedTrackingStoreIdRouteImport.update({
+    id: '/tracking/$storeId',
+    path: '/tracking/$storeId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const ApiPublicOauthShopifyCallbackRoute =
-  ApiPublicOauthShopifyCallbackRouteImport.update({
-    id: '/api/public/oauth/shopify/callback',
-    path: '/api/public/oauth/shopify/callback',
+const ApiInternalJobsTickRoute = ApiInternalJobsTickRouteImport.update({
+  id: '/api/internal/jobs/tick',
+  path: '/api/internal/jobs/tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicOauthGoogleCallbackRoute =
+  ApiPublicOauthGoogleCallbackRouteImport.update({
+    id: '/api/public/oauth/google/callback',
+    path: '/api/public/oauth/google/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicOauthMetaCallbackRoute =
@@ -94,10 +101,16 @@ const ApiPublicOauthMetaCallbackRoute =
     path: '/api/public/oauth/meta/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
-const ApiPublicOauthGoogleCallbackRoute =
-  ApiPublicOauthGoogleCallbackRouteImport.update({
-    id: '/api/public/oauth/google/callback',
-    path: '/api/public/oauth/google/callback',
+const ApiPublicOauthShopifyCallbackRoute =
+  ApiPublicOauthShopifyCallbackRouteImport.update({
+    id: '/api/public/oauth/shopify/callback',
+    path: '/api/public/oauth/shopify/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicWebhooksShopifyTopicRoute =
+  ApiPublicWebhooksShopifyTopicRouteImport.update({
+    id: '/api/public/webhooks/shopify/$topic',
+    path: '/api/public/webhooks/shopify/$topic',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -112,9 +125,11 @@ export interface FileRoutesByFullPath {
   '/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
   '/tracking/$storeId': typeof AuthenticatedTrackingStoreIdRoute
   '/stores/': typeof AuthenticatedStoresIndexRoute
+  '/api/internal/jobs/tick': typeof ApiInternalJobsTickRoute
   '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
   '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
   '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
+  '/api/public/webhooks/shopify/$topic': typeof ApiPublicWebhooksShopifyTopicRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -127,9 +142,11 @@ export interface FileRoutesByTo {
   '/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
   '/tracking/$storeId': typeof AuthenticatedTrackingStoreIdRoute
   '/stores': typeof AuthenticatedStoresIndexRoute
+  '/api/internal/jobs/tick': typeof ApiInternalJobsTickRoute
   '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
   '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
   '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
+  '/api/public/webhooks/shopify/$topic': typeof ApiPublicWebhooksShopifyTopicRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -144,9 +161,11 @@ export interface FileRoutesById {
   '/_authenticated/stores/$storeId': typeof AuthenticatedStoresStoreIdRoute
   '/_authenticated/tracking/$storeId': typeof AuthenticatedTrackingStoreIdRoute
   '/_authenticated/stores/': typeof AuthenticatedStoresIndexRoute
+  '/api/internal/jobs/tick': typeof ApiInternalJobsTickRoute
   '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
   '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
   '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
+  '/api/public/webhooks/shopify/$topic': typeof ApiPublicWebhooksShopifyTopicRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -161,9 +180,11 @@ export interface FileRouteTypes {
     | '/stores/$storeId'
     | '/tracking/$storeId'
     | '/stores/'
+    | '/api/internal/jobs/tick'
     | '/api/public/oauth/google/callback'
     | '/api/public/oauth/meta/callback'
     | '/api/public/oauth/shopify/callback'
+    | '/api/public/webhooks/shopify/$topic'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -176,9 +197,11 @@ export interface FileRouteTypes {
     | '/stores/$storeId'
     | '/tracking/$storeId'
     | '/stores'
+    | '/api/internal/jobs/tick'
     | '/api/public/oauth/google/callback'
     | '/api/public/oauth/meta/callback'
     | '/api/public/oauth/shopify/callback'
+    | '/api/public/webhooks/shopify/$topic'
   id:
     | '__root__'
     | '/'
@@ -192,9 +215,11 @@ export interface FileRouteTypes {
     | '/_authenticated/stores/$storeId'
     | '/_authenticated/tracking/$storeId'
     | '/_authenticated/stores/'
+    | '/api/internal/jobs/tick'
     | '/api/public/oauth/google/callback'
     | '/api/public/oauth/meta/callback'
     | '/api/public/oauth/shopify/callback'
+    | '/api/public/webhooks/shopify/$topic'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -202,25 +227,20 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiInternalJobsTickRoute: typeof ApiInternalJobsTickRoute
   ApiPublicOauthGoogleCallbackRoute: typeof ApiPublicOauthGoogleCallbackRoute
   ApiPublicOauthMetaCallbackRoute: typeof ApiPublicOauthMetaCallbackRoute
   ApiPublicOauthShopifyCallbackRoute: typeof ApiPublicOauthShopifyCallbackRoute
+  ApiPublicWebhooksShopifyTopicRoute: typeof ApiPublicWebhooksShopifyTopicRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -230,18 +250,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/settings': {
-      id: '/_authenticated/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/onboarding': {
@@ -251,32 +278,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/stores/': {
-      id: '/_authenticated/stores/'
-      path: '/stores'
-      fullPath: '/stores/'
-      preLoaderRoute: typeof AuthenticatedStoresIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/tracking/$storeId': {
-      id: '/_authenticated/tracking/$storeId'
-      path: '/tracking/$storeId'
-      fullPath: '/tracking/$storeId'
-      preLoaderRoute: typeof AuthenticatedTrackingStoreIdRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/stores/$storeId': {
-      id: '/_authenticated/stores/$storeId'
-      path: '/stores/$storeId'
-      fullPath: '/stores/$storeId'
-      preLoaderRoute: typeof AuthenticatedStoresStoreIdRouteImport
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/audits/$auditId': {
@@ -286,11 +292,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditsAuditIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/api/public/oauth/shopify/callback': {
-      id: '/api/public/oauth/shopify/callback'
-      path: '/api/public/oauth/shopify/callback'
-      fullPath: '/api/public/oauth/shopify/callback'
-      preLoaderRoute: typeof ApiPublicOauthShopifyCallbackRouteImport
+    '/_authenticated/stores/': {
+      id: '/_authenticated/stores/'
+      path: '/stores'
+      fullPath: '/stores/'
+      preLoaderRoute: typeof AuthenticatedStoresIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/stores/$storeId': {
+      id: '/_authenticated/stores/$storeId'
+      path: '/stores/$storeId'
+      fullPath: '/stores/$storeId'
+      preLoaderRoute: typeof AuthenticatedStoresStoreIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tracking/$storeId': {
+      id: '/_authenticated/tracking/$storeId'
+      path: '/tracking/$storeId'
+      fullPath: '/tracking/$storeId'
+      preLoaderRoute: typeof AuthenticatedTrackingStoreIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/internal/jobs/tick': {
+      id: '/api/internal/jobs/tick'
+      path: '/api/internal/jobs/tick'
+      fullPath: '/api/internal/jobs/tick'
+      preLoaderRoute: typeof ApiInternalJobsTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/oauth/google/callback': {
+      id: '/api/public/oauth/google/callback'
+      path: '/api/public/oauth/google/callback'
+      fullPath: '/api/public/oauth/google/callback'
+      preLoaderRoute: typeof ApiPublicOauthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/oauth/meta/callback': {
@@ -300,11 +334,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOauthMetaCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/oauth/google/callback': {
-      id: '/api/public/oauth/google/callback'
-      path: '/api/public/oauth/google/callback'
-      fullPath: '/api/public/oauth/google/callback'
-      preLoaderRoute: typeof ApiPublicOauthGoogleCallbackRouteImport
+    '/api/public/oauth/shopify/callback': {
+      id: '/api/public/oauth/shopify/callback'
+      path: '/api/public/oauth/shopify/callback'
+      fullPath: '/api/public/oauth/shopify/callback'
+      preLoaderRoute: typeof ApiPublicOauthShopifyCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/webhooks/shopify/$topic': {
+      id: '/api/public/webhooks/shopify/$topic'
+      path: '/api/public/webhooks/shopify/$topic'
+      fullPath: '/api/public/webhooks/shopify/$topic'
+      preLoaderRoute: typeof ApiPublicWebhooksShopifyTopicRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -338,10 +379,22 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiInternalJobsTickRoute: ApiInternalJobsTickRoute,
   ApiPublicOauthGoogleCallbackRoute: ApiPublicOauthGoogleCallbackRoute,
   ApiPublicOauthMetaCallbackRoute: ApiPublicOauthMetaCallbackRoute,
   ApiPublicOauthShopifyCallbackRoute: ApiPublicOauthShopifyCallbackRoute,
+  ApiPublicWebhooksShopifyTopicRoute: ApiPublicWebhooksShopifyTopicRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

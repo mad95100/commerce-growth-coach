@@ -1,0 +1,77 @@
+# Déploiement d'EcomPilot AI sur Cloudflare Workers.
+#
+# Le build (`bun run build`) produit un worker ES module dans `.output/`, via le
+# préréglage `cloudflare-module` de Nitro. Ce fichier décrit comment le publier.
+#
+# CE FICHIER NE CONTIENT AUCUN SECRET, et ne doit jamais en contenir : il est
+# versionné. Les valeurs sensibles s'ajoutent par `wrangler secret put <NOM>`
+# ou par les secrets du dépôt GitHub ; voir `.env.example` pour l'inventaire
+# complet et `docs/deploiement.md` pour la procédure.
+
+name = "ecompilot-ai"
+main = ".output/server/index.mjs"
+
+# Alignée sur la date de mise en place. `nodejs_compat` est requis : le client
+# Supabase et le chiffrement des jetons (`node:crypto`) s'appuient dessus.
+compatibility_date = "2026-08-14"
+compatibility_flags = ["nodejs_compat"]
+
+# Nitro assemble déjà le bundle : laisser wrangler le refaire casserait le
+# découpage en modules qu'il vient de produire.
+no_bundle = true
+
+[[rules]]
+type = "ESModule"
+globs = ["**/*.mjs", "**/*.js"]
+
+# Les fichiers statiques sont servis par la plateforme, avant d'atteindre le
+# worker — le gestionnaire `fetch` généré teste `env.ASSETS` en premier.
+[assets]
+binding = "ASSETS"
+directory = ".output/public"
+
+# Fait avancer les audits en attente. La minute est la cadence la plus fine
+# qu'accepte Cloudflare ; un passage sans travail à faire coûte une lecture en
+# base et rien d'autre.
+[triggers]
+crons = ["* * * * *"]
+
+[observability]
+enabled = true
+
+# --- Variables publiques ------------------------------------------------------
+# Ni secrètes ni sensibles : elles décrivent l'application, pas ses accès.
+#
+# APP_URL est la plus importante. Elle fixe l'origine des `redirect_uri` OAuth
+# et doit correspondre, au caractère près, aux URL déclarées chez Shopify, Meta
+# et Google. La renseigner ici neutralise le repli historique inscrit dans
+# `src/lib/public-origin.server.ts`.
+[vars]
+APP_URL = "https://app.ecompilot.ai"
+AI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+AI_AUDIT_MODEL = "gemini-2.5-pro"
+AI_FIX_MODEL = "gemini-2.5-flash"
+
+# --- Environnement de pré-production -----------------------------------------
+# Worker distinct, base distincte si souhaité, mêmes secrets à renseigner
+# séparément (`wrangler secret put <NOM> --env preview`).
+#
+# Pas de cron ici : deux ordonnanceurs sur la même base se disputeraient les
+# mêmes audits. La réclamation atomique l'interdirait, mais autant ne pas créer
+# la course.
+[env.preview]
+name = "ecompilot-ai-preview"
+
+[env.preview.vars]
+APP_URL = "https://preview.ecompilot.ai"
+AI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+AI_AUDIT_MODEL = "gemini-2.5-pro"
+AI_FIX_MODEL = "gemini-2.5-flash"
+
+[env.preview.assets]
+binding = "ASSETS"
+directory = ".output/public"
+
+[[env.preview.rules]]
+type = "ESModule"
+globs = ["**/*.mjs", "**/*.js"]

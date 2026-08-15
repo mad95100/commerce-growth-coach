@@ -93,3 +93,39 @@ export function verifyShopifyHmac(search: URLSearchParams | string, secret: stri
   if (matchesDigest(sign(decoded, secret), received)) return true;
   return decoded !== encoded && matchesDigest(sign(encoded, secret), received);
 }
+
+/**
+ * Vérifie la signature d'un webhook Shopify.
+ *
+ * RIEN À VOIR AVEC `verifyShopifyHmac` malgré le nom voisin. Un webhook n'est
+ * pas signé sur sa chaîne de requête mais sur le CORPS BRUT de la requête, et
+ * le digest arrive en base64 dans l'en-tête `X-Shopify-Hmac-Sha256`, pas en
+ * hexadécimal dans un paramètre.
+ *
+ * LE PIÈGE À ÉVITER : le corps doit être signé exactement tel qu'il est arrivé.
+ * Analyser le JSON puis le re-sérialiser change l'espacement et l'ordre des
+ * clés, et la signature ne correspond plus jamais. L'appelant doit donc lire
+ * `await request.text()` AVANT toute analyse, et passer cette chaîne ici.
+ *
+ * @param rawBody corps de la requête, non modifié
+ * @param headerValue contenu de l'en-tête `X-Shopify-Hmac-Sha256`
+ * @param secret client secret de l'app Shopify
+ */
+export function verifyShopifyWebhook(
+  rawBody: string,
+  headerValue: string | null,
+  secret: string,
+): boolean {
+  if (!secret || !headerValue) return false;
+
+  const expected = createHmac("sha256", secret).update(rawBody, "utf8").digest();
+
+  let received: Buffer;
+  try {
+    received = Buffer.from(headerValue, "base64");
+  } catch {
+    return false;
+  }
+  if (received.length !== expected.length) return false;
+  return timingSafeEqual(received, expected);
+}

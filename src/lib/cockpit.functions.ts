@@ -73,8 +73,7 @@ export const getCockpit = createServerFn({ method: "POST" })
       .limit(1);
 
     const snapRow = (snapRows ?? [])[0] as
-      | { payload: Record<string, CockpitSnapshotValue>; fetched_at: string }
-      | undefined;
+      { payload: Record<string, CockpitSnapshotValue>; fetched_at: string } | undefined;
     const snap = snapRow?.payload ?? null;
 
     const revenue = snap?.shopify?.revenue_30d ?? store.monthly_revenue ?? null;

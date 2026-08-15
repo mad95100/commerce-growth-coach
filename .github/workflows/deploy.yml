@@ -1,0 +1,115 @@
+name: Déploiement
+
+# Le déploiement n'est JAMAIS déclenché par une PR : seul un `main` déjà validé
+# part en production. `workflow_run` attend que la CI se soit prononcée, plutôt
+# que de refaire ses contrôles ici — les refaire donnerait deux verdicts
+# possibles pour un même commit.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  # Permet une reprise manuelle après un incident, sans avoir à repousser un
+  # commit vide.
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Cible du déploiement"
+        required: true
+        default: preview
+        type: choice
+        options: [preview, production]
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'production' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Construire et déployer
+    runs-on: ubuntu-latest
+    # La condition couvre les deux déclencheurs : une CI rouge ne déploie rien,
+    # un lancement manuel passe toujours.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    environment: ${{ github.event.inputs.environment || 'production' }}
+
+    # Déclarées au niveau du job : une condition `if` de step ne voit pas le
+    # bloc `env:` de ce même step, et la condition serait toujours fausse.
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `workflow_run` part par défaut sur la branche par défaut : on épingle
+          # le commit exact qui vient d'être validé, sinon on pourrait déployer
+          # autre chose que ce qui a été testé.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Installer les dépendances
+        run: bun install --frozen-lockfile
+
+      - name: Construire
+        run: bun run build
+
+      - name: Vérifier que la sortie de build existe
+        run: |
+          # Un déploiement d'un dossier vide réussit côté wrangler et sert des
+          # 404 : mieux vaut échouer ici, bruyamment.
+          test -f .output/server/index.mjs || { echo "::error::.output/server/index.mjs absent"; exit 1; }
+          test -d .output/public || { echo "::error::.output/public absent"; exit 1; }
+
+      - name: Appliquer les migrations Supabase
+        # Sautée si le projet n'est pas encore relié : la migration
+        # d'infrastructure ne doit pas être bloquée par cette étape.
+        if: env.SUPABASE_ACCESS_TOKEN != '' && vars.SUPABASE_PROJECT_ID != ''
+        env:
+          PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+        run: |
+          npm install -g supabase@latest
+          supabase link --project-ref "$PROJECT_ID"
+          # `db push` n'applique QUE les migrations absentes de
+          # `supabase_migrations.schema_migrations`. Il ne recrée rien et ne
+          # rejoue rien : les données et la clé de chiffrement ne sont pas
+          # concernées.
+          supabase db push
+
+      - name: Déployer sur Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            deploy
+            ${{ (github.event.inputs.environment == 'preview') && '--env preview' || '' }}
+
+      - name: Contrôle de démarrage
+        env:
+          TARGET: ${{ vars.DEPLOY_HEALTHCHECK_URL }}
+        run: |
+          # Un worker peut se déployer et refuser de démarrer — module manquant,
+          # variable absente. On le vérifie plutôt que de le supposer.
+          if [ -z "$TARGET" ]; then
+            echo "::notice::DEPLOY_HEALTHCHECK_URL non renseignée, contrôle sauté."
+            exit 0
+          fi
+          for attempt in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$TARGET" || echo 000)
+            echo "tentative $attempt : HTTP $code"
+            case "$code" in
+              2*|3*) echo "Déploiement joignable."; exit 0 ;;
+            esac
+            sleep 6
+          done
+          echo "::error::Le déploiement ne répond pas correctement ($TARGET)."
+          exit 1

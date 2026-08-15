@@ -19,14 +19,10 @@ jobs:
   # ---------------------------------------------------------------------------
   # Tests — délibérément indépendants de l'installation complète
   # ---------------------------------------------------------------------------
-  # Les dépendances du projet incluent des paquets servis par un registre privé.
-  # Si celui-ci est indisponible, une installation complète échoue et l'on perd
-  # TOUT signal, y compris sur du code qui n'en dépend en rien.
-  #
   # Les tests n'ont besoin que de `jiti` (chargement TypeScript) et de `zod`
-  # (schémas de validation exercés par les garde-fous), tous deux publics. Ils
-  # sont donc installés seuls : ce travail donne un verdict même quand le reste
-  # ne peut pas s'installer.
+  # (schémas de validation exercés par les garde-fous). Les installer seuls rend
+  # ce travail rapide et indépendant du reste de la chaîne : il se prononce même
+  # si l'installation complète échoue.
   tests:
     name: Tests
     runs-on: ubuntu-latest
@@ -37,11 +33,9 @@ jobs:
         with:
           node-version: "22"
 
-      # `jiti` et `zod` sont installés explicitement plutôt que déclarés dans
-      # package.json : les déclarer modifierait bun.lock, que l'environnement de
-      # développement ne peut pas régénérer (le registre privé du projet y est
-      # injoignable). `--frozen-lockfile` du travail suivant refuserait alors
-      # l'installation — ce qu'il a fait, et c'est bien son rôle.
+      # `jiti` et `zod` suffisent aux tests. Ils sont installés seuls plutôt que
+      # par une installation complète : ce travail garde ainsi un verdict même
+      # si l'installation intégrale casse pour une raison sans rapport.
       - name: Installer les seules dépendances nécessaires aux tests
         run: npm install --no-save --no-audit --no-fund jiti@^2.6.1 zod@^3.24.2
 
@@ -71,6 +65,78 @@ jobs:
         run: bun run lint
 
   # ---------------------------------------------------------------------------
+  # Build — la seule preuve que le dépôt est déployable
+  # ---------------------------------------------------------------------------
+  # Le typage et le lint ne disent rien de l'assemblage. Une erreur de
+  # configuration de build ne se manifeste qu'ici, et le déploiement en dépend
+  # directement : `deploy.yml` ne part que si cette CI est verte.
+  build:
+    name: Build Cloudflare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Installer les dépendances
+        run: bun install --frozen-lockfile
+
+      - name: Construire
+        run: bun run build
+
+      - name: La sortie est celle qu'attend wrangler
+        run: |
+          # Ces chemins sont ceux déclarés dans wrangler.toml. S'ils changent
+          # sans que wrangler.toml suive, le déploiement produit un worker vide.
+          test -f .output/server/index.mjs || { echo "::error::.output/server/index.mjs absent"; exit 1; }
+          test -d .output/public || { echo "::error::.output/public absent"; exit 1; }
+          echo "Sortie de build conforme."
+
+      - name: Le déclencheur planifié est bien embarqué
+        run: |
+          # Le cron est ce qui fait vivre les audits sans navigateur. S'il
+          # disparaît du bundle, rien n'échoue — les audits restent simplement
+          # en attente pour toujours.
+          grep -q "cloudflare:scheduled" .output/server/index.mjs \
+            || { echo "::error::Le greffon du cron n'est pas dans le worker."; exit 1; }
+          echo "Déclencheur planifié présent."
+
+      - name: Aucune trace de Lovable dans le worker livré
+        run: |
+          # Le contrôle définitif : il porte sur le code réellement exécuté en
+          # production, pas sur les sources.
+          #
+          # DEUX NIVEAUX, parce que la bascule n'est pas terminée. Les deux
+          # replis transitoires (`LEGACY_ORIGIN`, `LEGACY_BASE_URL`) doivent
+          # rester le temps que la production migre : sans eux, la fusion dans
+          # `main` casserait l'OAuth Shopify et les audits sur le déploiement
+          # actuel, où `APP_URL` et `AI_BASE_URL` ne sont pas renseignées.
+          # Ils sont donc tolérés — mais UNIQUEMENT dans les deux modules qui
+          # les portent, et cette tolérance disparaît avec eux à la coupure.
+
+          # Niveau 1 — jamais tolérés, nulle part : SDK, paquets, crochets.
+          INTERDITS='@lovable\.dev/|createLovableAuth|__lovableEvents|__lovableReportRuntimeError|lovable-core-prod'
+          if grep -rlE "$INTERDITS" .output/server .output/public 2>/dev/null | grep -q .; then
+            echo "::error::Un SDK ou un paquet Lovable est présent dans la sortie de build."
+            grep -rlE "$INTERDITS" .output/server .output/public
+            exit 1
+          fi
+
+          # Niveau 2 — URL et variable héritées, admises seulement dans les
+          # modules de repli nommés.
+          INATTENDUS=$(grep -rlE "lovable\.(dev|app)|LOVABLE_API_KEY" .output/server .output/public 2>/dev/null \
+            | grep -vE '/(ai-gateway\.server|public-origin\.server)[.-]' || true)
+          if [ -n "$INATTENDUS" ]; then
+            echo "::error::Une référence Lovable apparaît hors des modules de repli déclarés."
+            echo "$INATTENDUS"
+            exit 1
+          fi
+
+          echo "Aucun SDK Lovable. Références héritées confinées aux deux modules de repli."
+
+  # ---------------------------------------------------------------------------
   # Contrôles de sécurité structurels
   # ---------------------------------------------------------------------------
   # Ces vérifications ne peuvent pas être laissées à la seule relecture : elles
@@ -87,7 +153,7 @@ jobs:
           # `.env` est suivi par git et ne doit contenir que des valeurs
           # publiques. Un secret serveur qui y atterrit part dans l'historique,
           # d'où on ne le retire plus.
-          FORBIDDEN='SHOPIFY_CLIENT_SECRET|OAUTH_STATE_SECRET|DATA_CONNECTIONS_ENCRYPTION_KEY|SUPABASE_SERVICE_ROLE_KEY|LOVABLE_API_KEY|GOOGLE_CLIENT_SECRET|META_CLIENT_SECRET|GOOGLE_ADS_DEVELOPER_TOKEN'
+          FORBIDDEN='SHOPIFY_CLIENT_SECRET|OAUTH_STATE_SECRET|DATA_CONNECTIONS_ENCRYPTION_KEY|SUPABASE_SERVICE_ROLE_KEY|AI_API_KEY|JOBS_TICK_SECRET|LOVABLE_API_KEY|GOOGLE_CLIENT_SECRET|META_CLIENT_SECRET|GOOGLE_ADS_DEVELOPER_TOKEN'
           if [ -f .env ] && grep -qE "^\s*(export\s+)?($FORBIDDEN)\s*=\s*\S" .env; then
             echo "::error file=.env::Un secret serveur est renseigné dans .env, qui est versionné."
             exit 1
@@ -117,8 +183,8 @@ jobs:
           # attrape le cas où l'inventaire lui-même serait vidé pour faire
           # passer la CI.
           COUNT=$(grep -c 'file: "' tests/expected.ts)
-          if [ "$COUNT" -lt 11 ]; then
-            echo "::error file=tests/expected.ts::L'inventaire ne déclare plus que $COUNT suites, 11 attendues."
+          if [ "$COUNT" -lt 14 ]; then
+            echo "::error file=tests/expected.ts::L'inventaire ne déclare plus que $COUNT suites, 14 attendues."
             exit 1
           fi
           echo "$COUNT suites déclarées dans l'inventaire."

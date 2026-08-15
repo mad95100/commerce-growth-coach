@@ -54,23 +54,36 @@ Tu te comportes comme un directeur e-commerce expérimenté dont le seul objecti
 
 Chaque recommandation doit être orientée vers la croissance, la conversion et la rentabilité.
 
-This project was built with [Lovable](https://lovable.dev).
+## Infrastructure
 
-## Build with Lovable
+Claude Code → GitHub → GitHub Actions → Cloudflare Workers → Supabase.
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/c92ebf98-d8d6-4992-967c-49ea9031dcea).
+Frontend, backend et fonctions serveur forment un seul worker, produit par Nitro
+et déployé par `wrangler`. Les audits avancent seuls, sans navigateur ouvert,
+grâce à un Cron Trigger.
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+Voir **[docs/deploiement.md](docs/deploiement.md)** pour les secrets à
+renseigner, la bascule de domaine et les migrations.
 
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+## Développement
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+git clone <url-du-depot>
+cd commerce-growth-coach
+bun install
+bun run dev          # http://localhost:8080
 ```
+
+| Commande            | Effet                                    |
+| ------------------- | ---------------------------------------- |
+| `bun run dev`       | Serveur de développement Vite            |
+| `bun run build`     | Construit le worker dans `.output/`      |
+| `bun run preview`   | Sert le worker réel via wrangler         |
+| `bun test`          | 534 contrôles, 14 suites                 |
+| `bun run typecheck` | `tsc --noEmit`                           |
+| `bun run lint`      | ESLint + Prettier                        |
+| `bun run deploy`    | Déploie en production                    |
+
+> Ce projet a été démarré avec Lovable. Il n'en dépend plus pour se construire,
+> se tester ou se déployer ; la synchronisation reste active le temps de la
+> bascule.

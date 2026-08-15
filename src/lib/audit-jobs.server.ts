@@ -38,8 +38,7 @@ type AuditRow = {
 };
 
 export type ClaimResult =
-  | { claimed: true; job: AuditJob; store: AuditStore }
-  | { claimed: false; job: AuditJob };
+  { claimed: true; job: AuditJob; store: AuditStore } | { claimed: false; job: AuditJob };
 
 /** État du travail d'un audit. Un audit introuvable est traité comme échoué. */
 export async function loadAuditJob(supabase: Db, auditId: string): Promise<AuditJob> {

@@ -85,6 +85,24 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Aiguillage complet validation → cible → garde-fou → état avant/après, sur Meta et Google Ads.",
   },
   {
+    file: "audits/jobs-tick.test.ts",
+    minChecks: 30,
+    covers:
+      "Déclencheur périodique : sélection des audits à reprendre sans navigateur, plafond par passage, et refus de relancer un audit déjà en cours ou condamné.",
+  },
+  {
+    file: "infra/no-lovable.test.ts",
+    minChecks: 25,
+    covers:
+      "Indépendance vis-à-vis de Lovable : aucune URL, aucun SDK, aucun paquet ni aucune résolution de registre privé à l'exécution, replis transitoires nommés et neutralisés par la configuration.",
+  },
+  {
+    file: "infra/deploy-config.test.ts",
+    minChecks: 40,
+    covers:
+      "Cohérence du déploiement Cloudflare : entrée du worker, nodejs_compat, actifs statiques, cron, absence de secret versionné, et concordance entre wrangler.toml, vite.config.ts et .env.example.",
+  },
+  {
     file: "actions/state-compare.test.ts",
     minChecks: 29,
     covers:

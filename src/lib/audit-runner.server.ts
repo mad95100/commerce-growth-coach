@@ -52,8 +52,9 @@ export async function executeAuditWork(input: {
 }): Promise<void> {
   const { supabase, userId, store, auditId } = input;
 
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY manquant");
+  // Le fournisseur de modèles est résolu ici pour échouer tout de suite si la
+  // configuration manque, plutôt qu'après la capture des données.
+  const { aiChatCompletion, aiModel } = await import("@/lib/ai-gateway.server");
 
   // Données réelles de toutes les sources connectées (tolérant aux pannes)
   const { captureAndStoreSnapshot, getSnapshotAround, snapshotToPromptBlock } =
@@ -205,21 +206,14 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     },
   };
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-    },
-    body: JSON.stringify({
-      model: AUDIT_MODEL,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-      tools: [tool],
-      tool_choice: { type: "function", function: { name: "submit_audit" } },
-    }),
+  const res = await aiChatCompletion({
+    model: aiModel("audit"),
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    tools: [tool],
+    tool_choice: { type: "function", function: { name: "submit_audit" } },
   });
 
   if (!res.ok) {

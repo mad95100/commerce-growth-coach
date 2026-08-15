@@ -19,13 +19,23 @@
  * plutôt que rangée dans les secrets du projet, pour qu'elle reste vérifiable
  * en relisant le code et qu'un déploiement ne puisse pas la perdre.
  *
- * EN CAS DE CHANGEMENT DE DOMAINE : mettre à jour la constante ci-dessous ET
- * les URL de redirection déclarées chez Shopify, Meta et Google. Les deux
- * doivent bouger ensemble, sinon l'autorisation est refusée.
+ * EN CAS DE CHANGEMENT DE DOMAINE : renseigner `APP_URL` ET les URL de
+ * redirection déclarées chez Shopify, Meta et Google. Les deux doivent bouger
+ * ensemble, sinon l'autorisation est refusée.
  */
 
-/** Origine publique canonique. Doit correspondre aux URL déclarées chez les partenaires. */
-const CANONICAL_ORIGIN = "https://commerce-growth-coach.lovable.app";
+/**
+ * Domaine historique, servi par l'ancien hébergeur.
+ *
+ * C'est un REPLI TRANSITOIRE, atteint uniquement si `APP_URL` n'est pas
+ * renseignée. Il existe pour que le code fusionné dans `main` continue de
+ * servir la production actuelle pendant la bascule. La nouvelle infrastructure
+ * renseigne `APP_URL` (voir `wrangler.toml`), ce qui le rend inatteignable —
+ * c'est vérifié par `tests/infra/no-lovable.test.ts`.
+ *
+ * À SUPPRIMER à la bascule, avec `LEGACY_BASE_URL` dans `ai-gateway.server.ts`.
+ */
+const LEGACY_ORIGIN = "https://commerce-growth-coach.lovable.app";
 
 function sanitizeOrigin(raw: string): string | null {
   const trimmed = raw.trim().replace(/\/+$/, "");
@@ -48,7 +58,7 @@ function sanitizeOrigin(raw: string): string | null {
  */
 export function publicOrigin(): string {
   const configured = process.env.APP_URL ? sanitizeOrigin(process.env.APP_URL) : null;
-  return configured ?? CANONICAL_ORIGIN;
+  return configured ?? LEGACY_ORIGIN;
 }
 
 /** URL de callback OAuth d'un fournisseur, identique à l'autorisation et à l'échange. */
