@@ -189,6 +189,45 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
       true,
     );
   }
+  // --- Génération automatique des secrets sans valeur imposée --------------
+  // Trois secrets n'ont pas de valeur « juste » : seule leur stabilité compte.
+  // Les faire attendre une saisie humaine immobilise le déploiement pour rien.
+  t.check(
+    "les secrets générables le sont automatiquement",
+    /openssl rand -base64 32/.test(deploy),
+    true,
+  );
+  // LA règle qui protège les jetons partenaires : sans elle, chaque
+  // déploiement ferait tourner la clé de chiffrement et rendrait illisibles
+  // les jetons de la veille.
+  t.check(
+    "un secret déjà posé sur le Worker n'est jamais régénéré",
+    /wrangler secret list/.test(deploy) && /laissé intact/.test(deploy),
+    true,
+  );
+  // Une clé retrouvée doit pouvoir être réinjectée et l'emporter.
+  t.check("une valeur fournie dans le dépôt reste prioritaire", /prioritaire/.test(deploy), true);
+  t.check(
+    "la clé de chiffrement fait partie des secrets générables",
+    /for nom in OAUTH_STATE_SECRET JOBS_TICK_SECRET DATA_CONNECTIONS_ENCRYPTION_KEY/.test(deploy),
+    true,
+  );
+  // La procédure de reprise doit exister avant d'en avoir besoin.
+  const reconnexion = read("docs/reconnexion-shopify.md");
+  t.check("la procédure de reconnexion est documentée", reconnexion.length > 0, true);
+  for (const interdit of ["delete from", "drop table", "truncate"]) {
+    t.check(
+      `la procédure ne contient pas « ${interdit} »`,
+      new RegExp(interdit, "i").test(reconnexion),
+      false,
+    );
+  }
+  t.check(
+    "la procédure marque la connexion au lieu de la supprimer",
+    /set status = 'expired'/.test(reconnexion),
+    true,
+  );
+
   // Une valeur passée en argument de ligne de commande apparaîtrait dans la
   // liste des processus et dans les journaux du runner.
   t.check(

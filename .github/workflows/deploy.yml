@@ -182,6 +182,65 @@ jobs:
 
           echo "Secrets d'exécution provisionnés."
 
+      - name: Générer les secrets qui peuvent l'être
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_ENV: ${{ (github.event.inputs.environment == 'preview') && '--env preview' || '--env=' }}
+          OAUTH_STATE_SECRET: ${{ secrets.OAUTH_STATE_SECRET }}
+          JOBS_TICK_SECRET: ${{ secrets.JOBS_TICK_SECRET }}
+          DATA_CONNECTIONS_ENCRYPTION_KEY: ${{ secrets.DATA_CONNECTIONS_ENCRYPTION_KEY }}
+        run: |
+          # TROIS SECRETS N'ONT PAS DE VALEUR « JUSTE ». Le serveur a seulement
+          # besoin qu'elle soit stable : `OAUTH_STATE_SECRET` signe le paramètre
+          # `state` d'un parcours OAuth qui expire en 15 minutes,
+          # `JOBS_TICK_SECRET` protège le déclencheur HTTP des travaux, et
+          # `DATA_CONNECTIONS_ENCRYPTION_KEY` chiffre les jetons partenaires.
+          # Les faire attendre une saisie humaine n'apporte rien : ils sont
+          # générés ici s'ils manquent.
+          #
+          # TROIS RÈGLES, DANS CET ORDRE :
+          #   1. une valeur fournie dans les secrets du dépôt gagne toujours —
+          #      c'est ainsi qu'on réinjecte une clé de chiffrement retrouvée ;
+          #   2. une valeur DÉJÀ POSÉE sur le Worker n'est jamais remplacée —
+          #      sans cette règle, chaque déploiement ferait tourner la clé de
+          #      chiffrement et rendrait illisibles les jetons de la veille ;
+          #   3. sinon seulement, on génère.
+          #
+          # Aucune valeur n'est affichée : `openssl` écrit dans une variable,
+          # `jq` construit le JSON, wrangler le lit sur son entrée standard.
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || unset CLOUDFLARE_ACCOUNT_ID
+
+          deja=$(bunx wrangler secret list $WRANGLER_ENV --format json 2>/dev/null \
+                 | jq -r '.[].name' 2>/dev/null || true)
+
+          a_generer=""
+          for nom in OAUTH_STATE_SECRET JOBS_TICK_SECRET DATA_CONNECTIONS_ENCRYPTION_KEY; do
+            if [ -n "$(printenv "$nom" || true)" ]; then
+              echo "$nom : fourni par les secrets du dépôt, prioritaire."
+            elif echo "$deja" | grep -qx "$nom"; then
+              echo "$nom : déjà posé sur le Worker, laissé intact."
+            else
+              a_generer="$a_generer $nom"
+            fi
+          done
+
+          if [ -z "$a_generer" ]; then
+            echo "Rien à générer."
+            exit 0
+          fi
+
+          echo "Génération :$a_generer"
+          for nom in $a_generer; do
+            export "$nom=$(openssl rand -base64 32)"
+          done
+
+          jq -n '[$ENV | to_entries[] | select(.key as $k | $noms | index($k))] | from_entries' \
+            --argjson noms "$(printf '%s\n' $a_generer | jq -R . | jq -s .)" \
+            | bunx wrangler secret bulk $WRANGLER_ENV
+
+          echo "::notice::Secrets générés :$a_generer — ils ne seront plus régénérés aux déploiements suivants."
+
       - name: Appliquer les migrations Supabase
         # APRÈS le déploiement, délibérément : on ne modifie le schéma qu'une
         # fois le worker publié sans erreur. Sautée si le projet n'est pas relié.
