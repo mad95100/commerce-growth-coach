@@ -167,7 +167,16 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
       .length >= 2,
     true,
   );
-  t.check("l'environnement ciblé est explicite", /--env=""/.test(deploy), true);
+  // Sans guillemets : passée par une variable, `--env=""` arriverait à
+  // wrangler avec ses guillemets et désignerait un environnement inexistant.
+  // Le contrôle porte sur les lignes de code seules — les commentaires du
+  // workflow citent délibérément la forme fautive pour l'expliquer.
+  const deployCode = deploy
+    .split("\n")
+    .filter((ligne) => !/^\s*#/.test(ligne))
+    .join("\n");
+  t.check("l'environnement ciblé est explicite", /'--env='/.test(deployCode), true);
+  t.check("l'environnement ciblé ne porte pas de guillemets", /--env=""/.test(deployCode), false);
   t.check(
     "les secrets d'exécution sont poussés sur le Worker",
     /wrangler secret bulk/.test(deploy),
