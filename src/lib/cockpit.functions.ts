@@ -209,12 +209,24 @@ export const getCockpit = createServerFn({ method: "POST" })
       const { data: findings } = await supabase
         .from("audit_findings")
         .select(
-          // `evidence` n'était pas lue, et deux règles en dépendaient sans le savoir :
-          // le briefing y prend la preuve qu'il affiche au marchand (elle était donc
-          // vide en permanence), et le plan y lit si une conclusion n'est qu'un
-          // constat technique — sans quoi la restriction ne s'appliquait jamais en
-          // production, quoi qu'en disent les tests unitaires.
-          "id, title, category, severity, status, estimated_gain_min, estimated_gain_max, difficulty, time_minutes, confidence, auto_correction, audit_id, finding_key, caused_by, priority_score, priority_band, priority_reason, epistemic_level, blocks_count, sort_order, evidence",
+          // TROIS COLONNES MANQUAIENT ICI, et chacune portait une règle entière.
+          //
+          // `evidence` : le briefing y prend la preuve qu'il affiche au marchand
+          // — elle était donc vide en permanence — et le plan y lit si une
+          // conclusion n'est qu'un constat technique.
+          //
+          // `history_action` et `history_note` : toute la mémoire des corrections
+          // déjà tentées. Sans elles, `historyRank` retombait sur sa valeur par
+          // défaut pour chaque ligne : une correction à reprendre en priorité ne
+          // remontait jamais, une piste déjà tentée sans effet n'était jamais
+          // écartée, et le plan n'expliquait jamais pourquoi il ne reproposait
+          // pas la même chose. La mémoire existait, elle n'atteignait pas l'écran.
+          //
+          // Ces trois-là ont pour point commun de ne rien casser en leur absence :
+          // le code lit `undefined`, retombe sur un défaut, et se tait. C'est
+          // pourquoi un contrôle vérifie désormais que TOUT ce que le plan
+          // consomme est réellement chargé.
+          "id, title, category, severity, status, estimated_gain_min, estimated_gain_max, difficulty, time_minutes, confidence, auto_correction, audit_id, finding_key, caused_by, priority_score, priority_band, priority_reason, epistemic_level, blocks_count, sort_order, evidence, history_action, history_note",
         )
         .eq("audit_id", audit.id)
         .order("sort_order");

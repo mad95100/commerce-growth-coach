@@ -627,4 +627,32 @@ export default defineSuite("Audits — le prochain geste", (t) => {
     cockpitCode.includes("buildNextMovePlan(rows, outcomes)"),
     true,
   );
+
+  // LE GARDE-FOU SYSTÉMATIQUE, et c'est lui qui compte le plus.
+  //
+  // Trois colonnes manquaient au `select` : `evidence`, `history_action` et
+  // `history_note`. Aucune n'a jamais rien cassé — le code lit `undefined`,
+  // retombe sur un défaut et se tait. Conséquences réelles : la preuve affichée
+  // au marchand était vide en permanence, et TOUTE la mémoire des corrections
+  // déjà tentées n'atteignait jamais le plan, si bien qu'une piste écartée
+  // pouvait être reproposée indéfiniment.
+  //
+  // Vérifier ces trois-là ne suffirait pas : la prochaine colonne ajoutée au
+  // type retomberait dans le même silence. Le contrôle confronte donc TOUT ce
+  // que `PlannableFinding` déclare à ce que la requête charge réellement.
+  const nextMoveCode = readFileSync(
+    join(new URL("../../", import.meta.url).pathname, "src/lib/next-move.ts"),
+    "utf8",
+  );
+  const typeBlock = nextMoveCode.slice(
+    nextMoveCode.indexOf("export type PlannableFinding"),
+    nextMoveCode.indexOf("export type PlannedMove"),
+  );
+  const consumed = [...typeBlock.matchAll(/^ {2}([a-z_]+)\??:/gm)].map((m) => m[1]);
+  t.check("le type consommé par le plan est bien lu", consumed.length > 10, true);
+
+  const findingsSelect = cockpitCode.slice(cockpitCode.indexOf("audit_findings"));
+  const selectClause = findingsSelect.slice(0, findingsSelect.indexOf(".eq("));
+  const notLoaded = consumed.filter((field) => !new RegExp(`\\b${field}\\b`).test(selectClause));
+  t.check("chaque champ dont le plan dépend est réellement chargé", notLoaded, []);
 });

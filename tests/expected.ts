@@ -98,7 +98,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/next-move.test.ts",
-    minChecks: 93,
+    minChecks: 100,
     covers:
       "Le prochain geste : rien n'est proposé tant que ce qui le cause n'est pas corrigé, une correction qui a fait reculer la boutique passe avant tout gain potentiel, un constat technique dont le coût n'est pas mesuré ne passe jamais devant une perte chiffrée (mais reprend la tête quand rien n'est chiffrable), ce qui est prouvé est gardé, et une chaîne causale corrompue depuis le navigateur ne vide jamais l'écran de pilotage.",
   },
