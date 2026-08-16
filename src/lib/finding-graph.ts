@@ -161,10 +161,22 @@ const BUSINESS_PREFIXES = ["shopify.", "meta.", "google.", "organic.", "cross.",
  * fait, et c'est ce lien qui autorise à parler d'argent.
  */
 export function isTechnicalOnly(finding: GraphFinding): boolean {
-  const basedOn = (finding.evidence?.based_on ?? "").toLowerCase();
-  if (!hasSubstance(finding.evidence?.based_on)) return false;
-  if (!basedOn.includes(TECHNICAL_PREFIX)) return false;
-  return !BUSINESS_PREFIXES.some((prefix) => basedOn.includes(prefix));
+  return isTechnicalOnlyEvidence(finding.evidence?.based_on);
+}
+
+/**
+ * La même règle, lue sur la preuve brute.
+ *
+ * Exportée sous cette forme parce que `next-move.ts` a besoin du même verdict
+ * sur des lignes venues de la base, où `evidence` est une colonne `jsonb` dont
+ * on ne présume rien. Une seconde implémentation là-bas finirait par diverger
+ * de celle-ci — et le jour où elles divergent, la règle ne veut plus rien dire.
+ */
+export function isTechnicalOnlyEvidence(basedOn: unknown): boolean {
+  if (!hasSubstance(basedOn)) return false;
+  const text = String(basedOn).toLowerCase();
+  if (!text.includes(TECHNICAL_PREFIX)) return false;
+  return !BUSINESS_PREFIXES.some((prefix) => text.includes(prefix));
 }
 
 /**
@@ -277,7 +289,7 @@ function normalizeText(text: unknown): string {
 }
 
 /** Le champ dit-il réellement quelque chose ? */
-export function hasSubstance(text: string | null | undefined): boolean {
+export function hasSubstance(text: unknown): boolean {
   const normalized = normalizeText(text);
   if (normalized.length < MIN_EVIDENCE_CHARS) return false;
   return !EMPTY_MARKERS.has(normalized);

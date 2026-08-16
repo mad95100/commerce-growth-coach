@@ -392,6 +392,31 @@ export function Cockpit({ storeId }: { storeId: string }) {
             </ul>
           </div>
         )}
+
+        {/* CONSTATS TECHNIQUES. Ni cachés, ni proposés comme le geste à faire.
+            Les taire ferait disparaître un défaut réel du rapport ; les mettre
+            en tête ferait passer une lenteur de serveur devant une fuite
+            chiffrée sur les commandes. Ils sont donc listés à part, avec ce qui
+            manque pour trancher. */}
+        {c.plan && c.plan.technical.length > 0 && (
+          <div className="mt-4 rounded-xl border border-dashed border-border p-4">
+            <div className="text-sm font-medium">
+              {c.plan.technical.length} constat{c.plan.technical.length > 1 ? "s" : ""} technique
+              {c.plan.technical.length > 1 ? "s" : ""}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Réels et vérifiés sur ton site. Ce qu'ils coûtent n'est pas mesuré : ils ne passent
+              donc pas devant une perte chiffrée, et aucun montant ne leur est attribué.
+            </p>
+            <ul className="mt-3 space-y-1.5">
+              {c.plan.technical.map((item) => (
+                <li key={item.id} className="text-sm">
+                  • {item.title}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </section>
   );

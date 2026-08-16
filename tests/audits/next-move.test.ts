@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   MEASURE_BY_CATEGORY,
   buildNextMovePlan,
+  isTechnicalConstat,
   type PlannableFinding,
 } from "../../src/lib/next-move";
 import { defineSuite } from "../harness";
@@ -483,4 +486,145 @@ export default defineSuite("Audits — le prochain geste", (t) => {
     JSON.stringify(buildNextMovePlan(sample)),
   );
   t.check("à score égal, l'ordre décidé à l'audit tranche", buildNextMovePlan(sample).now?.id, "1");
+
+  // =========================================================================
+  // UN CONSTAT TECHNIQUE NE PASSE PAS DEVANT UNE PERTE MESURÉE
+  // =========================================================================
+  // Le moteur prive déjà un constat purement technique de tout montant et lui
+  // interdit la bande « critique ». Cela ne suffisait pas ici : le classement
+  // se fait d'abord sur le score, où la sévérité pèse. Une lenteur de serveur
+  // annoncée « high » pouvait être proposée comme LE geste à faire maintenant,
+  // devant une fuite chiffrée sur les commandes réelles.
+
+  const constatTechnique = make({
+    id: "id-tech",
+    finding_key: "site-lent",
+    title: "Le site met 2,4 secondes à répondre",
+    // Le score reste élevé : c'est précisément le cas dangereux. La sévérité
+    // pèse dans le score, et rien dans le score ne sait que la preuve est
+    // uniquement technique.
+    priority_score: 900,
+    estimated_gain_min: null,
+    estimated_gain_max: null,
+    evidence: { based_on: "storefront.response_ms : 2 400 ms", assumptions: null },
+  });
+  const perteMesuree = make({
+    id: "id-fuite",
+    finding_key: "frais-caches",
+    title: "Les frais de port apparaissent au paiement",
+    priority_score: 120,
+    estimated_gain_min: 2000,
+    estimated_gain_max: 6000,
+    evidence: { based_on: "shopify.cart_abandonment_rate : 78 %", assumptions: null },
+  });
+
+  const arbitre = buildNextMovePlan([constatTechnique, perteMesuree]);
+  t.check(
+    "malgré un score supérieur, le constat technique ne devient pas le geste",
+    arbitre.now?.id,
+    "id-fuite",
+  );
+  t.check(
+    "il n'est pas caché pour autant",
+    arbitre.technical.map((item) => item.id),
+    ["id-tech"],
+  );
+  t.check(
+    "et la réponse du directeur dit pourquoi il ne passe pas devant",
+    arbitre.rationale.includes("rien ne mesure encore ce qu'il coûte"),
+    true,
+  );
+  t.check(
+    "il reste dans la suite du plan, pas écarté du travail",
+    arbitre.then.some((move) => move.id === "id-tech"),
+    true,
+  );
+
+  // LA CONTREPARTIE, qui rend la règle juste. Sur une boutique où rien n'est
+  // chiffrable, le constat technique est le meilleur geste disponible : le
+  // proposer est alors la bonne réponse, pas un pis-aller.
+  const rienDeChiffre = buildNextMovePlan([
+    constatTechnique,
+    make({
+      id: "id-flou",
+      finding_key: "autre",
+      title: "Autre piste sans montant",
+      priority_score: 10,
+      estimated_gain_min: null,
+      estimated_gain_max: null,
+      evidence: { based_on: "shopify.orders_30d : 3 commandes", assumptions: null },
+    }),
+  ]);
+  t.check(
+    "sans aucune perte chiffrée, le constat technique reprend la tête",
+    rienDeChiffre.now?.id,
+    "id-tech",
+  );
+  t.check(
+    "et rien ne prétend alors qu'il a été relégué",
+    rienDeChiffre.rationale.includes("ne passe pas devant"),
+    false,
+  );
+
+  // La preuve croisée lève la restriction : c'est exactement le lien que la
+  // règle exige, et il est alors lisible dans la preuve elle-même.
+  const constatCroise = make({
+    ...constatTechnique,
+    id: "id-tech-croise",
+    finding_key: "site-lent-mesure",
+    evidence: {
+      based_on: "storefront.response_ms : 2 400 ms et cross.lenteur_et_trafic_perdu",
+      assumptions: null,
+    },
+  });
+  const croise = buildNextMovePlan([constatCroise, perteMesuree]);
+  t.check(
+    "un constat croisé avec une mesure reprend sa place au score",
+    croise.now?.id,
+    "id-tech-croise",
+  );
+  t.check("et ne figure pas parmi les constats techniques", croise.technical.length, 0);
+
+  // Entrées hostiles : `evidence` est une colonne `jsonb` ouverte. Se tromper
+  // en croyant à un constat technique effacerait un vrai problème du plan ; se
+  // tromper dans l'autre sens ne fait que laisser une conclusion à sa place.
+  for (const [label, evidence] of [
+    ["absente", undefined],
+    ["nulle", null],
+    ["une chaîne", "storefront.response_ms"],
+    ["un tableau", ["storefront.response_ms"]],
+    ["un nombre", 42],
+    ["sans based_on", { assumptions: "rien" }],
+    ["based_on vide", { based_on: "" }],
+    ["based_on non textuel", { based_on: { a: 1 } }],
+  ] as Array<[string, unknown]>) {
+    t.check(
+      `une preuve ${label} ne relègue personne`,
+      isTechnicalConstat(make({ evidence })),
+      false,
+    );
+  }
+  t.check(
+    "une preuve technique bien formée est bien reconnue",
+    isTechnicalConstat(constatTechnique),
+    true,
+  );
+
+  // COHÉRENCE DE BOUT EN BOUT. La règle ne sert à rien si la colonne qui la
+  // porte n'est pas lue. Elle ne l'était pas — et le briefing y prenait déjà
+  // silencieusement une preuve toujours vide.
+  const cockpitCode = readFileSync(
+    join(new URL("../../", import.meta.url).pathname, "src/lib/cockpit.functions.ts"),
+    "utf8",
+  );
+  t.check(
+    "le cockpit charge bien la preuve des problèmes",
+    /\.select\(\s*(\/\/[^\n]*\n\s*)*"[^"]*\bevidence\b/.test(cockpitCode),
+    true,
+  );
+  t.check(
+    "et il la donne au plan",
+    cockpitCode.includes("buildNextMovePlan(rows, outcomes)"),
+    true,
+  );
 });

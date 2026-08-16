@@ -27,6 +27,7 @@
 
 import {
   BAND_RANK,
+  isTechnicalOnlyEvidence,
   toEpistemicLevel,
   toPriorityBand,
   type PriorityBand,
@@ -53,6 +54,11 @@ export type PlannableFinding = {
   auto_correction?: unknown;
   sort_order?: number | null;
   audit_id?: string | null;
+  /**
+   * Colonne `jsonb` : la preuve citée par le moteur. On n'en lit que
+   * `based_on`, et sans rien présumer de sa forme.
+   */
+  evidence?: unknown;
   /**
    * Ce que la mémoire de la boutique disait de cette piste au moment de
    * l'audit : `proposer`, `prioriser`, `reformuler` ou `ecarter`.
@@ -127,6 +133,15 @@ export type NextMovePlan = {
   blocked: BlockedMove[];
   /** Conclusions que l'audit n'a pas pu établir : à vérifier, pas à corriger. */
   unknowns: Array<{ id: string; title: string }>;
+  /**
+   * Constats techniques dont l'effet commercial n'est pas mesuré.
+   *
+   * Ils ne sont ni cachés ni proposés comme LE geste : ils sont listés à part,
+   * avec ce qui manque pour trancher. Les taire ferait disparaître un défaut
+   * réel ; les mettre en tête ferait passer une lenteur de serveur devant une
+   * fuite chiffrée sur les commandes.
+   */
+  technical: Array<{ id: string; title: string }>;
   /** Corrections dont l'effet est prouvé. Ce qui marche, et qu'on garde. */
   proven: Array<{ findingId: string; title: string; headline: string | null }>;
   /** Corrections appliquées sans effet mesurable : le diagnostic était à côté. */
@@ -168,6 +183,25 @@ function causesOf(finding: PlannableFinding): string[] {
   return finding.caused_by.filter(
     (key): key is string => typeof key === "string" && key.length > 0,
   );
+}
+
+/**
+ * Cette ligne n'est-elle qu'un constat technique ?
+ *
+ * Lecture tolérante d'une colonne `jsonb` ouverte : tout ce qui n'a pas la
+ * forme attendue vaut « non », c'est-à-dire aucune restriction. Se tromper dans
+ * ce sens ne fait que laisser une conclusion à sa place ; se tromper dans
+ * l'autre effacerait un vrai problème du plan.
+ */
+export function isTechnicalConstat(finding: PlannableFinding): boolean {
+  const evidence = finding.evidence;
+  if (!evidence || typeof evidence !== "object") return false;
+  return isTechnicalOnlyEvidence((evidence as { based_on?: unknown }).based_on);
+}
+
+/** Cette ligne porte-t-elle un montant, donc une conséquence commerciale chiffrée ? */
+function hasAmount(finding: PlannableFinding): boolean {
+  return (finding.estimated_gain_max ?? 0) > 0 || (finding.estimated_gain_min ?? 0) > 0;
 }
 
 /** Du plus urgent au moins urgent, à égalité l'ordre décidé à l'audit. */
@@ -289,6 +323,7 @@ export function buildNextMovePlan(
       then: [],
       blocked: [],
       unknowns: [],
+      technical: [],
       proven,
       ineffective,
       rationale: parts.join(" "),
@@ -315,7 +350,35 @@ export function buildNextMovePlan(
   // sur le classement seul — mieux vaut un ordre imparfait qu'un écran vide.
   if (actionable.length === 0) actionable = [...pending];
 
-  const ranked = [...actionable].sort(byUrgency);
+  // ═════════════════════════════════════════════════════════════════════════
+  // UN CONSTAT TECHNIQUE NE PASSE PAS DEVANT UNE PERTE MESURÉE
+  // ═════════════════════════════════════════════════════════════════════════
+  // Le moteur prive déjà un constat purement technique de tout montant et lui
+  // interdit la bande « critique ». Cela ne suffisait pas ici : le classement
+  // se fait d'abord sur le score, où la sévérité pèse. Une lenteur de serveur
+  // annoncée « high » pouvait donc être proposée comme LE geste à faire
+  // maintenant, devant une fuite chiffrée sur les commandes réelles.
+  //
+  // La règle est contextuelle, et c'est ce qui la rend juste. Le constat
+  // technique n'est relégué que s'il existe, ailleurs dans le plan, une
+  // conclusion qui porte un montant. Sur une boutique où rien n'est chiffrable,
+  // il reste le meilleur geste disponible — et le proposer est alors la bonne
+  // réponse, pas un pis-aller.
+  const measuredExists = actionable.some((f) => !isTechnicalConstat(f) && hasAmount(f));
+  const demoted = new Set(measuredExists ? actionable.filter((f) => isTechnicalConstat(f)) : []);
+
+  const ranked = [...actionable].sort((a, b) => {
+    const technical = Number(demoted.has(a)) - Number(demoted.has(b));
+    if (technical !== 0) return technical;
+    return byUrgency(a, b);
+  });
+
+  // Ils ne disparaissent pas pour autant : les taire ferait disparaître un
+  // défaut réel du rapport.
+  const technical = pending
+    .filter((f) => isTechnicalConstat(f))
+    .sort(byUrgency)
+    .map((f) => ({ id: f.id, title: f.title }));
 
   // Ce que chaque correction fait tomber : les problèmes en attente qui la
   // citent comme cause, directement.
@@ -366,6 +429,19 @@ export function buildNextMovePlan(
   }
   // Pourquoi cette action-là et pas une redite : la mémoire l'explique.
   if (now.historyNote) parts.push(now.historyNote);
+
+  // Pourquoi PAS le constat technique, alors qu'il est peut-être plus visible.
+  // Le dire vaut mieux que de le laisser disparaître en bas de liste : le
+  // marchand qui voit son site lent doit comprendre qu'on ne l'ignore pas, on
+  // le classe.
+  if (demoted.size > 0) {
+    const names = enumerate([...demoted].slice(0, 2).map((f) => f.title));
+    parts.push(
+      demoted.size === 1
+        ? `${names} est un constat technique réel, mais rien ne mesure encore ce qu'il coûte : je ne le fais pas passer devant une perte chiffrée.`
+        : `${names} et ${demoted.size - 2 > 0 ? `${demoted.size - 2} autre(s) constat(s) technique(s)` : "l'autre constat technique"} sont réels, mais rien ne mesure encore ce qu'ils coûtent : ils ne passent pas devant une perte chiffrée.`,
+    );
+  }
   if (now.timeMinutes) parts.push(`Compte ${formatMinutes(now.timeMinutes)}.`);
   parts.push(`Ensuite, regarde ${now.measure} : c'est ça qui dira si ça a marché.`);
   if (unknowns.length > 0) {
@@ -382,6 +458,7 @@ export function buildNextMovePlan(
     then,
     blocked,
     unknowns,
+    technical,
     proven,
     ineffective,
     rationale: parts.join(" "),
