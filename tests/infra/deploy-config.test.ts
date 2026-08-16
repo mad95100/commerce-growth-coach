@@ -246,6 +246,24 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
     true,
   );
 
+  // Second niveau : ils n'empêchent pas le worker de démarrer, mais sans eux
+  // aucune boutique ne peut être connectée et aucun audit produit. Nommés, pas
+  // bloquants — déployer la seule interface reste légitime.
+  for (const produit of ["SHOPIFY_CLIENT_ID", "SHOPIFY_CLIENT_SECRET", "AI_API_KEY"]) {
+    t.check(
+      `${produit} manquant est signalé sans faire échouer le déploiement`,
+      new RegExp(`for nom in [^\\n]*${produit}[^\\n]*; do\\n[^\\n]*absents_produit`).test(
+        deployCode,
+      ),
+      true,
+    );
+  }
+  t.check(
+    "le piège des variables « Texte » effacées au déploiement est nommé",
+    /le déploiement suivant les efface/.test(deployCode),
+    true,
+  );
+
   // --- Le contrôle de démarrage s'exécute vraiment --------------------------
   // Sauté en silence, il donnait un déploiement vert sur un worker que
   // personne ne pouvait ouvrir. À défaut d'adresse configurée, celle que

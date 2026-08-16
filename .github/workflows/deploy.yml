@@ -290,6 +290,28 @@ jobs:
             echo "::error::À ajouter dans Settings → Secrets and variables → Actions du dépôt GitHub, puis relancer ce déploiement."
             exit 1
           fi
+
+          # SECOND NIVEAU : ceux-là n'empêchent pas le worker de démarrer, mais
+          # ils privent le produit de sa raison d'être — sans identifiants
+          # Shopify aucune boutique ne peut être connectée, sans clé IA aucun
+          # audit ne peut être produit. Un avertissement nommé, pas un échec :
+          # un déploiement de la seule interface reste légitime.
+          #
+          # LE PIÈGE À CONNAÎTRE. Ajoutés en « Texte » dans l'interface
+          # Cloudflare, ils disparaissent au déploiement suivant : `wrangler
+          # deploy` remplace l'ensemble des variables par celles de
+          # `wrangler.toml`. Seuls les SECRETS survivent. C'est ce qui les a
+          # fait disparaître une première fois.
+          absents_produit=""
+          for nom in SHOPIFY_CLIENT_ID SHOPIFY_CLIENT_SECRET AI_API_KEY; do
+            echo "$poses" | grep -qx "$nom" || absents_produit="$absents_produit $nom"
+          done
+          if [ -n "$absents_produit" ]; then
+            echo "::warning::Le worker démarre, mais le produit est incomplet — secrets absents :$absents_produit"
+            echo "::warning::Sans identifiants Shopify aucune boutique ne peut être connectée ; sans clé IA aucun audit ne peut être produit."
+            echo "::warning::À poser en secrets du dépôt GitHub. Les ajouter en « Texte » dans Cloudflare ne tient pas : le déploiement suivant les efface."
+          fi
+
           echo "Configuration d'exécution complète."
 
       - name: Appliquer les migrations Supabase
