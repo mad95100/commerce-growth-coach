@@ -69,8 +69,8 @@ SUPABASE_URL = "https://bexepsagfrohwdmhjjxk.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_WXls_KQEJsZz9BrR-MW81Q_EiGhI4-1"
 APP_URL = "https://ecompilot-ai.madani-mohamed.workers.dev"
 AI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
-AI_AUDIT_MODEL = "gemini-2.5-pro"
-AI_FIX_MODEL = "gemini-2.5-flash"
+AI_AUDIT_MODEL = "gemini-3.7-flash"
+AI_FIX_MODEL = "gemini-3.5-flash"
 
 # --- Environnement de pré-production -----------------------------------------
 # Worker distinct, base distincte si souhaité, mêmes secrets à renseigner
@@ -87,8 +87,8 @@ SUPABASE_URL = "https://bexepsagfrohwdmhjjxk.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_WXls_KQEJsZz9BrR-MW81Q_EiGhI4-1"
 APP_URL = "https://preview.ecompilot.ai"
 AI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
-AI_AUDIT_MODEL = "gemini-2.5-pro"
-AI_FIX_MODEL = "gemini-2.5-flash"
+AI_AUDIT_MODEL = "gemini-3.7-flash"
+AI_FIX_MODEL = "gemini-3.5-flash"
 
 [env.preview.assets]
 binding = "ASSETS"

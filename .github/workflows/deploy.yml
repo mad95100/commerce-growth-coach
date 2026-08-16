@@ -348,23 +348,47 @@ jobs:
           curl -s --max-time 30 -H "Authorization: Bearer $AI_API_KEY" "$base/models" \
             | jq -r '.data[]?.id // empty' | sort || echo "(catalogue illisible)"
 
-          # L'appel de contrôle est réduit au minimum : un mot en entrée, une
-          # poignée de jetons en sortie.
+          # DISPONIBLE NE VEUT PAS DIRE COMPATIBLE. L'audit n'envoie pas un
+          # message ordinaire : il force un appel d'outil
+          # (`tool_choice: {type:"function"}`) et lit `tool_calls[0]`. Un modèle
+          # qui répond « pong » mais ignore l'outil ferait échouer chaque audit
+          # avec « Réponse IA invalide ». La sonde reproduit donc la forme
+          # réelle de l'appel, et vérifie que l'outil a bien été appelé.
           echec=""
           for modele in "$audit" "$fix"; do
-            corps=$(jq -n --arg m "$modele" \
-              '{model:$m, max_tokens:8, messages:[{role:"user",content:"ping"}]}')
-            code=$(curl -s -o reponse.json -w '%{http_code}' --max-time 60 \
+            corps=$(jq -n --arg m "$modele" '{
+              model: $m,
+              messages: [{role:"user", content:"Boutique de test : 0 commande sur 30 jours."}],
+              tools: [{
+                type: "function",
+                function: {
+                  name: "sonde",
+                  description: "Renvoie un accusé de lecture.",
+                  parameters: {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: { ok: {type: "boolean"} },
+                    required: ["ok"]
+                  }
+                }
+              }],
+              tool_choice: {type: "function", function: {name: "sonde"}}
+            }')
+            code=$(curl -s -o reponse.json -w '%{http_code}' --max-time 90 \
               -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" \
               -d "$corps" "$base/chat/completions" || true)
             [ -n "$code" ] || code=000
-            if [ "$code" = "200" ]; then
-              echo "$modele : répond (HTTP 200)."
-            else
-              # Le message d'erreur du fournisseur est reproduit : c'est lui qui
-              # nomme la cause. Il ne contient pas la clé.
+
+            if [ "$code" != "200" ]; then
+              # Le message du fournisseur est reproduit : c'est lui qui nomme la
+              # cause. Il ne contient pas la clé.
               echo "::error::$modele : HTTP $code — $(jq -r '.error.message // "réponse illisible"' reponse.json 2>/dev/null | head -c 300)"
               echec="$echec $modele"
+            elif [ "$(jq -r '.choices[0].message.tool_calls[0].function.name // ""' reponse.json)" != "sonde" ]; then
+              echo "::error::$modele : répond, mais n'honore pas tool_choice — l'audit échouerait sur « Réponse IA invalide »."
+              echec="$echec $modele"
+            else
+              echo "$modele : répond et honore l'appel d'outil forcé."
             fi
             rm -f reponse.json
           done
@@ -373,7 +397,7 @@ jobs:
             echo "::error::Modèle(s) inutilisable(s) :$echec. L'audit échouerait en production."
             exit 1
           fi
-          echo "Les deux modèles répondent."
+          echo "Les deux modèles sont compatibles avec l'intégration."
 
       - name: Le parcours de connexion Shopify répond
         env:
