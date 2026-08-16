@@ -75,8 +75,19 @@ function raw(overrides: Partial<ShopifyRaw> = {}): ShopifyRaw {
 
 export default defineSuite("Sources — observations et diagnosticabilité", (t) => {
   // --- L'architecture est commune, pas un silo ----------------------------
-  t.check("les six sources prévues sont déclarées", OBSERVATION_SOURCES.length, 7);
-  for (const source of ["shopify", "meta", "google", "organic", "market", "competitors"]) {
+  // Le compte suit l'ajout de sources ; ce qui ne doit pas bouger, c'est que
+  // chacune passe par la MÊME couche. Le site public s'y est ajouté comme les
+  // autres, sans rouvrir le moteur.
+  t.check("chaque source prévue est déclarée", OBSERVATION_SOURCES.length, 8);
+  for (const source of [
+    "shopify",
+    "meta",
+    "google",
+    "organic",
+    "storefront",
+    "market",
+    "competitors",
+  ]) {
     t.check(
       `« ${source} » alimentera le même moteur`,
       (OBSERVATION_SOURCES as readonly string[]).includes(source),

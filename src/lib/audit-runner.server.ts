@@ -72,6 +72,8 @@ export async function executeAuditWork(input: {
   // rouvrir. Chaque observation porte sa preuve, sa taille d'échantillon et ce
   // qu'elle permet d'établir.
   const reports: SourceReport[] = [];
+  /** Adresses où des commandes ont réellement atterri, à vérifier sur le site. */
+  let landings: Array<{ path: string; orders: number }> = [];
   try {
     const { loadChannelCredentials } = await import("@/lib/tracking.server");
     const creds = await loadChannelCredentials(supabase, store.id);
@@ -85,6 +87,7 @@ export async function executeAuditWork(input: {
         creds.shopify.encryptedToken,
       );
       reports.push(shopifyReports.shopify, shopifyReports.organic);
+      landings = shopifyReports.landings;
     }
     if (creds.meta) {
       const { fetchMetaObservations } = await import("@/lib/connectors/meta-observe.server");
@@ -103,6 +106,22 @@ export async function executeAuditWork(input: {
     // Une collecte en échec ne doit pas faire échouer l'audit : il repart
     // alors sur les seules données déclarées, en le disant.
     console.error("[audit] collecte des observations impossible :", err);
+  }
+
+  // LE SITE PUBLIC. L'angle mort le plus coûteux : le moteur diagnostiquait la
+  // conversion sans avoir jamais ouvert la page que le visiteur reçoit. Une
+  // fiche parfaite dans l'API peut être servie sans bouton d'achat, et une
+  // page d'arrivée qui a vendu peut renvoyer 404 depuis des semaines.
+  //
+  // Scan isolé du reste : le site du marchand peut être lent, protégé ou en
+  // panne, et cela ne doit jamais emporter un audit qui a par ailleurs de quoi
+  // conclure. Ce qu'il produit reste des FAITS TECHNIQUES — leur passage à une
+  // explication commerciale n'a lieu que dans le croisement, avec preuve.
+  try {
+    const { scanStorefront } = await import("@/lib/connectors/storefront.server");
+    reports.push(await scanStorefront(store.url, landings));
+  } catch (err) {
+    console.error("[audit] scan du site public impossible :", err);
   }
 
   // Ce que ces données autorisent à conclure — et surtout ce qu'elles

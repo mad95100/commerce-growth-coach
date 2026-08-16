@@ -80,6 +80,18 @@ export const HIGH_PAID_DEPENDENCE_PCT = 70;
 /** Part sans marqueur publicitaire au-delà de laquelle un socle propre existe. */
 export const STRONG_ORGANIC_PCT = 60;
 
+/**
+ * Temps de réponse au-delà duquel la lenteur est un FAIT mesurable.
+ *
+ * Reproduit ici, et non importé du connecteur : `cross-source.ts` reste pur et
+ * sans dépendance aux sources, faute de quoi chaque nouvelle source pourrait
+ * le rouvrir. La valeur est un seuil de mesure, pas une règle de conversion.
+ */
+export const SLOW_RESPONSE_MS = 2000;
+
+/** Abandon de panier au-delà duquel le tunnel mérite d'être regardé. */
+export const HIGH_ABANDONMENT_PCT = 70;
+
 function certaintyFromSample(sample: number, strong: number, weak: number): CrossCertainty {
   if (sample >= strong) return "deduction_forte";
   if (sample >= weak) return "hypothese";
@@ -445,6 +457,143 @@ export function crossSignals(observations: Observation[]): CrossSignal[] {
         "N'en déduis SURTOUT PAS que ces commandes sont du trafic direct. Une absence de référent est une absence d'information, jamais une origine.",
       certainty: "fait",
       evidence: [coverage.evidence],
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // DU FAIT TECHNIQUE À L'EXPLICATION COMMERCIALE — et seulement ici
+  // ═══════════════════════════════════════════════════════════════════════
+  // Le scan du site public ne produit que des constats : « le serveur répond en
+  // 2 340 ms », « cette page renvoie 404 ». Un constat n'est pas une cause. Il
+  // ne le devient qu'au contact d'une donnée commerciale qui montre une perte,
+  // et l'énoncé porte alors les DEUX preuves. Sans la seconde, un site lent
+  // reste un site lent.
+  const responseMs = findObservation(observations, "storefront.response_ms");
+  const brokenLandings = findObservation(observations, "storefront.landing_pages_broken");
+  const robotsBlocks = findObservation(observations, "storefront.robots_blocks_all");
+  const productNoindex = findObservation(observations, "storefront.produit_noindex");
+  const policyPages = findObservation(observations, "storefront.policy_pages");
+  const addToCart = findObservation(observations, "storefront.product_add_to_cart");
+
+  // 1. Une page qui a produit des commandes et qui ne répond plus.
+  // Pas d'hypothèse ici : les commandes sont enregistrées, le code d'erreur est
+  // relevé. C'est le seul cas où un constat technique se suffit — parce que la
+  // preuve commerciale est dans le constat lui-même.
+  if (brokenLandings?.value != null && brokenLandings.value > 0) {
+    signals.push({
+      id: "cross.page_arrivee_cassee",
+      statement: `${Math.round(brokenLandings.value)} page(s) où des commandes ont réellement atterri renvoient aujourd'hui une erreur.`,
+      investigate: [
+        "Les publicités et les liens qui pointent encore vers ces adresses : ils envoient du monde dans le vide.",
+        "Une redirection depuis l'ancienne adresse, si le produit existe encore sous un autre chemin.",
+      ],
+      doNotConclude:
+        "Ne chiffre pas la perte : on sait que ces pages ont vendu, pas ce qu'elles vendraient aujourd'hui. Le fait est qu'elles ne répondent plus, pas qu'il manque un montant précis.",
+      certainty: "fait",
+      evidence: [brokenLandings.evidence],
+    });
+  }
+
+  // 2. Lenteur du site ET trafic qui n'achète pas.
+  // Les deux faits séparément ne prouvent rien. Ensemble, ils font une piste —
+  // une HYPOTHÈSE, jamais un verdict, car le temps de réponse serveur n'est pas
+  // le temps d'affichage et rien ici ne mesure le second.
+  if (responseMs?.value != null && clicks?.value != null && orders?.value != null) {
+    const postClick = clicks.value > 0 ? (orders.value / clicks.value) * 100 : null;
+    const slow = responseMs.value >= SLOW_RESPONSE_MS;
+
+    if (slow && postClick != null && clicks.value >= MIN_CLICKS_FOR_POST_CLICK) {
+      if (postClick < WEAK_POST_CLICK_PCT) {
+        signals.push({
+          id: "cross.lenteur_et_trafic_perdu",
+          statement: `Le site met jusqu'à ${Math.round(responseMs.value)} ms à répondre, et seulement ${postClick.toFixed(2)} % du trafic payant aboutit à une commande.`,
+          investigate: [
+            "Le temps de réponse du serveur, mesurable sur la page d'arrivée des campagnes en priorité.",
+            "Les scripts tiers chargés avant l'affichage, qui allongent l'attente sans rien montrer.",
+          ],
+          doNotConclude:
+            "N'affirme PAS que la lenteur explique la perte. Ce qui est mesuré est un temps de réponse serveur, pas un temps d'affichage, et une page lente qui promet la bonne chose vend mieux qu'une page rapide qui promet autre chose. Les deux faits coexistent ; le lien reste à établir.",
+          certainty: "hypothese",
+          evidence: [responseMs.evidence, clicks.evidence, orders.evidence],
+        });
+      } else if (postClick >= HEALTHY_POST_CLICK_PCT) {
+        // LE SIGNAL QUI EMPÊCHE LA DÉDUCTION AUTOMATIQUE. Sans lui, un site
+        // lent serait toujours présenté comme un problème de conversion, y
+        // compris sur une boutique qui convertit très bien.
+        signals.push({
+          id: "cross.lenteur_sans_effet_mesurable",
+          statement: `Le site répond lentement (jusqu'à ${Math.round(responseMs.value)} ms), et pourtant le trafic payant convertit à ${postClick.toFixed(2)} %.`,
+          investigate: [
+            "La lenteur reste à corriger pour elle-même, mais elle ne passe pas devant ce qui bloque réellement.",
+          ],
+          doNotConclude:
+            "Ne présente PAS cette lenteur comme la cause d'une perte de conversion : les chiffres de la boutique la contredisent. Un fait technique ne devient un problème commercial que si la mesure le montre.",
+          certainty: "fait",
+          evidence: [responseMs.evidence, orders.evidence],
+        });
+      }
+    }
+  }
+
+  // 3. Indexation interdite ET acquisition naturelle inexistante.
+  const naturalShare = findObservation(observations, "organic.recherche_order_share");
+  const blocked = (robotsBlocks?.value ?? 0) > 0 || (productNoindex?.value ?? 0) > 0;
+  if (blocked) {
+    const noSearchTraffic = naturalShare?.value != null && naturalShare.value < 1;
+    signals.push({
+      id: "cross.indexation_bloquee",
+      statement: noSearchTraffic
+        ? `Le site demande explicitement à ne pas être référencé, et la recherche naturelle n'apporte que ${naturalShare?.value?.toFixed(1)} % des commandes.`
+        : "Le site demande explicitement à ne pas être référencé.",
+      investigate: [
+        "La directive d'indexation : est-elle un reste de la mise en ligne, ou un choix assumé ?",
+        "Les pages concernées : tout le site, ou seulement certaines ?",
+      ],
+      doNotConclude: noSearchTraffic
+        ? "Ne conclus pas que lever le blocage fera venir du trafic : le référencement dépend d'abord du contenu et de la concurrence. Ce qui est établi, c'est que le site s'interdit d'être trouvé."
+        : "Ne conclus rien sur le trafic naturel tant qu'on ne l'a pas mesuré : l'interdiction est un fait, son effet ne l'est pas.",
+      certainty: noSearchTraffic ? "deduction_forte" : "fait",
+      evidence: [
+        robotsBlocks?.evidence ?? productNoindex?.evidence ?? "",
+        ...(naturalShare ? [naturalShare.evidence] : []),
+      ].filter(Boolean),
+    });
+  }
+
+  // 4. Absence de garanties visibles ET paniers abandonnés en masse.
+  if (policyPages?.value != null && abandonment != null) {
+    const missing = (policyPages.sample ?? 0) - policyPages.value;
+    if (missing > 0 && abandonment > HIGH_ABANDONMENT_PCT) {
+      signals.push({
+        id: "cross.confiance_et_abandon",
+        statement: `${missing} page(s) de politique (retour, livraison, conditions) ne sont pas servies, et ${Math.round(abandonment)} % des paniers ouverts sont abandonnés.`,
+        investigate: [
+          "Les conditions de retour et de livraison, visibles AVANT le panier plutôt qu'au moment de payer.",
+          "Les frais de port : découverts tard, ils sont la première cause d'abandon documentée.",
+        ],
+        doNotConclude:
+          "N'affirme pas que les pages manquantes causent les abandons. Un taux d'abandon élevé est normal dans le commerce en ligne, et ces deux constats peuvent n'avoir aucun rapport. C'est une piste à vérifier, pas une explication.",
+        certainty: "hypothese",
+        evidence: [policyPages.evidence],
+      });
+    }
+  }
+
+  // 5. Aucun ajout au panier sur la fiche produit servie.
+  // Un fait grave et non ambigu : sans ce formulaire, la page ne peut pas vendre.
+  if (addToCart?.value === 0) {
+    signals.push({
+      id: "cross.fiche_sans_achat_possible",
+      statement:
+        "La fiche produit servie au visiteur ne contient aucun formulaire d'ajout au panier.",
+      investigate: [
+        "Le thème de la boutique, ou une application qui remplace le bouton d'achat.",
+        "Le rendu réel de la page dans un navigateur : le bouton peut être ajouté par un script.",
+      ],
+      doNotConclude:
+        "Ne conclus pas que la boutique ne peut pas vendre : de nombreux thèmes ajoutent le bouton après coup, par script, et le HTML servi ne le montre pas. C'est un constat sur le document reçu, à confirmer dans un navigateur.",
+      certainty: "hypothese",
+      evidence: [addToCart.evidence],
     });
   }
 

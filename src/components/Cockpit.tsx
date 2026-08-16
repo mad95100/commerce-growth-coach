@@ -24,6 +24,7 @@ import {
   Compass,
   Gauge,
   GitBranch,
+  HelpCircle,
   Target,
   TrendingUp,
   TriangleAlert,
@@ -212,6 +213,32 @@ export function Cockpit({ storeId }: { storeId: string }) {
             ))}
           </ul>
         </div>
+      )}
+
+      {/* CE QUE JE N'AI PAS PU MESURER.
+          Sans cette liste, un rapport se lit comme une couverture complète, et
+          un sujet absent passe pour un sujet sain. Les Core Web Vitals, le
+          rendu mobile réel et le tunnel de commande figurent ici en clair :
+          ils ne sont pas mesurables depuis un serveur, et les approcher
+          produirait exactement les chiffres inventés qu'on s'interdit. */}
+      {c.dataGaps.length > 0 && (
+        <details className="rounded-2xl border border-border/60 bg-card/50 p-6">
+          <summary className="cursor-pointer text-xs uppercase tracking-wider text-muted-foreground">
+            <HelpCircle className="mr-2 inline h-4 w-4" />
+            Ce que je n'ai pas pu mesurer ({c.dataGaps.length})
+          </summary>
+          <ul className="mt-4 space-y-3">
+            {c.dataGaps.map((gap) => (
+              <li key={gap.id} className="border-l-2 border-border pl-4">
+                <p className="text-sm font-medium">{gap.label}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{gap.reason}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Ce que cela permettrait : {gap.wouldEnable}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {/* Où en est chaque chantier. Remplace la liste indifférenciée : le

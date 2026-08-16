@@ -345,3 +345,28 @@ export function attributionObservations(input: {
 
   return { observations, gaps };
 }
+
+/**
+ * Pages d'arrivée les plus utilisées, tirées des commandes réelles.
+ *
+ * Les paramètres de campagne sont retirés : c'est le CHEMIN qu'on vérifie, et
+ * deux commandes arrivées sur la même page par deux publicités différentes
+ * concernent la même page.
+ */
+export function topLandingPaths(
+  orders: Array<{ landing_site?: string | null }>,
+  max = 5,
+): Array<{ path: string; orders: number }> {
+  const counts = new Map<string, number>();
+  for (const order of orders) {
+    const raw = (order.landing_site ?? "").trim();
+    if (!raw.startsWith("/")) continue;
+    const path = raw.split("?")[0].split("#")[0];
+    if (!path || path.length > 300) continue;
+    counts.set(path, (counts.get(path) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, max)
+    .map(([path, orders]) => ({ path, orders }));
+}

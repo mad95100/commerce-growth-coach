@@ -8,6 +8,7 @@ import {
   type RawOrder,
   type RawProduct,
 } from "@/lib/connectors/shopify-observe";
+import { topLandingPaths } from "@/lib/connectors/order-attribution";
 import type { SourceReport } from "@/lib/observations";
 
 /**
@@ -17,13 +18,25 @@ import type { SourceReport } from "@/lib/observations";
  * l'origine du trafic qui l'a fait vivre. Les rendre séparément évite de faire
  * du connecteur Shopify un silo qui répondrait aussi pour l'acquisition.
  */
-export type ShopifyReports = { shopify: SourceReport; organic: SourceReport };
+export type ShopifyReports = {
+  shopify: SourceReport;
+  organic: SourceReport;
+  /**
+   * Pages d'arrivée les plus utilisées par les commandes réelles.
+   *
+   * Elles ne sont pas une observation : elles servent au scan du site public à
+   * vérifier que des adresses qui ont RÉELLEMENT vendu répondent encore. C'est
+   * la seule façon de constater qu'une campagne envoie du monde dans le vide.
+   */
+  landings: Array<{ path: string; orders: number }>;
+};
 
 /** Shopify injoignable : les deux lectures le sont aussi, sans aucun zéro. */
 function unreachable(error: string): ShopifyReports {
   return {
     shopify: shopifyUnreachable(error),
     organic: { source: "organic", observations: [], gaps: [], reachable: false, error },
+    landings: [],
   };
 }
 
@@ -131,5 +144,9 @@ export async function fetchShopifyObservations(
   // DEUX rapports, pas un. Les commandes disent l'état de la boutique ET
   // l'origine du trafic qui l'a fait vivre : ce sont deux sources différentes
   // pour le moteur, même si un seul appel réseau les a produites.
-  return { shopify: shopifyObservations(raw), organic: organicReport(raw) };
+  return {
+    shopify: shopifyObservations(raw),
+    organic: organicReport(raw),
+    landings: topLandingPaths(raw.orders),
+  };
 }

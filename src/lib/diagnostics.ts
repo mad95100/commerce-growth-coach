@@ -271,6 +271,38 @@ export const DIAGNOSTICS: Diagnostic[] = [
       "Un contrepoids indépendant au ROAS déclaré : les commandes appartiennent au marchand, pas à la régie qui les revendique.",
   },
   {
+    id: "boutique.site_atteignable",
+    question: "Le site public répond-il, et en combien de temps ?",
+    domain: "boutique",
+    requires: ["storefront.response_ms"],
+    concludes:
+      "Un fait technique, et rien d'autre : un temps de réponse ne devient une explication de perte qu'au contact d'une mesure commerciale qui montre cette perte.",
+  },
+  {
+    id: "boutique.page_arrivee_vivante",
+    question: "Les pages où les commandes ont atterri répondent-elles encore ?",
+    domain: "acquisition",
+    requires: ["storefront.landing_pages_broken"],
+    concludes:
+      "Le seul constat technique qui se suffise : la preuve commerciale est dans le constat lui-même, puisque ces pages ont réellement vendu.",
+  },
+  {
+    id: "boutique.fiche_vendable",
+    question: "La fiche produit servie au visiteur permet-elle d'acheter ?",
+    domain: "conversion",
+    requires: ["storefront.product_add_to_cart"],
+    concludes:
+      "Ce que l'API Admin ne montre pas : une fiche parfaite en base peut être servie sans bouton d'achat.",
+  },
+  {
+    id: "boutique.indexation",
+    question: "Le site s'autorise-t-il à être trouvé par les moteurs ?",
+    domain: "acquisition",
+    requires: ["storefront.robots_blocks_all"],
+    concludes:
+      "Une directive d'indexation oubliée après une mise en ligne rend tout travail de référencement sans effet.",
+  },
+  {
     id: "acquisition.canaux_naturels",
     question: "Quels canaux gratuits apportent réellement des commandes ?",
     domain: "acquisition",

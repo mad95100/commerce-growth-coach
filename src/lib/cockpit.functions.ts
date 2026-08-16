@@ -11,6 +11,7 @@ import type { PriorityBand } from "@/lib/finding-graph";
 import { buildBriefing, summariseWork, type Briefing, type WorkState } from "@/lib/briefing";
 import type { Funnel } from "@/lib/funnel";
 import type { CrossSignal } from "@/lib/cross-source";
+import type { ObservationGap } from "@/lib/observations";
 import { z } from "zod";
 
 /**
@@ -77,6 +78,14 @@ export type Cockpit = {
   funnel: Funnel | null;
   /** Ce qu'aucune source ne montre seule. */
   crossSignals: CrossSignal[];
+  /**
+   * Ce que le diagnostic n'a PAS pu mesurer, et pourquoi.
+   *
+   * Aussi important que le reste : sans cette liste, un rapport se lit comme
+   * une couverture complète, et le marchand croit qu'un sujet absent est un
+   * sujet sain. « Donnée manquante » doit se voir.
+   */
+  dataGaps: ObservationGap[];
   /** Répartition du travail par état, pour remplacer la liste indifférenciée. */
   work: Record<WorkState, number>;
 };
@@ -176,7 +185,7 @@ export const getCockpit = createServerFn({ method: "POST" })
     const { data: audit } = await supabase
       .from("audits")
       .select(
-        "id, score, category_scores, potential_gain_min, potential_gain_max, funnel, cross_signals",
+        "id, score, category_scores, potential_gain_min, potential_gain_max, funnel, cross_signals, data_gaps",
       )
       .eq("store_id", store.id)
       .eq("status", "completed")
@@ -189,6 +198,7 @@ export const getCockpit = createServerFn({ method: "POST" })
     let briefing: Briefing | null = null;
     let funnel: Funnel | null = null;
     let crossed: CrossSignal[] = [];
+    let gaps: ObservationGap[] = [];
     if (audit) {
       // TOUS les problèmes de l'audit, corrigés compris — et non les trois
       // premiers par score. La sélection ne peut plus se faire en SQL : savoir
@@ -247,6 +257,7 @@ export const getCockpit = createServerFn({ method: "POST" })
       const evidence = (leadRow?.evidence ?? {}) as Record<string, string>;
       funnel = (audit.funnel as Funnel | null) ?? null;
       crossed = Array.isArray(audit.cross_signals) ? (audit.cross_signals as CrossSignal[]) : [];
+      gaps = Array.isArray(audit.data_gaps) ? (audit.data_gaps as ObservationGap[]) : [];
 
       briefing = buildBriefing({
         plan,
@@ -321,6 +332,7 @@ export const getCockpit = createServerFn({ method: "POST" })
       briefing,
       funnel,
       crossSignals: crossed,
+      dataGaps: gaps,
       work: summariseWork(plan),
     };
   });
