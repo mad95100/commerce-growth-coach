@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { normalizeCurrency } from "@/lib/currency";
 import {
   buildNextMovePlan,
+  isTechnicalConstat,
   type MeasuredOutcome,
   type NextMovePlan,
   type PlannableFinding,
@@ -285,6 +286,8 @@ export const getCockpit = createServerFn({ method: "POST" })
               rootCause: leadRow.root_cause ?? null,
               impactDescription: leadRow.impact_description ?? null,
               epistemic: leadRow.epistemic_level ?? null,
+              // Décidé par la même règle que partout ailleurs, jamais redéduit ici.
+              technicalOnly: lead ? isTechnicalConstat(lead) : false,
               basedOn: evidence.based_on ?? null,
               assumptions: evidence.assumptions ?? null,
               gainMin: leadRow.estimated_gain_min ?? null,

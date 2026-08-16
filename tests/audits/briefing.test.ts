@@ -387,4 +387,81 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
   t.check("et l'audit le conserve", runner.includes("funnel,"), true);
   t.check("avec les croisements", runner.includes("cross_signals: crossed"), true);
   t.check("et les manques de données", runner.includes("data_gaps"), true);
+
+  // =========================================================================
+  // UNE FUITE MESURÉE NE S'ATTRIBUE PAS À UN CONSTAT TECHNIQUE
+  // =========================================================================
+  // Le dernier endroit où un constat technique pouvait se voir habillé en
+  // perte. La fuite est mesurée et son montant est juste — mais l'afficher sous
+  // le problème en tête revient à LE LUI ATTRIBUER. Quand ce problème n'est
+  // qu'un constat technique, rien n'établit ce lien, et la phrase se lirait
+  // pourtant comme une facture.
+  //
+  // Le cas est atteignable : il suffit que la seule conclusion du domaine où
+  // porte la fuite soit un constat technique. Elle repart alors sans montant,
+  // plus rien n'est chiffré ailleurs, et elle prend la tête du plan.
+  const constatEnTete = buildBriefing({
+    plan: plan(),
+    funnel: leaking,
+    currency: "EUR",
+    finding: {
+      rootCause: null,
+      impactDescription: null,
+      epistemic: "fait",
+      basedOn: "storefront.response_ms : 2 400 ms",
+      assumptions: "",
+      technicalOnly: true,
+      actionSteps: [],
+    },
+  });
+
+  t.check(
+    "la fuite mesurée est toujours annoncée : elle est réelle",
+    constatEnTete.impact.includes("2400 EUR"),
+    true,
+  );
+  t.check(
+    "mais elle n'est PAS attribuée au constat technique",
+    constatEnTete.impact.includes("n'est PAS attribué à ce constat technique"),
+    true,
+  );
+  t.check(
+    "et l'absence de lien est dite en toutes lettres",
+    constatEnTete.impact.includes("rien ne relie encore les deux"),
+    true,
+  );
+  t.check(
+    "ce que le constat coûte reste déclaré non mesuré",
+    constatEnTete.impact.includes("n'est pas mesuré"),
+    true,
+  );
+  t.check(
+    "la formule qui attribuerait le montant disparaît",
+    constatEnTete.impact.includes("Ce montant vient de tes chiffres"),
+    false,
+  );
+
+  // Sans le drapeau, rien ne change pour les conclusions ordinaires.
+  t.check(
+    "une conclusion commerciale garde l'attribution directe",
+    full.impact.includes("Ce montant vient de tes chiffres"),
+    true,
+  );
+
+  // Cohérence de bout en bout : le drapeau doit réellement être calculé et
+  // transmis, sinon la règle ne s'applique jamais en production.
+  const cockpitSource = readFileSync(
+    join(new URL("../../", import.meta.url).pathname, "src/lib/cockpit.functions.ts"),
+    "utf8",
+  );
+  t.check(
+    "le cockpit calcule le drapeau depuis la règle partagée",
+    cockpitSource.includes("technicalOnly: lead ? isTechnicalConstat(lead) : false"),
+    true,
+  );
+  t.check(
+    "et il l'importe plutôt que de le redéduire",
+    cockpitSource.includes("isTechnicalConstat,"),
+    true,
+  );
 });

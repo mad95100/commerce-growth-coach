@@ -152,7 +152,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/briefing.test.ts",
-    minChecks: 70,
+    minChecks: 78,
     covers:
       "Le briefing du directeur : neuf réponses assemblées depuis le moteur, jamais écrites en dur. Un montant non chiffrable ne devient pas zéro, une étape non mesurée ne devient pas une barre vide, et « Corriger maintenant » n'apparaît que là où une correction existe — le bouton ouvre un aperçu, il n'exécute rien.",
   },

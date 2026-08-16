@@ -43,6 +43,11 @@ export type BriefingFinding = {
   gainMax?: number | null;
   currency?: string | null;
   actionSteps?: string[];
+  /**
+   * Cette conclusion n'est-elle qu'un constat technique, sans lien mesuré avec
+   * les ventes ? Décidé en amont par `finding-graph.ts`, jamais ici.
+   */
+  technicalOnly?: boolean;
 };
 
 export type BriefingInput = {
@@ -103,12 +108,28 @@ function impactSentence(
   currency: string | null | undefined,
 ): string {
   if (leak && leak.costPerMonth !== null) {
-    return (
-      `Environ ${money(leak.costPerMonth, leak.currency ?? currency)} par mois. ` +
-      `Ce montant vient de tes chiffres : ${Math.round(leak.entered)} ${leak.fromLabel.toLowerCase()} ` +
+    const amount = money(leak.costPerMonth, leak.currency ?? currency);
+    const basis =
+      `${Math.round(leak.entered)} ${leak.fromLabel.toLowerCase()} ` +
       `n'ont produit que ${Math.round(leak.exited)} ${leak.toLabel.toLowerCase()}, soit ${leak.missing} de moins ` +
-      `que ce qu'on observe habituellement.`
-    );
+      `que ce qu'on observe habituellement`;
+
+    // LE DERNIER ENDROIT où un constat technique pouvait se voir habillé en
+    // perte. La fuite est mesurée et son montant est juste — mais le coller au
+    // problème affiché en tête revient à L'ATTRIBUER à ce problème. Quand ce
+    // problème n'est qu'un constat technique, rien n'établit ce lien, et la
+    // phrase se lirait pourtant comme une facture.
+    //
+    // Les deux faits sont donc énoncés, et leur séparation avec eux.
+    if (finding?.technicalOnly) {
+      return (
+        `La fuite mesurée coûte environ ${amount} par mois — ${basis}. ` +
+        `Ce montant n'est PAS attribué à ce constat technique : rien ne relie encore les deux. ` +
+        `Ce que ce constat coûte, lui, n'est pas mesuré.`
+      );
+    }
+
+    return `Environ ${amount} par mois. Ce montant vient de tes chiffres : ${basis}.`;
   }
 
   const min = money(finding?.gainMin, finding?.currency ?? currency);
