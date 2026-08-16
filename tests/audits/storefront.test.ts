@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   HEAVY_HTML_BYTES,
+  MOBILE_DIVERGENCE_RATIO,
   SLOW_RESPONSE_MS,
   analysePage,
   parseJsonLd,
@@ -528,6 +529,185 @@ export default defineSuite("Site public — faits techniques et frontière", asy
   t.check(
     "le module pur du site ne fait aucune entrée-sortie",
     /fetch\(|await /.test(read("src/lib/connectors/storefront.ts")),
+    false,
+  );
+
+  // =========================================================================
+  // 8bis. MOBILE ET ORDINATEUR : le même document, ou deux ?
+  // =========================================================================
+  // Ce qu'un serveur peut trancher, et rien de plus. Deux documents identiques
+  // peuvent s'afficher très différemment selon le CSS : le rendu reste déclaré
+  // hors de portée. Mais servir une version DISTINCTE aux mobiles change tout
+  // le reste du diagnostic — ce qui a été analysé est alors la version
+  // ordinateur, pas celle que la majorité des visiteurs reçoit.
+  const sameDocument = storefrontObservations(
+    raw({
+      pages: [page({ bytes: 100_000, html })],
+      mobileHome: page({ bytes: 102_000, html }),
+    }),
+  );
+  t.check(
+    "un écart de poids négligeable ne fait pas deux documents",
+    observationValue(sameDocument.observations, "storefront.mobile_document_differs"),
+    0,
+  );
+
+  const twoDocuments = storefrontObservations(
+    raw({
+      pages: [page({ bytes: 100_000, html })],
+      mobileHome: page({ bytes: 40_000, html }),
+    }),
+  );
+  t.check(
+    "un écart franc est constaté",
+    observationValue(twoDocuments.observations, "storefront.mobile_document_differs"),
+    1,
+  );
+  t.check(
+    "et la preuve donne les deux poids",
+    twoDocuments.observations
+      .find((o) => o.id === "storefront.mobile_document_differs")
+      ?.evidence.includes("98 Ko"),
+    true,
+  );
+  t.check(
+    "le seuil de divergence reste une fraction, pas un absolu",
+    MOBILE_DIVERGENCE_RATIO > 0 && MOBILE_DIVERGENCE_RATIO < 1,
+    true,
+  );
+  t.check(
+    "la balise viewport du document mobile est vérifiée à part",
+    observationValue(twoDocuments.observations, "storefront.mobile_viewport"),
+    1,
+  );
+
+  // Le cas grave : le site répond aux ordinateurs et pas aux mobiles.
+  const mobileDown = storefrontObservations(
+    raw({
+      pages: [page({ html })],
+      mobileHome: page({ status: 503, html: null, bytes: null, elapsedMs: null }),
+    }),
+  );
+  t.check(
+    "un accueil injoignable en mobile est un fait à part entière",
+    observationValue(mobileDown.observations, "storefront.mobile_unreachable"),
+    1,
+  );
+  t.check(
+    "sans version mobile relevée, aucune comparaison n'est inventée",
+    storefrontObservations(raw({ pages: [page({ html })] })).observations.some((o) =>
+      o.id.startsWith("storefront.mobile_"),
+    ),
+    false,
+  );
+
+  // =========================================================================
+  // 8ter. FRAIS DE LIVRAISON : la présence du sujet, jamais le montant
+  // =========================================================================
+  t.check(
+    "une fiche qui parle de livraison est repérée",
+    analysePage("<body>Livraison offerte dès 50 €</body>", "").mentionsShipping,
+    true,
+  );
+  t.check(
+    "« frais de port » aussi",
+    analysePage("<body>Frais de port : 4,90 €</body>", "").mentionsShipping,
+    true,
+  );
+  t.check(
+    "une fiche muette sur le sujet aussi",
+    analysePage("<body>Une bougie parfumée</body>", "").mentionsShipping,
+    false,
+  );
+  const silentOnShipping = storefrontObservations(
+    raw({
+      pages: [
+        page({ html }),
+        page({
+          url: "https://boutique.fr/products/x",
+          role: "produit",
+          html: "<body><form action='/cart/add'></form></body>",
+        }),
+      ],
+    }),
+  );
+  t.check(
+    "l'absence de mention est constatée sur la fiche",
+    observationValue(silentOnShipping.observations, "storefront.product_shipping_mentioned"),
+    0,
+  );
+  t.check(
+    "aucune observation ne prétend connaître le montant des frais",
+    silentOnShipping.observations.some((o) => /seuil|montant des frais|gratuit/i.test(o.label)),
+    false,
+  );
+
+  // Croisé avec un abandon massif, cela devient une piste — jamais une cause.
+  const shippingSignal = crossSignals([
+    ...silentOnShipping.observations,
+    obs("shopify.cart_abandonment_rate", 82, { unit: "percent" }),
+  ]).find((s) => s.id === "cross.frais_decouverts_tard");
+  t.check("la piste apparaît", Boolean(shippingSignal), true);
+  t.check("comme une hypothèse", shippingSignal?.certainty, "hypothese");
+  t.check(
+    "et elle rappelle qu'un script peut afficher les frais",
+    shippingSignal?.doNotConclude.includes("par un script"),
+    true,
+  );
+  t.check(
+    "sans abandon élevé, aucune piste n'est tirée",
+    crossSignals(silentOnShipping.observations).some((s) => s.id === "cross.frais_decouverts_tard"),
+    false,
+  );
+
+  // =========================================================================
+  // 8quater. COHÉRENCE ENTRE LA PAGE SERVIE ET LE CATALOGUE
+  // =========================================================================
+  // Deux sources indépendantes pour un même prix. Un écart attrape une page en
+  // cache ou une promotion figée — que ni Shopify ni le site ne voient seuls.
+  const priced = [
+    obs("storefront.product_price", 29.9, {
+      source: "storefront",
+      unit: "currency",
+      currency: "EUR",
+    }),
+    obs("shopify.price_min", 40, { unit: "currency", currency: "EUR" }),
+    obs("shopify.price_max", 90, { unit: "currency", currency: "EUR" }),
+  ];
+  const priceGap = crossSignals(priced).find((s) => s.id === "cross.prix_affiche_hors_catalogue");
+  t.check("un prix hors fourchette est signalé", Boolean(priceGap), true);
+  t.check("comme une hypothèse, pas une erreur démontrée", priceGap?.certainty, "hypothese");
+  t.check(
+    "parce que le catalogue lu peut être partiel",
+    priceGap?.doNotConclude.includes("catalogue lu peut être partiel"),
+    true,
+  );
+  t.check(
+    "un prix dans la fourchette ne déclenche rien",
+    crossSignals([
+      obs("storefront.product_price", 50, {
+        source: "storefront",
+        unit: "currency",
+        currency: "EUR",
+      }),
+      obs("shopify.price_min", 40, { unit: "currency", currency: "EUR" }),
+      obs("shopify.price_max", 90, { unit: "currency", currency: "EUR" }),
+    ]).some((s) => s.id === "cross.prix_affiche_hors_catalogue"),
+    false,
+  );
+  // Deux devises différentes rendent la comparaison sans objet : c'est la règle
+  // de tout ce module, et elle vaut aussi ici.
+  t.check(
+    "deux devises différentes interdisent la comparaison",
+    crossSignals([
+      obs("storefront.product_price", 29.9, {
+        source: "storefront",
+        unit: "currency",
+        currency: "USD",
+      }),
+      obs("shopify.price_min", 40, { unit: "currency", currency: "EUR" }),
+      obs("shopify.price_max", 90, { unit: "currency", currency: "EUR" }),
+    ]).some((s) => s.id === "cross.prix_affiche_hors_catalogue"),
     false,
   );
 

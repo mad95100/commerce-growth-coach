@@ -579,6 +579,59 @@ export function crossSignals(observations: Observation[]): CrossSignal[] {
     }
   }
 
+  // 4bis. COHÉRENCE ENTRE LA PAGE SERVIE ET LE CATALOGUE.
+  // Le prix lu sur la fiche publique et la fourchette du catalogue Shopify
+  // viennent de deux sources indépendantes. Un prix affiché hors de cette
+  // fourchette est un fait : la page montre un montant que le catalogue ne
+  // contient pas. C'est le seul contrôle qui attrape une page mise en cache,
+  // une promotion figée ou une page servie depuis un autre catalogue.
+  const shownPrice = findObservation(observations, "storefront.product_price");
+  const priceMin = findObservation(observations, "shopify.price_min");
+  const priceMax = findObservation(observations, "shopify.price_max");
+  if (
+    shownPrice?.value != null &&
+    priceMin?.value != null &&
+    priceMax?.value != null &&
+    // Deux devises différentes rendent la comparaison sans objet.
+    (shownPrice.currency == null ||
+      priceMin.currency == null ||
+      shownPrice.currency === priceMin.currency)
+  ) {
+    const outside = shownPrice.value < priceMin.value || shownPrice.value > priceMax.value;
+    if (outside) {
+      signals.push({
+        id: "cross.prix_affiche_hors_catalogue",
+        statement: `La fiche produit publique affiche ${shownPrice.value}, hors de la fourchette du catalogue Shopify (${priceMin.value} à ${priceMax.value}).`,
+        investigate: [
+          "Le cache du thème ou du réseau de diffusion, qui peut servir un ancien prix.",
+          "Une promotion appliquée à l'affichage sans exister dans le catalogue.",
+        ],
+        doNotConclude:
+          "Ne conclus pas que le prix affiché est faux. Le catalogue lu peut être partiel, et une remise légitime sort naturellement de la fourchette. C'est un écart à expliquer, pas une erreur démontrée.",
+        certainty: "hypothese",
+        evidence: [shownPrice.evidence, priceMin.evidence, priceMax.evidence],
+      });
+    }
+  }
+
+  // 4ter. Les frais de livraison, jamais évoqués avant le panier, sur une
+  // boutique dont les paniers sont massivement abandonnés.
+  const shippingMentioned = findObservation(observations, "storefront.product_shipping_mentioned");
+  if (shippingMentioned?.value === 0 && abandonment != null && abandonment > HIGH_ABANDONMENT_PCT) {
+    signals.push({
+      id: "cross.frais_decouverts_tard",
+      statement: `La fiche produit n'évoque ni livraison ni frais de port, et ${Math.round(abandonment)} % des paniers ouverts sont abandonnés.`,
+      investigate: [
+        "Le moment où l'acheteur découvre les frais : plus il est tardif, plus l'abandon est probable.",
+        "Un seuil de livraison gratuite annoncé dès la fiche produit.",
+      ],
+      doNotConclude:
+        "N'affirme pas que les frais causent ces abandons : la fiche peut les afficher par un script que le document ne montre pas, et un taux d'abandon élevé est ordinaire dans le commerce en ligne. C'est la piste la mieux documentée, pas une conclusion.",
+      certainty: "hypothese",
+      evidence: [shippingMentioned.evidence],
+    });
+  }
+
   // 5. Aucun ajout au panier sur la fiche produit servie.
   // Un fait grave et non ambigu : sans ce formulaire, la page ne peut pas vendre.
   if (addToCart?.value === 0) {

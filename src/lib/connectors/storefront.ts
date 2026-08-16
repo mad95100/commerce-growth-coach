@@ -78,6 +78,15 @@ export type StorefrontRaw = {
    * Shopify les a enregistrées. Croisement de fait, pas de supposition.
    */
   landingChecks: Array<{ path: string; status: number | null; orders: number }>;
+  /**
+   * L'accueil redemandé avec un agent mobile.
+   *
+   * CE QUE CELA MESURE, ET RIEN DE PLUS : le serveur sert-il un document
+   * DIFFÉRENT selon l'appareil ? C'est un fait vérifiable. Le rendu, lui, ne
+   * l'est pas — deux documents identiques peuvent s'afficher très
+   * différemment selon le CSS, et aucune requête serveur ne le dira.
+   */
+  mobileHome?: FetchedPage | null;
 };
 
 /** Fenêtre : un scan est un instantané, pas une moyenne. */
@@ -94,6 +103,15 @@ export const SLOW_RESPONSE_MS = 2000;
 
 /** Poids de HTML au-delà duquel le document est objectivement lourd. */
 export const HEAVY_HTML_BYTES = 500_000;
+
+/**
+ * Écart de poids au-delà duquel mobile et ordinateur reçoivent deux documents.
+ *
+ * Un thème renvoie rarement des octets rigoureusement identiques d'une requête
+ * à l'autre — jetons de session, horodatages, blocs personnalisés. Un cinquième
+ * d'écart n'est plus du bruit : c'est une autre page.
+ */
+export const MOBILE_DIVERGENCE_RATIO = 0.2;
 
 // ---------------------------------------------------------------------------
 // Analyse d'un document
@@ -121,6 +139,14 @@ export type PageFacts = {
   declaredCurrency: string | null;
   /** Note agrégée déclarée : élément de confiance vérifiable. */
   hasAggregateRating: boolean;
+  /**
+   * La page mentionne-t-elle la livraison ou les frais de port ?
+   *
+   * PRÉSENCE, pas montant. Lire un seuil de gratuité dans du texte libre
+   * produirait un chiffre faux une fois sur deux. Ce qui se vérifie, c'est que
+   * le sujet est abordé avant le panier — ou qu'il ne l'est pas du tout.
+   */
+  mentionsShipping: boolean;
   /** Liens internes trouvés, dédoublonnés. */
   internalLinks: string[];
   /** Le document est-il servi en `noindex` ? Fait technique majeur. */
@@ -128,6 +154,22 @@ export type PageFacts = {
 };
 
 const TAG = (name: string) => new RegExp(`<${name}\\b[^>]*>`, "gi");
+
+/**
+ * Mots qui signalent que la livraison est abordée sur la page.
+ *
+ * Volontairement larges : on cherche à établir qu'un sujet EST traité, pas à
+ * comprendre ce qui en est dit. Un faux positif laisse une page tranquille ;
+ * un faux négatif annoncerait à tort qu'une boutique cache ses frais.
+ */
+const SHIPPING_WORDS = [
+  "livraison",
+  "frais de port",
+  "expédition",
+  "expedition",
+  "shipping",
+  "delivery",
+];
 
 function attr(tag: string, name: string): string | null {
   const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));
@@ -268,6 +310,7 @@ export function analysePage(html: string, origin: string): PageFacts {
     declaredPrice: offer.price,
     declaredCurrency: offer.currency,
     hasAggregateRating: types.has("AggregateRating") || /"aggregateRating"/i.test(html),
+    mentionsShipping: SHIPPING_WORDS.some((word) => html.toLowerCase().includes(word)),
     internalLinks: [...links],
     isNoindex: /noindex/i.test(attr(robotsTag?.[0] ?? "", "content") ?? ""),
   };
@@ -410,6 +453,21 @@ export function storefrontObservations(raw: StorefrontRaw): {
         evidence: facts.structuredDataTypes.length
           ? `Types déclarés en JSON-LD sur ${product.url} : ${facts.structuredDataTypes.join(", ")}`
           : `Aucune donnée structurée JSON-LD sur ${product.url}`,
+        sample: 1,
+      }),
+    );
+    add(
+      observe({
+        id: "storefront.product_shipping_mentioned",
+        source: "storefront",
+        domain: "conversion",
+        label: "Livraison évoquée sur la fiche produit",
+        value: facts.mentionsShipping ? 1 : 0,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: facts.mentionsShipping
+          ? `La fiche ${product.url} évoque la livraison ou les frais de port`
+          : `La fiche ${product.url} ne mentionne ni livraison ni frais de port : l'acheteur les découvre plus loin dans le parcours`,
         sample: 1,
       }),
     );
@@ -569,6 +627,66 @@ export function storefrontObservations(raw: StorefrontRaw): {
               .join(" ; ")}`
           : `Les ${landings.length} pages d'arrivée les plus utilisées répondent normalement`,
         sample: landings.length,
+      }),
+    );
+  }
+
+  // --- Mobile et ordinateur : le même document, ou deux ? -------------------
+  // Un thème qui sert une version distincte aux mobiles est un fait, et il
+  // change tout le reste du diagnostic : ce qu'on a analysé plus haut est alors
+  // la version ordinateur, pas celle que la majorité des visiteurs reçoit.
+  const mobile = raw.mobileHome;
+  if (mobile && isOk(mobile) && isOk(home) && mobile.bytes != null && home?.bytes != null) {
+    const ratio = home.bytes > 0 ? mobile.bytes / home.bytes : 1;
+    const differs = Math.abs(1 - ratio) > MOBILE_DIVERGENCE_RATIO;
+    add(
+      observe({
+        id: "storefront.mobile_document_differs",
+        source: "storefront",
+        domain: "conversion",
+        label: "Document distinct servi aux mobiles",
+        value: differs ? 1 : 0,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: differs
+          ? `L'accueil pèse ${Math.round(home.bytes / 1024)} Ko pour un agent ordinateur et ${Math.round(mobile.bytes / 1024)} Ko pour un agent mobile : le serveur sert deux documents différents`
+          : `L'accueil sert le même document aux deux agents (${Math.round(home.bytes / 1024)} Ko contre ${Math.round(mobile.bytes / 1024)} Ko)`,
+        sample: 2,
+      }),
+    );
+
+    if (mobile.html) {
+      const mobileFacts = analysePage(mobile.html, raw.origin);
+      add(
+        observe({
+          id: "storefront.mobile_viewport",
+          source: "storefront",
+          domain: "conversion",
+          label: "Balise viewport servie aux mobiles",
+          value: mobileFacts.hasViewportMeta ? 1 : 0,
+          unit: "count",
+          periodDays: STOREFRONT_WINDOW_DAYS,
+          evidence: mobileFacts.hasViewportMeta
+            ? "Le document servi à un agent mobile déclare une balise viewport"
+            : "Le document servi à un agent mobile ne déclare AUCUNE balise viewport : les navigateurs le rendent alors à la largeur d'un écran d'ordinateur",
+          sample: 1,
+        }),
+      );
+    }
+  } else if (mobile && !isOk(mobile) && isOk(home)) {
+    // L'accueil répond à un agent ordinateur et pas à un agent mobile : c'est
+    // un fait, et il est grave.
+    add(
+      observe({
+        id: "storefront.mobile_unreachable",
+        source: "storefront",
+        domain: "conversion",
+        label: "Accueil injoignable pour un agent mobile",
+        value: 1,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: `L'accueil répond à un agent ordinateur mais renvoie ${mobile.status ?? "aucune réponse"} à un agent mobile`,
+        sample: 1,
       }),
     );
   }

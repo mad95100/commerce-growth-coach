@@ -303,6 +303,30 @@ export const DIAGNOSTICS: Diagnostic[] = [
       "Une directive d'indexation oubliée après une mise en ligne rend tout travail de référencement sans effet.",
   },
   {
+    id: "boutique.mobile_servi",
+    question: "Le serveur envoie-t-il aux mobiles le même document qu'aux ordinateurs ?",
+    domain: "boutique",
+    requires: ["storefront.mobile_document_differs"],
+    concludes:
+      "Un thème qui sert une version distincte change tout le reste du diagnostic : ce qui a été analysé est alors la version ordinateur, pas celle que la majorité des visiteurs reçoit.",
+  },
+  {
+    id: "offre.prix_affiche",
+    question: "Le prix montré au visiteur correspond-il au catalogue ?",
+    domain: "offre",
+    requires: ["storefront.product_price", "shopify.price_min"],
+    concludes:
+      "Deux sources indépendantes pour un même prix : c'est le seul contrôle qui attrape une page en cache ou une promotion figée.",
+  },
+  {
+    id: "conversion.frais_annonces",
+    question: "Les frais de livraison sont-ils évoqués avant le panier ?",
+    domain: "conversion",
+    requires: ["storefront.product_shipping_mentioned"],
+    concludes:
+      "Des frais découverts tard sont la cause d'abandon la mieux documentée du commerce en ligne — reste à savoir si cette boutique est concernée.",
+  },
+  {
     id: "acquisition.canaux_naturels",
     question: "Quels canaux gratuits apportent réellement des commandes ?",
     domain: "acquisition",

@@ -252,6 +252,15 @@ export async function scanStorefront(
   pages.push(...policyRun.done);
   if (policyRun.skipped > 0) unchecked.push(`${policyRun.skipped} page(s) de politique`);
 
+  // L'accueil, redemandé avec un agent mobile. Une seule requête de plus, pour
+  // la seule question qu'un serveur puisse trancher : le document servi est-il
+  // le même ? Sautée si le budget est déjà épuisé — auquel cas la comparaison
+  // n'a simplement pas lieu, plutôt que d'être devinée.
+  const mobileHome = clock.exhausted()
+    ? null
+    : await getPage(fetcher, `${origin}/`, "accueil", true);
+  if (mobileHome === null) unchecked.push("la version servie aux mobiles");
+
   const [robotsPage, sitemapStatus] = clock.exhausted()
     ? [null, null]
     : await Promise.all([
@@ -297,6 +306,7 @@ export async function scanStorefront(
     sitemapFound: sitemapStatus != null && sitemapStatus < 400,
     linkChecks,
     landingChecks,
+    mobileHome,
   });
 
   // Le site a-t-il répondu au moins une fois ? Sinon on le dit, sans produire
