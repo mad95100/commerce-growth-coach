@@ -18,6 +18,13 @@ import { topLandingPaths } from "../../src/lib/connectors/order-attribution";
 import { crossSignals } from "../../src/lib/cross-source";
 import { observationValue, type Observation } from "../../src/lib/observations";
 import { assessDiagnostics } from "../../src/lib/diagnostics";
+import {
+  TECHNICAL_BAND_CEILING,
+  analyseFindings,
+  applyTechnicalFrontier,
+  isTechnicalOnly,
+} from "../../src/lib/finding-graph";
+import { anchorGainsOnLeak } from "../../src/lib/funnel";
 import { defineSuite } from "../../tests/harness";
 
 /**
@@ -525,7 +532,135 @@ export default defineSuite("Site public — faits techniques et frontière", asy
   );
 
   // =========================================================================
-  // 9. Le marchand voit les faits ET ce qui n'a pas pu être mesuré
+  // 9. LA BARRIÈRE MÉCANIQUE : un constat technique ne porte pas de montant
+  // =========================================================================
+  // Le prompt le dit, mais un prompt n'est pas une barrière. Deux chemins
+  // mènent un constat technique à porter un montant : le modèle en invente un,
+  // ou `anchorGainsOnLeak` lui attribue le coût de la fuite mesurée parce qu'il
+  // tombe dans le bon domaine. Le second est le plus dangereux — il est
+  // automatique, et le montant qu'il pose est vrai : c'est son ATTRIBUTION qui
+  // ne l'est pas.
+
+  const technical = {
+    key: "site-lent",
+    title: "Le site met deux secondes et demie à répondre",
+    category: "conversion",
+    severity: "high",
+    difficulty: 3,
+    estimated_gain_min: 1000,
+    estimated_gain_max: 3000,
+    evidence: { based_on: "storefront.response_ms : 2 400 ms", assumptions: null },
+  };
+  const linked = {
+    ...technical,
+    key: "site-lent-mesure",
+    evidence: {
+      based_on:
+        "storefront.response_ms : 2 400 ms et shopify.orders_30d : 10 commandes pour 5 000 clics",
+      assumptions: null,
+    },
+  };
+
+  t.check("un constat purement technique est reconnu", isTechnicalOnly(technical), true);
+  t.check(
+    "un constat croisé avec une mesure commerciale ne l'est pas",
+    isTechnicalOnly(linked),
+    false,
+  );
+  t.check(
+    "un constat citant un signal croisé non plus",
+    isTechnicalOnly({
+      ...technical,
+      evidence: {
+        based_on: "storefront.response_ms et cross.lenteur_et_trafic_perdu",
+        assumptions: null,
+      },
+    }),
+    false,
+  );
+  t.check(
+    "une conclusion sans preuve du tout n'est pas « technique » : elle est sans preuve",
+    isTechnicalOnly({ ...technical, evidence: { based_on: "", assumptions: null } }),
+    false,
+  );
+  t.check(
+    "une conclusion commerciale ordinaire n'est pas touchée",
+    isTechnicalOnly({
+      ...technical,
+      evidence: { based_on: "shopify.orders_30d : 10 commandes", assumptions: null },
+    }),
+    false,
+  );
+
+  const frontier = applyTechnicalFrontier([technical, linked]);
+  t.check(
+    "le montant du constat technique est retiré",
+    frontier.findings[0].estimated_gain_max,
+    null,
+  );
+  t.check("et le minimum aussi", frontier.findings[0].estimated_gain_min, null);
+  t.check("le retrait est compté", frontier.stripped, 1);
+  t.check("le constat croisé garde son montant", frontier.findings[1].estimated_gain_max, 3000);
+  t.check("la conclusion elle-même n'est jamais supprimée", frontier.findings.length, 2);
+
+  // Le scénario complet : l'ancrage attribue le coût de la fuite, la frontière
+  // le retire au seul constat technique.
+  const measuredLeak = {
+    from: "paniers" as const,
+    to: "commandes" as const,
+    lostPerMonth: 100,
+    costPerMonth: 6000,
+    severity: "high" as const,
+    label: "fuite",
+  };
+  const anchored = anchorGainsOnLeak([technical, linked], measuredLeak as never);
+  t.check("l'ancrage attribue bien un montant aux deux", anchored.anchored >= 1, true);
+  const afterFrontier = applyTechnicalFrontier(anchored.findings);
+  t.check(
+    "mais la frontière le retire au constat technique",
+    afterFrontier.findings.find((f) => f.key === "site-lent")?.estimated_gain_max,
+    null,
+  );
+  t.check(
+    "et le laisse à celui qui porte la preuve commerciale",
+    (afterFrontier.findings.find((f) => f.key === "site-lent-mesure")?.estimated_gain_max ?? 0) > 0,
+    true,
+  );
+
+  // Et il ne peut pas se déclarer critique.
+  const analysed = analyseFindings([technical, linked] as never);
+  const technicalBand = analysed.findings.find((f) => f.key === "site-lent");
+  t.check(
+    "un constat technique ne peut pas être critique",
+    technicalBand?.band === "critique",
+    false,
+  );
+  t.check(
+    "et sa justification dit pourquoi",
+    technicalBand?.justification.includes("effet sur les ventes n'est pas mesuré"),
+    true,
+  );
+  t.check("le plafond technique est « important »", TECHNICAL_BAND_CEILING, "important");
+
+  const runnerCode = read("src/lib/audit-runner.server.ts");
+  t.check(
+    "l'audit applique la frontière APRÈS l'ancrage",
+    runnerCode.indexOf("anchorGainsOnLeak(") < runnerCode.indexOf("applyTechnicalFrontier("),
+    true,
+  );
+  t.check(
+    "et avant le calcul du potentiel affiché",
+    runnerCode.indexOf("applyTechnicalFrontier(") < runnerCode.indexOf("computePotential("),
+    true,
+  );
+  t.check(
+    "la règle est aussi énoncée au modèle",
+    read("src/lib/audit-prompt.ts").includes("UN PROBLÈME TECHNIQUE EST UN FAIT TECHNIQUE"),
+    true,
+  );
+
+  // =========================================================================
+  // 10. Le marchand voit les faits ET ce qui n'a pas pu être mesuré
   // =========================================================================
   const cockpit = read("src/components/Cockpit.tsx");
   t.check("le cockpit affiche les données manquantes", cockpit.includes("c.dataGaps.map"), true);

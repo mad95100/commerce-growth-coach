@@ -1,7 +1,7 @@
 import type { Db } from "@/lib/actions.server";
 import { currencyLabel, normalizeCurrency } from "@/lib/currency";
 import { computeCategoryScores, computeGlobalScore, computePotential } from "@/lib/scoring";
-import { analyseFindings } from "@/lib/finding-graph";
+import { analyseFindings, applyTechnicalFrontier } from "@/lib/finding-graph";
 import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-history";
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
@@ -415,6 +415,20 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
   if (anchoring.anchored > 0) {
     console.info(
       `[audit] ${anchoring.anchored} problème(s) ancré(s) sur la fuite mesurée (${funnel.worst?.costPerMonth}).`,
+    );
+  }
+
+  // LA FRONTIÈRE TECHNIQUE, posée juste après l'ancrage et pour cause : c'est
+  // l'ancrage lui-même qui vient d'attribuer le coût de la fuite mesurée à tout
+  // ce qui tombe dans le bon domaine — y compris à une lenteur de serveur dont
+  // rien n'établit qu'elle y soit pour quelque chose. Le montant est vrai, son
+  // attribution ne l'est pas. Un constat technique repart donc sans montant, et
+  // sans pouvoir se déclarer critique.
+  const frontier = applyTechnicalFrontier(parsed.findings);
+  parsed.findings = frontier.findings;
+  if (frontier.stripped > 0) {
+    console.info(
+      `[audit] ${frontier.stripped} constat(s) technique(s) privé(s) de montant : aucun lien mesuré avec les ventes.`,
     );
   }
 

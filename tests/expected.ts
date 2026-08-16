@@ -194,7 +194,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/storefront.test.ts",
-    minChecks: 90,
+    minChecks: 170,
     covers:
       "Le site public tel que le visiteur le reçoit — l'angle mort du moteur, qui diagnostiquait la conversion sans avoir jamais ouvert la page. Un problème technique y reste un FAIT technique : il ne devient une explication de perte que croisé avec Shopify, Meta ou Google, preuve nommée des deux côtés, et un site lent sur une boutique qui convertit bien produit un signal qui interdit d'y voir une cause. Core Web Vitals, rendu mobile et tunnel de commande sont déclarés hors de portée plutôt qu'approchés.",
   },

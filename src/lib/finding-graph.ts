@@ -134,6 +134,96 @@ export type GraphFinding = ScorableFinding & {
 };
 
 // ---------------------------------------------------------------------------
+// LA FRONTIÈRE TECHNIQUE : un constat n'est pas une perte
+// ---------------------------------------------------------------------------
+
+/**
+ * Préfixe des observations qui ne décrivent QUE le document servi au visiteur.
+ *
+ * Elles disent qu'un serveur répond en 2 400 ms, qu'une page renvoie 404,
+ * qu'aucune donnée structurée n'est déclarée. Ce sont des faits techniques.
+ */
+const TECHNICAL_PREFIX = "storefront.";
+
+/**
+ * Sources qui MESURENT le commerce : commandes, dépenses, clics, origine des
+ * ventes. Citer l'une d'elles, ou un signal croisé, c'est faire le lien entre
+ * un constat technique et une conséquence commerciale.
+ */
+const BUSINESS_PREFIXES = ["shopify.", "meta.", "google.", "organic.", "cross.", "declared."];
+
+/**
+ * Cette conclusion ne repose-t-elle QUE sur des constats techniques ?
+ *
+ * Vrai lorsque `based_on` cite au moins une observation du site public et
+ * AUCUNE mesure commerciale. Faux dès qu'un chiffre d'affaires, un clic, une
+ * commande ou un signal croisé est invoqué : le lien est alors explicitement
+ * fait, et c'est ce lien qui autorise à parler d'argent.
+ */
+export function isTechnicalOnly(finding: GraphFinding): boolean {
+  const basedOn = (finding.evidence?.based_on ?? "").toLowerCase();
+  if (!hasSubstance(finding.evidence?.based_on)) return false;
+  if (!basedOn.includes(TECHNICAL_PREFIX)) return false;
+  return !BUSINESS_PREFIXES.some((prefix) => basedOn.includes(prefix));
+}
+
+/**
+ * Plafond de priorité d'un constat purement technique.
+ *
+ * « Critique » veut dire « ce qui coûte le plus cher maintenant ». Une lenteur
+ * dont l'effet commercial n'est pas mesuré ne peut pas prétendre à ce rang,
+ * même si le constat est parfaitement exact — un fait technique certain n'est
+ * pas pour autant un problème commercial démontré.
+ */
+export const TECHNICAL_BAND_CEILING: PriorityBand = "important";
+
+export type FrontierResult<T> = {
+  findings: T[];
+  /** Conclusions dont le montant a été retiré faute de lien démontré. */
+  stripped: number;
+};
+
+/**
+ * LA BARRIÈRE MÉCANIQUE de la règle « un problème technique est un fait
+ * technique ».
+ *
+ * POURQUOI ELLE EXISTE, alors que le prompt le dit déjà. Parce qu'un prompt
+ * n'est pas une barrière — c'est la doctrine de tout ce dépôt. Deux chemins
+ * mènent un constat technique à porter un montant :
+ *
+ * 1. Le modèle en invente un, comme il le fait pour tout champ obligatoire.
+ * 2. `anchorGainsOnLeak` lui attribue le coût de la fuite mesurée, parce qu'il
+ *    tombe dans le bon domaine. Une lenteur de serveur classée « conversion »
+ *    héritait ainsi de « 3 000 € par mois à récupérer » sans que rien, nulle
+ *    part, n'ait établi que la lenteur y était pour quelque chose.
+ *
+ * Le second est le plus dangereux : il est automatique, silencieux, et le
+ * montant qu'il pose est vrai — c'est son ATTRIBUTION qui ne l'est pas.
+ *
+ * Cette fonction retire le montant et abaisse le plafond de priorité. Elle ne
+ * supprime pas la conclusion : le constat technique reste dit, avec sa preuve.
+ * Il perd seulement le droit de se présenter comme une perte chiffrée.
+ */
+export function applyTechnicalFrontier<
+  T extends GraphFinding & {
+    estimated_gain_min?: number | null;
+    estimated_gain_max?: number | null;
+  },
+>(findings: T[]): FrontierResult<T> {
+  let stripped = 0;
+
+  const next = findings.map((finding) => {
+    if (!isTechnicalOnly(finding)) return finding;
+    const hadAmount =
+      (finding.estimated_gain_min ?? 0) > 0 || (finding.estimated_gain_max ?? 0) > 0;
+    if (hadAmount) stripped += 1;
+    return { ...finding, estimated_gain_min: null, estimated_gain_max: null };
+  });
+
+  return { findings: next, stripped };
+}
+
+// ---------------------------------------------------------------------------
 // Certitude : ce sur quoi la conclusion repose
 // ---------------------------------------------------------------------------
 
@@ -353,6 +443,8 @@ type BandInput = {
   causes: number;
   gain: number;
   difficulty: number;
+  /** La conclusion ne repose-t-elle que sur des constats techniques ? */
+  technicalOnly?: boolean;
 };
 
 /**
@@ -393,10 +485,21 @@ const EPISTEMIC_SENTENCE: Record<EpistemicLevel, string> = {
  */
 export function decideBand(input: BandInput): { band: PriorityBand; justification: string } {
   const raw = rawBand(input);
-  const ceiling = EPISTEMIC_CEILING[input.epistemic];
+  // Deux plafonds, et le plus bas des deux gagne. Le premier borne ce qu'on peut
+  // affirmer sans preuve ; le second borne ce qu'on peut réclamer sans avoir
+  // établi que le constat coûte quelque chose.
+  const ceiling = input.technicalOnly
+    ? capBand(EPISTEMIC_CEILING[input.epistemic], TECHNICAL_BAND_CEILING)
+    : EPISTEMIC_CEILING[input.epistemic];
   const band = capBand(raw, ceiling);
 
   const parts: string[] = [SEVERITY_SENTENCE[input.severity] ?? SEVERITY_SENTENCE.medium];
+
+  if (input.technicalOnly) {
+    parts.push(
+      "Constat technique : son effet sur les ventes n'est pas mesuré, donc ni chiffré ni déclaré critique.",
+    );
+  }
 
   if (input.blocks >= ROOT_CAUSE_THRESHOLD) {
     parts.push(`Cause racine : ${input.blocks} autres problèmes en découlent.`);
@@ -572,6 +675,7 @@ export function analyseFindings(input: GraphFinding[]): FindingAnalysis {
       causes: causeList.length,
       gain: averageGain(finding),
       difficulty: Math.min(5, Math.max(1, finding.difficulty ?? 2)),
+      technicalOnly: isTechnicalOnly(finding),
     });
 
     analysed.set(key, {
