@@ -27,6 +27,15 @@ import { defineSuite } from "../harness";
 const ROOT = new URL("../../", import.meta.url).pathname;
 const read = (relative: string) => readFileSync(join(ROOT, relative), "utf8");
 
+/** Retire les commentaires : une assertion doit porter sur du code, pas sur sa doc. */
+function codeOnly(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("//"))
+    .join("\n");
+}
+
 /**
  * Fonctions qui ÉCRIVENT chez un partenaire.
  *
@@ -124,12 +133,36 @@ export default defineSuite("Audit réel — garantie de lecture seule", (t) => {
     "src/lib/connectors/shopify-observe.server.ts",
     "src/lib/connectors/meta-observe.server.ts",
     "src/lib/connectors/google-observe.server.ts",
+    // Le scan du site public : le seul connecteur qui touche la boutique du
+    // marchand telle que ses clients la voient. C'est donc celui qui doit le
+    // plus démontrer qu'il ne fait que regarder.
+    "src/lib/connectors/storefront.server.ts",
   ]) {
     const code = read(file);
     t.check(`« ${file} » n'appelle aucun endpoint de mutation`, /:mutate/.test(code), false);
     t.check(`« ${file} » n'écrit pas par PUT`, /method:\s*["']PUT["']/.test(code), false);
     t.check(`« ${file} » n'écrit pas par DELETE`, /method:\s*["']DELETE["']/.test(code), false);
+    t.check(`« ${file} » n'écrit pas par PATCH`, /method:\s*["']PATCH["']/.test(code), false);
   }
+
+  // --- Le scan du site public n'envoie aucun formulaire ---------------------
+  // Le risque propre à ce connecteur : ouvrir un panier, envoyer une recherche,
+  // s'inscrire à une infolettre. Autant d'écritures chez le marchand, faites
+  // avec de simples requêtes, et qu'aucune API partenaire ne signalerait.
+  const scan = codeOnly(read("src/lib/connectors/storefront.server.ts"));
+  t.check("le scan n'envoie aucun POST", /method:\s*["']POST["']/.test(scan), false);
+  t.check("il n'ajoute rien au panier", /\/cart\/add/.test(scan), false);
+  t.check("il ne poste aucun corps de requête", /\bbody:/.test(scan), false);
+  t.check(
+    "il ne demande que des pages publiques du domaine de la boutique",
+    /\$\{origin\}/.test(scan),
+    true,
+  );
+  t.check(
+    "et le tunnel de commande reste explicitement hors de portée",
+    read("src/lib/connectors/storefront.ts").includes("storefront.checkout_funnel"),
+    true,
+  );
   t.check(
     "seul Google lit par POST, et c'est son endpoint de recherche",
     read("src/lib/connectors/google-observe.server.ts").includes("googleAds:search"),

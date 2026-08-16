@@ -164,7 +164,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/read-only.test.ts",
-    minChecks: 68,
+    minChecks: 86,
     covers:
       "Garantie mécanique que le diagnostic ne modifie rien chez le marchand : le graphe d'imports réel depuis l'audit et depuis le cron est parcouru, et aucune des quatorze fonctions d'écriture partenaire n'y est atteignable. Vérifie aussi qu'aucun raccourci de test ne subsiste dans le chemin réel.",
   },
