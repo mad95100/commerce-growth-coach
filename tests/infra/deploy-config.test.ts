@@ -330,6 +330,19 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
       /echo "url=\$url" >> "\$GITHUB_OUTPUT"/.test(deployCode),
     true,
   );
+  // L'accueil peut répondre pendant que la page de connexion échoue au rendu :
+  // ce sont deux routes distinctes, et c'est la seconde qui conditionne
+  // l'entrée dans le produit.
+  t.check(
+    "la page de connexion est contrôlée autant que l'accueil",
+    /for chemin in "\/" "\/auth"; do/.test(deployCode),
+    true,
+  );
+  t.check(
+    "une seule des deux pages injoignable fait échouer le déploiement",
+    /if \[ -n "\$echec" \][\s\S]{0,220}exit 1/.test(deployCode),
+    true,
+  );
   t.check(
     "le contrôle de démarrage se rabat sur l'adresse publiée",
     /TARGET:\s*\$\{\{\s*vars\.DEPLOY_HEALTHCHECK_URL\s*\|\|\s*steps\.deploiement\.outputs\.url\s*\}\}/.test(

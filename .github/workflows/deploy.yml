@@ -426,14 +426,29 @@ jobs:
             exit 0
           fi
           echo "Adresse contrôlée : $TARGET"
-          for attempt in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$TARGET" || true)
-            [ -n "$code" ] || code=000
-            echo "tentative $attempt : HTTP $code"
-            case "$code" in
-              2*|3*) echo "Déploiement joignable."; exit 0 ;;
-            esac
-            sleep 6
+
+          # DEUX PAGES, PAS UNE. L'accueil peut très bien répondre pendant que
+          # la page de connexion échoue au rendu : ce sont deux routes
+          # distinctes, et c'est la seconde qui conditionne l'entrée dans le
+          # produit. Un accueil vert sur une inscription cassée serait
+          # exactement le genre de vert trompeur qu'on chasse ici.
+          echec=""
+          for chemin in "/" "/auth"; do
+            joignable=""
+            for attempt in 1 2 3 4 5; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$TARGET$chemin" || true)
+              [ -n "$code" ] || code=000
+              echo "$chemin — tentative $attempt : HTTP $code"
+              case "$code" in
+                2*|3*) joignable=oui; break ;;
+              esac
+              sleep 6
+            done
+            [ -n "$joignable" ] || echec="$echec $chemin"
           done
-          echo "::error::Le déploiement ne répond pas correctement ($TARGET)."
-          exit 1
+
+          if [ -n "$echec" ]; then
+            echo "::error::Le déploiement ne répond pas correctement sur :$echec ($TARGET)."
+            exit 1
+          fi
+          echo "Déploiement joignable : accueil et page de connexion répondent."
