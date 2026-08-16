@@ -46,6 +46,19 @@ enabled = true
 # et doit correspondre, au caractère près, aux URL déclarées chez Shopify, Meta
 # et Google. La renseigner ici neutralise le repli historique inscrit dans
 # `src/lib/public-origin.server.ts`.
+#
+# POURQUOI L'ADRESSE `workers.dev` ET NON UN DOMAINE PROPRE. Elle a d'abord
+# désigné `app.ecompilot.ai`, qui n'a jamais eu d'enregistrement DNS. Le worker
+# répondait, le déploiement était vert, et aucune connexion Shopify ne pouvait
+# aboutir : le marchand partait autoriser l'application et revenait sur un hôte
+# inexistant, hors de l'application, là où plus rien ne peut le rattraper. Une
+# origine OAuth doit d'abord être SERVIE ; l'élégance du nom vient après.
+# Le déploiement vérifie désormais qu'elle répond.
+#
+# Pour revenir à un domaine propre : attacher le domaine au worker, AJOUTER la
+# nouvelle URL de redirection chez Shopify sans retirer celle-ci, changer cette
+# ligne, déployer, vérifier une connexion réelle, et seulement ensuite retirer
+# l'ancienne. La procédure est détaillée dans `docs/deploiement.md` §6.
 # Les deux valeurs Supabase ci-dessous sont PUBLIQUES par conception : l'URL du
 # projet et la clé « publishable », destinée au navigateur. Elles sont déjà
 # versionnées dans `.env`. Le serveur les lit par `process.env`, qui n'est
@@ -54,7 +67,7 @@ enabled = true
 [vars]
 SUPABASE_URL = "https://bexepsagfrohwdmhjjxk.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_WXls_KQEJsZz9BrR-MW81Q_EiGhI4-1"
-APP_URL = "https://app.ecompilot.ai"
+APP_URL = "https://ecompilot-ai.madani-mohamed.workers.dev"
 AI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 AI_AUDIT_MODEL = "gemini-2.5-pro"
 AI_FIX_MODEL = "gemini-2.5-flash"
