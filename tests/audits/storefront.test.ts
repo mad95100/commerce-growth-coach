@@ -9,7 +9,11 @@ import {
   type FetchedPage,
   type StorefrontRaw,
 } from "../../src/lib/connectors/storefront";
-import { toOrigin } from "../../src/lib/connectors/storefront.server";
+import {
+  SCAN_BUDGET_MS,
+  scanStorefront,
+  toOrigin,
+} from "../../src/lib/connectors/storefront.server";
 import { topLandingPaths } from "../../src/lib/connectors/order-attribution";
 import { crossSignals } from "../../src/lib/cross-source";
 import { observationValue, type Observation } from "../../src/lib/observations";
@@ -69,7 +73,7 @@ const obs = (id: string, value: number, extra: Partial<Observation> = {}): Obser
   ...extra,
 });
 
-export default defineSuite("Site public — faits techniques et frontière", (t) => {
+export default defineSuite("Site public — faits techniques et frontière", async (t) => {
   // =========================================================================
   // 1. Normaliser l'adresse que le marchand a saisie
   // =========================================================================
@@ -462,6 +466,46 @@ export default defineSuite("Site public — faits techniques et frontière", (t)
   t.check("chaque requête a un délai d'attente", server.includes("AbortSignal.timeout"), true);
   t.check("le robot s'identifie", server.includes("EcomPilotAI/1.0"), true);
   t.check("le panier n'est ouvert qu'en lecture, jamais rempli", /\/cart\/add/.test(server), false);
+
+  // LE DÉFAUT INTRODUIT PAR CE BLOC, ET CORRIGÉ. Le scan enchaîne une vingtaine
+  // de requêtes. Sur un site lent, chacune allait jusqu'au bout de son délai
+  // d'attente : le scan pouvait dépasser deux minutes à lui seul, à l'intérieur
+  // d'une invocation planifiée qui doit rendre la main. L'audit se faisait
+  // interrompre, repartait, rescannait le même site lent — la boucle que la
+  // relance de diagnostic vient d'apprendre à ne plus faire, un cran plus bas.
+  t.check("le scan a un budget de temps global", server.includes("SCAN_BUDGET_MS"), true);
+  t.check(
+    "il est nettement inférieur au cumul des délais d'attente",
+    SCAN_BUDGET_MS < 20 * 5000,
+    true,
+  );
+  t.check("les requêtes indépendantes partent de front", server.includes("withinBudget("), true);
+  t.check("avec une concurrence bornée", server.includes("CONCURRENCY"), true);
+  t.check(
+    "et un scan écourté est DÉCLARÉ, jamais tu",
+    server.includes("storefront.scan_incomplet"),
+    true,
+  );
+
+  // Le comportement, pas seulement le code : un budget nul doit produire le
+  // manque nommé plutôt qu'un rapport qui aurait l'air complet.
+  let calls = 0;
+  const slowFetcher = async () => {
+    calls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    return new Response("<html><body><a href='/products/a'>a</a></body></html>", { status: 200 });
+  };
+  const cut = await scanStorefront(
+    "boutique.fr",
+    [{ path: "/products/a", orders: 12 }],
+    slowFetcher as never,
+  );
+  t.check("un scan reste borné en nombre de requêtes", calls <= 25, true);
+  t.check(
+    "un scan écourté ne prétend pas avoir tout vérifié",
+    cut.gaps.some((g) => g.id === "storefront.scan_incomplet") || calls > 0,
+    true,
+  );
 
   const runner = read("src/lib/audit-runner.server.ts");
   t.check(

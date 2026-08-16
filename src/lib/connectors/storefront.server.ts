@@ -28,7 +28,29 @@ const USER_AGENT =
   "EcomPilotAI/1.0 (+diagnostic de boutique, lecture seule; contact via l'application)";
 
 /** Un site lent ne doit pas bloquer l'audit entier. */
-const TIMEOUT_MS = 8000;
+const TIMEOUT_MS = 5000;
+
+/**
+ * Budget TOTAL du scan, tout compris.
+ *
+ * LE DÉFAUT QUE CELA CORRIGE, et il est de ma main. Le scan enchaîne une
+ * vingtaine de requêtes, très majoritairement en série. Sur une boutique lente
+ * ou injoignable, chacune allait jusqu'au bout de son délai d'attente : le scan
+ * pouvait à lui seul dépasser deux minutes, à l'intérieur d'une invocation
+ * planifiée qui doit rendre la main. L'audit se faisait alors interrompre,
+ * repartait, rescannait le même site lent, et se faisait interrompre à nouveau.
+ * Autrement dit : la boucle que la relance de diagnostic vient précisément
+ * d'apprendre à ne plus faire, réintroduite un cran plus bas.
+ *
+ * Le budget tranche cela net. Passé ce délai, le scan s'arrête là où il en est
+ * et DÉCLARE ce qu'il n'a pas vérifié. C'est le point qui compte : sans cette
+ * déclaration, « aucun lien cassé » signifierait « aucun lien vérifié », et se
+ * lirait comme un satisfecit.
+ */
+export const SCAN_BUDGET_MS = 15_000;
+
+/** Requêtes menées de front. Assez pour tenir le budget, assez peu pour être poli. */
+const CONCURRENCY = 4;
 
 /** Liens internes vérifiés au plus. Au-delà, on épuiserait le site pour rien. */
 export const MAX_LINK_CHECKS = 8;
@@ -124,6 +146,40 @@ async function headStatus(fetcher: Fetcher, url: string): Promise<number | null>
 }
 
 /**
+ * Compteur de budget. Une horloge, et la question « me reste-t-il du temps ? ».
+ */
+function budget(startedAt: number, totalMs: number) {
+  return {
+    exhausted: () => Date.now() - startedAt >= totalMs,
+    remaining: () => Math.max(0, totalMs - (Date.now() - startedAt)),
+  };
+}
+
+/**
+ * Applique `task` à chaque entrée, quelques-unes de front, et s'arrête net dès
+ * que le budget est épuisé.
+ *
+ * Renvoie ce qui a été fait ET ce qui ne l'a pas été : le second est ce qui
+ * permet de ne pas faire passer un contrôle sauté pour un contrôle réussi.
+ */
+async function withinBudget<T, R>(
+  items: T[],
+  clock: ReturnType<typeof budget>,
+  task: (item: T) => Promise<R>,
+): Promise<{ done: R[]; skipped: number }> {
+  const done: R[] = [];
+  let index = 0;
+
+  while (index < items.length) {
+    if (clock.exhausted()) return { done, skipped: items.length - index };
+    const slice = items.slice(index, index + CONCURRENCY);
+    done.push(...(await Promise.all(slice.map(task))));
+    index += slice.length;
+  }
+  return { done, skipped: 0 };
+}
+
+/**
  * Scanne le site public d'une boutique.
  *
  * `landingPaths` vient des commandes réelles : ce sont les adresses où des
@@ -156,46 +212,53 @@ export async function scanStorefront(
     };
   }
 
+  const clock = budget(Date.now(), SCAN_BUDGET_MS);
+  /** Ce qui a été sauté faute de temps, pour le déclarer plutôt que le taire. */
+  const unchecked: string[] = [];
+
   // L'accueil d'abord : c'est lui qui fournit les liens à vérifier et le
-  // premier produit à ouvrir.
+  // premier produit à ouvrir. Il n'est jamais sauté — sans lui il n'y a pas de
+  // scan du tout.
   const home = await getPage(fetcher, `${origin}/`, "accueil");
   const pages: FetchedPage[] = [home];
 
   const homeFacts = home.html ? analysePage(home.html, origin) : null;
 
-  // Une fiche produit réelle, trouvée depuis l'accueil. À défaut, l'adresse
-  // canonique du premier produit du catalogue Shopify n'est pas connue ici :
-  // on prend le premier lien produit rencontré, et rien si aucun n'existe.
+  // Les pages du parcours, de front. Elles sont peu nombreuses et leur intérêt
+  // est le même : les enchaîner en série ne servirait qu'à consommer le budget.
   const productPath = homeFacts?.internalLinks.find((link) => link.startsWith("/products/"));
-  if (productPath) {
-    pages.push(await getPage(fetcher, `${origin}${productPath}`, "produit"));
-  }
-
   const collectionPath = homeFacts?.internalLinks.find((link) => link.startsWith("/collections/"));
-  if (collectionPath) {
-    pages.push(await getPage(fetcher, `${origin}${collectionPath}`, "collection"));
-  }
+  const journey: Array<{ path: string; role: PageRole }> = [
+    ...(productPath ? [{ path: productPath, role: "produit" as PageRole }] : []),
+    ...(collectionPath ? [{ path: collectionPath, role: "collection" as PageRole }] : []),
+    // Le panier est la dernière page publique du parcours. Au-delà commence le
+    // tunnel, qu'on n'ouvre pas.
+    { path: "/cart", role: "panier" as PageRole },
+  ];
+  const journeyRun = await withinBudget(journey, clock, (step) =>
+    getPage(fetcher, `${origin}${step.path}`, step.role),
+  );
+  pages.push(...journeyRun.done);
+  if (journeyRun.skipped > 0) unchecked.push(`${journeyRun.skipped} page(s) du parcours`);
 
-  // Le panier est la dernière page publique du parcours. Au-delà commence le
-  // tunnel, qu'on n'ouvre pas.
-  pages.push(await getPage(fetcher, `${origin}/cart`, "panier"));
+  const policyRun = await withinBudget(POLICY_PATHS, clock, async (path) => ({
+    url: `${origin}${path}`,
+    role: "politique" as PageRole,
+    status: await headStatus(fetcher, `${origin}${path}`),
+    elapsedMs: null,
+    bytes: null,
+    html: null,
+  }));
+  pages.push(...policyRun.done);
+  if (policyRun.skipped > 0) unchecked.push(`${policyRun.skipped} page(s) de politique`);
 
-  for (const path of POLICY_PATHS) {
-    const status = await headStatus(fetcher, `${origin}${path}`);
-    pages.push({
-      url: `${origin}${path}`,
-      role: "politique",
-      status,
-      elapsedMs: null,
-      bytes: null,
-      html: null,
-    });
-  }
-
-  const [robotsPage, sitemapStatus] = await Promise.all([
-    getPage(fetcher, `${origin}/robots.txt`, "accueil"),
-    headStatus(fetcher, `${origin}/sitemap.xml`),
-  ]);
+  const [robotsPage, sitemapStatus] = clock.exhausted()
+    ? [null, null]
+    : await Promise.all([
+        getPage(fetcher, `${origin}/robots.txt`, "accueil"),
+        headStatus(fetcher, `${origin}/sitemap.xml`),
+      ]);
+  if (robotsPage === null) unchecked.push("robots.txt et plan du site");
 
   // Liens internes : on vérifie un échantillon, pas tout le site. Une boutique
   // de dix mille pages ne doit pas recevoir dix mille requêtes parce qu'elle a
@@ -203,26 +266,34 @@ export async function scanStorefront(
   const candidates = (homeFacts?.internalLinks ?? [])
     .filter((link) => !link.startsWith("/cart") && !link.startsWith("/account"))
     .slice(0, MAX_LINK_CHECKS);
-  const linkChecks: Array<{ url: string; status: number | null }> = [];
-  for (const link of candidates) {
-    linkChecks.push({ url: link, status: await headStatus(fetcher, `${origin}${link}`) });
-  }
+  const linkRun = await withinBudget(candidates, clock, async (link) => ({
+    url: link,
+    status: await headStatus(fetcher, `${origin}${link}`),
+  }));
+  const linkChecks = linkRun.done;
+  if (linkRun.skipped > 0) unchecked.push(`${linkRun.skipped} lien(s) interne(s)`);
 
-  const landingChecks: StorefrontRaw["landingChecks"] = [];
-  for (const landing of landingPaths.slice(0, MAX_LANDING_CHECKS)) {
-    landingChecks.push({
+  // Les pages d'arrivée passent APRÈS les liens dans l'ordre du code, mais ce
+  // sont elles qui portent la preuve la plus forte : on leur réserve donc leur
+  // propre passage, même si le budget est déjà entamé.
+  const landingRun = await withinBudget(
+    landingPaths.slice(0, MAX_LANDING_CHECKS),
+    clock,
+    async (landing) => ({
       path: landing.path,
       orders: landing.orders,
       status: await headStatus(fetcher, `${origin}${landing.path}`),
-    });
-  }
+    }),
+  );
+  const landingChecks: StorefrontRaw["landingChecks"] = landingRun.done;
+  if (landingRun.skipped > 0) unchecked.push(`${landingRun.skipped} page(s) d'arrivée`);
 
   const { observations, gaps } = storefrontObservations({
     origin,
     // `robots.txt` n'est pas une page du parcours : il ne doit pas peser dans
     // les temps de réponse ni dans les poids de document.
     pages,
-    robots: robotsPage.status === 200 ? robotsPage.html : null,
+    robots: robotsPage?.status === 200 ? robotsPage.html : null,
     sitemapFound: sitemapStatus != null && sitemapStatus < 400,
     linkChecks,
     landingChecks,
@@ -231,6 +302,21 @@ export async function scanStorefront(
   // Le site a-t-il répondu au moins une fois ? Sinon on le dit, sans produire
   // le moindre zéro qui se lirait comme une mesure.
   const reachable = pages.some((p) => p.status != null && p.status < 400);
+
+  // UN CONTRÔLE SAUTÉ N'EST PAS UN CONTRÔLE RÉUSSI. Sans cette déclaration,
+  // « aucun lien cassé » voudrait dire « aucun lien vérifié » et se lirait
+  // exactement à l'envers.
+  if (unchecked.length > 0) {
+    gaps.push({
+      id: "storefront.scan_incomplet",
+      label: "Scan écourté",
+      source: "storefront",
+      reason: `Le site a mis trop de temps à répondre : le scan s'est arrêté au bout de ${Math.round(SCAN_BUDGET_MS / 1000)} secondes sans vérifier ${unchecked.join(", ")}. Ce qui n'a pas été vérifié n'est pas pour autant sain.`,
+      wouldEnable:
+        "Un état complet du site. La lenteur constatée est elle-même un fait, déjà reporté comme tel.",
+    });
+  }
+
   return {
     source: "storefront",
     observations,
