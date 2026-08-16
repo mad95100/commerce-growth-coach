@@ -314,6 +314,67 @@ jobs:
 
           echo "Configuration d'exécution complète."
 
+      - name: Les modèles de langage configurés répondent
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+        run: |
+          # POURQUOI CETTE ÉTAPE EXISTE. Un modèle peut disparaître du catalogue
+          # du fournisseur sans que rien ne change chez nous : Google retire
+          # régulièrement l'accès de ses anciennes versions aux nouveaux
+          # comptes. Le déploiement restait vert, la configuration restait
+          # valide en apparence, et l'audit échouait en production sur
+          # « models/... is no longer available to new users ». C'est arrivé.
+          #
+          # DEUX CONTRÔLES, ET LE SECOND EST LE SEUL QUI PROUVE QUELQUE CHOSE.
+          # La liste du catalogue sert au diagnostic — un modèle peut y figurer
+          # tout en étant refusé à l'appel. Seul un vrai appel, minuscule,
+          # établit que le modèle répond à CETTE clé.
+          #
+          # LA CLÉ NE SORT JAMAIS : elle part dans un en-tête, jamais sur la
+          # ligne de commande, et aucune réponse n'est affichée en entier.
+          if [ -z "$AI_API_KEY" ]; then
+            echo "::warning::AI_API_KEY absente des secrets du dépôt : modèles non vérifiés."
+            exit 0
+          fi
+
+          base=$(grep -m1 '^AI_BASE_URL' wrangler.toml | cut -d'"' -f2)
+          audit=$(grep -m1 '^AI_AUDIT_MODEL' wrangler.toml | cut -d'"' -f2)
+          fix=$(grep -m1 '^AI_FIX_MODEL' wrangler.toml | cut -d'"' -f2)
+          echo "Fournisseur : $base"
+          echo "Modèle d'audit : $audit"
+          echo "Modèle de correction : $fix"
+
+          echo "--- Catalogue exposé à cette clé ---"
+          curl -s --max-time 30 -H "Authorization: Bearer $AI_API_KEY" "$base/models" \
+            | jq -r '.data[]?.id // empty' | sort || echo "(catalogue illisible)"
+
+          # L'appel de contrôle est réduit au minimum : un mot en entrée, une
+          # poignée de jetons en sortie.
+          echec=""
+          for modele in "$audit" "$fix"; do
+            corps=$(jq -n --arg m "$modele" \
+              '{model:$m, max_tokens:8, messages:[{role:"user",content:"ping"}]}')
+            code=$(curl -s -o reponse.json -w '%{http_code}' --max-time 60 \
+              -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" \
+              -d "$corps" "$base/chat/completions" || true)
+            [ -n "$code" ] || code=000
+            if [ "$code" = "200" ]; then
+              echo "$modele : répond (HTTP 200)."
+            else
+              # Le message d'erreur du fournisseur est reproduit : c'est lui qui
+              # nomme la cause. Il ne contient pas la clé.
+              echo "::error::$modele : HTTP $code — $(jq -r '.error.message // "réponse illisible"' reponse.json 2>/dev/null | head -c 300)"
+              echec="$echec $modele"
+            fi
+            rm -f reponse.json
+          done
+
+          if [ -n "$echec" ]; then
+            echo "::error::Modèle(s) inutilisable(s) :$echec. L'audit échouerait en production."
+            exit 1
+          fi
+          echo "Les deux modèles répondent."
+
       - name: Le parcours de connexion Shopify répond
         env:
           TARGET: ${{ vars.DEPLOY_HEALTHCHECK_URL || steps.deploiement.outputs.url }}
