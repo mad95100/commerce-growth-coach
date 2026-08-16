@@ -264,6 +264,43 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
     true,
   );
 
+  // --- Les modèles configurés sont éprouvés, pas supposés -------------------
+  // Un modèle peut disparaître du catalogue d'un fournisseur sans que rien ne
+  // change chez nous. Et il peut FIGURER au catalogue tout en étant refusé à
+  // l'appel : c'est exactement ce qui est arrivé à gemini-2.5-pro. Seul un
+  // appel réel prouve quelque chose.
+  t.check(
+    "les modèles configurés sont appelés pour de vrai",
+    /chat\/completions"/.test(deployCode) && /AI_AUDIT_MODEL/.test(deployCode),
+    true,
+  );
+  // Disponible n'est pas compatible : l'audit force un appel d'outil, la sonde
+  // doit vérifier que le modèle l'honore.
+  t.check(
+    "la sonde vérifie que l'appel d'outil forcé est honoré",
+    /tool_choice/.test(deployCode) && /tool_calls\[0\]\.function\.name/.test(deployCode),
+    true,
+  );
+  // Un 404 est définitif, un 503 est l'humeur du fournisseur. Confondre les
+  // deux fait dépendre nos livraisons de la charge de Google.
+  t.check(
+    "une surcharge passagère est réessayée puis signalée sans bloquer",
+    /429\|5\*\|000\)/.test(deployCode) &&
+      /fournisseur indisponible, configuration non mise en cause/.test(deployCode),
+    true,
+  );
+  t.check(
+    "un modèle définitivement refusé fait échouer le déploiement",
+    /Modèle\(s\) inutilisable\(s\)[\s\S]{0,120}exit 1/.test(deployCode),
+    true,
+  );
+  // La clé part dans un en-tête, jamais sur la ligne de commande.
+  t.check(
+    "la clé du modèle ne transite jamais par un paramètre d'URL",
+    /[?&]key=\$AI_API_KEY/.test(deployCode),
+    false,
+  );
+
   // --- Le parcours de connexion est sondé, en lecture seule -----------------
   // La liste des secrets prouve qu'ils sont POSÉS ; elle ne prouve pas qu'ils
   // arrivent jusqu'au code. Le callback OAuth s'arrête à la vérification de

@@ -374,16 +374,43 @@ jobs:
               }],
               tool_choice: {type: "function", function: {name: "sonde"}}
             }')
-            code=$(curl -s -o reponse.json -w '%{http_code}' --max-time 90 \
-              -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" \
-              -d "$corps" "$base/chat/completions" || true)
-            [ -n "$code" ] || code=000
+            # DEUX ÉCHECS QUI N'ONT RIEN À VOIR. Un 404 dit que le modèle
+            # n'existe plus pour cette clé : c'est définitif, il faut changer la
+            # configuration. Un 429 ou un 5xx dit que le fournisseur est
+            # surchargé à cet instant : c'est passager, et faire échouer un
+            # déploiement là-dessus reviendrait à faire dépendre nos livraisons
+            # de la charge de Google. Le cas s'est produit au premier essai.
+            code=000
+            for tentative in 1 2 3; do
+              code=$(curl -s -o reponse.json -w '%{http_code}' --max-time 90 \
+                -H "Authorization: Bearer $AI_API_KEY" -H "Content-Type: application/json" \
+                -d "$corps" "$base/chat/completions" || true)
+              [ -n "$code" ] || code=000
+              case "$code" in
+                429|5*|000)
+                  echo "$modele : HTTP $code (tentative $tentative) — surcharge probable, nouvel essai."
+                  sleep $((tentative * 10))
+                  ;;
+                *) break ;;
+              esac
+            done
 
             if [ "$code" != "200" ]; then
               # Le message du fournisseur est reproduit : c'est lui qui nomme la
               # cause. Il ne contient pas la clé.
-              echo "::error::$modele : HTTP $code — $(jq -r '.error.message // "réponse illisible"' reponse.json 2>/dev/null | head -c 300)"
-              echec="$echec $modele"
+              message=$(jq -r '.error.message // ""' reponse.json 2>/dev/null | head -c 300)
+              case "$code" in
+                429|5*|000)
+                  # Trois tentatives et toujours surchargé : c'est l'humeur du
+                  # fournisseur, pas notre configuration. On le signale sans
+                  # bloquer la livraison.
+                  echo "::warning::$modele : HTTP $code après trois tentatives — fournisseur indisponible, configuration non mise en cause. $message"
+                  ;;
+                *)
+                  echo "::error::$modele : HTTP $code — ${message:-réponse illisible}"
+                  echec="$echec $modele"
+                  ;;
+              esac
             elif [ "$(jq -r '.choices[0].message.tool_calls[0].function.name // ""' reponse.json)" != "sonde" ]; then
               echo "::error::$modele : répond, mais n'honore pas tool_choice — l'audit échouerait sur « Réponse IA invalide »."
               echec="$echec $modele"
