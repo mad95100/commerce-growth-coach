@@ -5,6 +5,7 @@ import { analyseFindings, applyTechnicalFrontier } from "@/lib/finding-graph";
 import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-history";
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
+import { analyse as analyseRules, rulesToPromptBlock } from "@/lib/audit-rules";
 import { assessDiagnostics, diagnosticsToPromptBlock } from "@/lib/diagnostics";
 import { crossSignals, crossSignalsToPromptBlock } from "@/lib/cross-source";
 import { anchorGainsOnLeak, buildFunnel, funnelToPromptBlock } from "@/lib/funnel";
@@ -200,6 +201,17 @@ export async function executeAuditWork(input: {
   // euros par habitude et chiffrerait ses recommandations dans la mauvaise unité.
   const storeCurrency = normalizeCurrency(store.currency);
 
+  // LE MOTEUR DÉTERMINISTE PASSE AVANT LE MODÈLE. Les constats, les scores par
+  // axe et les priorités sont établis ici, par des règles et des seuils. Le
+  // modèle les reçoit déjà faits : il rédige, relie et explique — il ne décide
+  // plus de ce qui est vrai. C'est ce qui rend deux audits successifs sur les
+  // mêmes données comparables, ce qu'un modèle seul ne peut pas promettre.
+  const ruleReport = analyseRules({
+    observations: allObservations(reports),
+    gaps: allGaps(reports),
+    currency: storeCurrency,
+  });
+
   const userPrompt = `Voici les infos de la boutique à auditer :
 
 - Nom : ${store.name}
@@ -222,13 +234,15 @@ ${observationsToPromptBlock(reports)}
 
 ${diagnosticsToPromptBlock(availability, allGaps(reports))}
 
+${rulesToPromptBlock(ruleReport)}
+
 ${funnelToPromptBlock(funnel)}
 
 ${crossSignalsToPromptBlock(crossed)}
 
 ${historyToPromptBlock(history)}
 
-Analyse cette boutique comme un directeur e-commerce senior. Couvre l'offre, le produit, la boutique, la conversion, l'acquisition, la rétention et la rentabilité. Ne retiens que les problèmes qui coûtent réellement de l'argent, du plus coûteux au moins coûteux.
+Rédige comme un consultant e-commerce senior qui vient de lire ces constats. Ton rôle : expliquer au marchand ce que chaque constat signifie pour SON activité, montrer ce qui relie les constats entre eux, et donner l'ordre dans lequel s'y prendre. Reprends les constats du moteur — tu n'en ajoutes aucun, tu n'en retires aucun, tu n'en modifies ni le niveau de preuve ni le chiffrage.
 
 Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
 
