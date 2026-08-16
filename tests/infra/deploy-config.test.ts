@@ -306,6 +306,20 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
     true,
   );
 
+  // `curl -w '%{http_code}'` écrit déjà « 000 » sur échec de connexion : un
+  // `|| echo 000` en ajoutait un second et le journal annonçait « HTTP 000000 »,
+  // un code sur lequel aucun `case` ne peut se prononcer.
+  t.check(
+    "aucun code de statut n'est concaténé au code réel de curl",
+    /-w '%\{http_code\}'[^\n]*\|\| echo 000/.test(deployCode),
+    false,
+  );
+  t.check(
+    "le repli sur 000 ne s'applique que si curl n'a rien écrit",
+    (deployCode.match(/\[ -n "\$code" \] \|\| code=000/g) ?? []).length >= 3,
+    true,
+  );
+
   // --- Le contrôle de démarrage s'exécute vraiment --------------------------
   // Sauté en silence, il donnait un déploiement vert sur un worker que
   // personne ne pouvait ouvrir. À défaut d'adresse configurée, celle que

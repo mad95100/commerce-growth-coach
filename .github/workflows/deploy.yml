@@ -334,8 +334,14 @@ jobs:
             exit 0
           fi
 
+          # `curl -w '%{http_code}'` ÉCRIT DÉJÀ « 000 » quand la connexion
+          # échoue, puis sort en erreur. Un `|| echo 000` ajoutait donc un
+          # second « 000 » et le journal annonçait « HTTP 000000 » — un code
+          # qui n'existe pas, sur lequel aucun `case` ne peut se prononcer.
+          # `|| true` neutralise la sortie non nulle sans rien ajouter.
           sonde="$TARGET/api/public/oauth/shopify/callback?code=sonde&shop=sonde.myshopify.com&state=sonde&hmac=0000"
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$sonde" || echo 000)
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$sonde" || true)
+          [ -n "$code" ] || code=000
           echo "Sonde du callback Shopify : HTTP $code"
 
           case "$code" in
@@ -361,7 +367,8 @@ jobs:
           fi
           echo "Origine des redirect_uri OAuth : $origine"
 
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$origine" || echo 000)
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$origine" || true)
+          [ -n "$code" ] || code=000
           case "$code" in
             2*|3*) echo "L'origine OAuth répond (HTTP $code)." ;;
             *)
@@ -420,7 +427,8 @@ jobs:
           fi
           echo "Adresse contrôlée : $TARGET"
           for attempt in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$TARGET" || echo 000)
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$TARGET" || true)
+            [ -n "$code" ] || code=000
             echo "tentative $attempt : HTTP $code"
             case "$code" in
               2*|3*) echo "Déploiement joignable."; exit 0 ;;
