@@ -314,6 +314,63 @@ jobs:
 
           echo "Configuration d'exécution complète."
 
+      - name: Le parcours de connexion Shopify répond
+        env:
+          TARGET: ${{ vars.DEPLOY_HEALTHCHECK_URL || steps.deploiement.outputs.url }}
+          WRANGLER_ENV: ${{ (github.event.inputs.environment == 'preview') && '--env preview' || '--env=' }}
+        run: |
+          # SONDE STRICTEMENT EN LECTURE. Le callback OAuth s'arrête à la
+          # vérification de signature, AVANT tout échange de jeton et toute
+          # écriture : une signature volontairement fausse ne peut rien modifier
+          # ni chez Shopify ni en base. C'est la seule façon de vérifier depuis
+          # l'extérieur qu'un secret est réellement LU par le worker à
+          # l'exécution — la liste des secrets prouve qu'ils sont posés, pas
+          # qu'ils arrivent jusqu'au code.
+          #
+          # 401 « signature refusée » = identifiants lus, parcours vivant.
+          # 500 « configuration serveur incomplète » = identifiants absents.
+          if [ -z "$TARGET" ]; then
+            echo "::warning::Aucune adresse : parcours de connexion non vérifié."
+            exit 0
+          fi
+
+          sonde="$TARGET/api/public/oauth/shopify/callback?code=sonde&shop=sonde.myshopify.com&state=sonde&hmac=0000"
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$sonde" || echo 000)
+          echo "Sonde du callback Shopify : HTTP $code"
+
+          case "$code" in
+            401) echo "Identifiants Shopify lus par le worker — signature refusée, comme attendu." ;;
+            500)
+              echo "::error::Le worker ne lit pas SHOPIFY_CLIENT_ID / SHOPIFY_CLIENT_SECRET à l'exécution."
+              exit 1
+              ;;
+            *) echo "::warning::Réponse inattendue du callback Shopify (HTTP $code) : parcours à vérifier à la main." ;;
+          esac
+
+          # COHÉRENCE DU redirect_uri. Il se construit sur APP_URL, jamais sur
+          # l'adresse par laquelle on navigue — c'est délibéré, un `redirect_uri`
+          # doit être figé au caractère près. Conséquence : si APP_URL désigne un
+          # domaine qui ne répond pas, le worker est joignable, la sonde
+          # ci-dessus passe, et pourtant AUCUNE connexion Shopify ne peut
+          # aboutir : le marchand est renvoyé vers un hôte inexistant, hors de
+          # l'application, là où plus rien ne peut le rattraper.
+          if [ "$WRANGLER_ENV" = "--env preview" ]; then
+            origine=$(sed -n '/\[env.preview.vars\]/,$p' wrangler.toml | grep -m1 '^APP_URL' | cut -d'"' -f2)
+          else
+            origine=$(grep -m1 '^APP_URL' wrangler.toml | cut -d'"' -f2)
+          fi
+          echo "Origine des redirect_uri OAuth : $origine"
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$origine" || echo 000)
+          case "$code" in
+            2*|3*) echo "L'origine OAuth répond (HTTP $code)." ;;
+            *)
+              echo "::warning::APP_URL ($origine) ne répond pas (HTTP $code) : les redirect_uri OAuth pointent vers un hôte injoignable."
+              echo "::warning::Aucune connexion Shopify, Meta ou Google ne peut aboutir tant que ce domaine n'est pas servi."
+              echo "::warning::Deux gestes, ensemble : attacher le domaine au worker (Cloudflare → Workers → Custom Domains), et déclarer $origine/api/public/oauth/shopify/callback dans l'app Shopify."
+              ;;
+          esac
+
       - name: Appliquer les migrations Supabase
         # APRÈS le déploiement, délibérément : on ne modifie le schéma qu'une
         # fois le worker publié sans erreur. Sautée si le projet n'est pas relié.

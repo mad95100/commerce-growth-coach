@@ -264,6 +264,48 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
     true,
   );
 
+  // --- Le parcours de connexion est sondé, en lecture seule -----------------
+  // La liste des secrets prouve qu'ils sont POSÉS ; elle ne prouve pas qu'ils
+  // arrivent jusqu'au code. Le callback OAuth s'arrête à la vérification de
+  // signature, avant tout échange de jeton et toute écriture : une signature
+  // fausse y est donc une sonde sans effet.
+  t.check(
+    "le parcours de connexion Shopify est sondé après déploiement",
+    /oauth\/shopify\/callback\?code=sonde/.test(deployCode),
+    true,
+  );
+  t.check(
+    "la sonde ne peut rien écrire : elle porte une signature volontairement fausse",
+    /hmac=0000/.test(deployCode),
+    true,
+  );
+  t.check(
+    "une signature refusée est le résultat attendu, pas une erreur",
+    /401\)/.test(deployCode),
+    true,
+  );
+  t.check(
+    "des identifiants Shopify illisibles à l'exécution font échouer le déploiement",
+    /500\)[\s\S]{0,300}exit 1/.test(deployCode),
+    true,
+  );
+  // Un `redirect_uri` bâti sur un domaine qui ne répond pas rend toute
+  // connexion impossible, alors même que le worker est joignable : le marchand
+  // part chez Shopify et revient sur un hôte inexistant.
+  t.check(
+    "la joignabilité de l'origine des redirect_uri est vérifiée",
+    /Origine des redirect_uri OAuth/.test(deployCode) && /grep -m1 '\^APP_URL'/.test(deployCode),
+    true,
+  );
+  t.check(
+    "une origine OAuth injoignable est signalée avec les deux gestes à faire",
+    /les redirect_uri OAuth pointent vers un hôte injoignable/.test(deployCode) &&
+      /déclarer \$origine\/api\/public\/oauth\/shopify\/callback dans l'app Shopify/.test(
+        deployCode,
+      ),
+    true,
+  );
+
   // --- Le contrôle de démarrage s'exécute vraiment --------------------------
   // Sauté en silence, il donnait un déploiement vert sur un worker que
   // personne ne pouvait ouvrir. À défaut d'adresse configurée, celle que
