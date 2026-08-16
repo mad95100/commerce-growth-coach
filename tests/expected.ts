@@ -182,9 +182,9 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "infra/deploy-config.test.ts",
-    minChecks: 58,
+    minChecks: 68,
     covers:
-      "Cohérence du déploiement Cloudflare : entrée du worker, nodejs_compat, actifs statiques, cron, absence de secret versionné, et concordance entre wrangler.toml, vite.config.ts et .env.example.",
+      "Cohérence du déploiement Cloudflare : entrée du worker, nodejs_compat, actifs statiques, cron, absence de secret versionné, et concordance entre wrangler.toml, vite.config.ts et .env.example. Vérifie aussi que « déployé » ne se confond plus avec « fonctionne » — un worker publié sans clé de service fait échouer le déploiement au lieu d'afficher un vert trompeur, et le contrôle de démarrage se rabat sur l'adresse que wrangler vient de publier plutôt que d'être sauté en silence.",
   },
   {
     file: "actions/state-compare.test.ts",

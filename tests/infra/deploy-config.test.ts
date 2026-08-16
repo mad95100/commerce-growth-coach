@@ -212,6 +212,72 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
     /for nom in OAUTH_STATE_SECRET JOBS_TICK_SECRET DATA_CONNECTIONS_ENCRYPTION_KEY/.test(deploy),
     true,
   );
+  // --- « Déployé » n'est pas « fonctionne » ---------------------------------
+  // Un worker publié sans clé de service se déploie en vert et échoue à la
+  // première requête. L'avertissement seul ne protégeait personne : il faut que
+  // le déploiement échoue. Le contrôle porte sur le code du workflow, pas sur
+  // ses commentaires, qui citent délibérément le cas fautif pour l'expliquer.
+  t.check(
+    "la configuration d'exécution du Worker est vérifiée après déploiement",
+    /wrangler secret list \$WRANGLER_ENV --format json/.test(deployCode),
+    true,
+  );
+  t.check(
+    "un secret vital absent fait échouer le déploiement",
+    /ne peut pas fonctionner — secrets absents[\s\S]{0,300}exit 1/.test(deployCode),
+    true,
+  );
+  for (const vital of [
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "DATA_CONNECTIONS_ENCRYPTION_KEY",
+    "OAUTH_STATE_SECRET",
+  ]) {
+    t.check(
+      `${vital} fait partie des secrets dont l'absence est bloquante`,
+      new RegExp(`for nom in [^\\n]*${vital}[^\\n]*; do\\n[^\\n]*grep -qx`).test(deployCode),
+      true,
+    );
+  }
+  // Les noms suffisent : lire une valeur pour la vérifier la ferait transiter
+  // par les journaux du runner.
+  t.check(
+    "la vérification ne lit aucune valeur de secret",
+    /secret\s+list[^\n]*--format\s+json[^\n]*\|\s*jq -r '\.\[\]\.name'/.test(deployCode),
+    true,
+  );
+
+  // --- Le contrôle de démarrage s'exécute vraiment --------------------------
+  // Sauté en silence, il donnait un déploiement vert sur un worker que
+  // personne ne pouvait ouvrir. À défaut d'adresse configurée, celle que
+  // wrangler vient de publier.
+  t.check(
+    "l'adresse publiée par wrangler est retenue",
+    /grep -oE 'https:\/\/\[A-Za-z0-9\.-\]\+\\\.workers\\\.dev'/.test(deployCode) &&
+      /echo "url=\$url" >> "\$GITHUB_OUTPUT"/.test(deployCode),
+    true,
+  );
+  t.check(
+    "le contrôle de démarrage se rabat sur l'adresse publiée",
+    /TARGET:\s*\$\{\{\s*vars\.DEPLOY_HEALTHCHECK_URL\s*\|\|\s*steps\.deploiement\.outputs\.url\s*\}\}/.test(
+      deploy,
+    ),
+    true,
+  );
+  // Sans `pipefail`, `tee` renverrait zéro et masquerait un déploiement raté.
+  t.check(
+    "la sortie de wrangler passe par un tube sans masquer son échec",
+    /set -o pipefail[\s\S]{0,200}wrangler deploy \$WRANGLER_ENV 2>&1 \| tee/.test(deployCode),
+    true,
+  );
+  // Une absence d'adresse n'est plus une note discrète : elle décrit ce qui
+  // manque et ce qu'il faut faire.
+  t.check(
+    "l'absence d'adresse à contrôler est un avertissement, pas une note",
+    /::warning::Aucune adresse à contrôler/.test(deployCode) &&
+      /DEPLOY_HEALTHCHECK_URL non renseignée, contrôle sauté/.test(deployCode) === false,
+    true,
+  );
+
   // La procédure de reprise doit exister avant d'en avoir besoin.
   const reconnexion = read("docs/reconnexion-shopify.md");
   t.check("la procédure de reconnexion est documentée", reconnexion.length > 0, true);

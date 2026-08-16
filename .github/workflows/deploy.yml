@@ -96,6 +96,7 @@ jobs:
           test -d .output/public || { echo "::error::.output/public absent"; exit 1; }
 
       - name: Déployer sur Cloudflare Workers
+        id: deploiement
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -117,7 +118,21 @@ jobs:
           # `""` qu'il ne trouve pas. En ligne de commande directe les
           # guillemets disparaissent, ce qui rendait le défaut invisible en
           # local.
-          bunx wrangler deploy $WRANGLER_ENV
+          #
+          # `pipefail` est indispensable : la sortie passe par `tee`, et sans lui
+          # un échec de wrangler serait masqué par le succès de `tee`.
+          set -o pipefail
+          bunx wrangler deploy $WRANGLER_ENV 2>&1 | tee deploiement.log
+
+          # L'ADRESSE PUBLIÉE, RETENUE POUR LA SUITE. Wrangler est le seul à la
+          # connaître avec certitude : elle dépend du sous-domaine du compte et
+          # des domaines attachés, que le dépôt ignore. La conserver permet au
+          # contrôle de démarrage de s'exécuter sans configuration préalable —
+          # sans elle, il était sauté en silence et « déployé » ne voulait pas
+          # dire « répond ».
+          url=$(grep -oE 'https://[A-Za-z0-9.-]+\.workers\.dev' deploiement.log | head -1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          rm -f deploiement.log
 
       - name: Provisionner les secrets d'exécution du Worker
         env:
@@ -241,6 +256,42 @@ jobs:
 
           echo "::notice::Secrets générés :$a_generer — ils ne seront plus régénérés aux déploiements suivants."
 
+      - name: Le Worker déployé peut fonctionner
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_ENV: ${{ (github.event.inputs.environment == 'preview') && '--env preview' || '--env=' }}
+        run: |
+          # POURQUOI CETTE ÉTAPE. « Déployé » et « capable de fonctionner » sont
+          # deux choses différentes, et c'est la confusion des deux qui a coûté
+          # le plus cher : un worker publié sans clé de service se déploie très
+          # bien, affiche un déploiement vert, puis échoue à la première requête.
+          # L'avertissement existant — « ne pourra pas joindre Supabase » — ne
+          # faisait rien échouer, donc ne protégeait personne.
+          #
+          # SEULS LES NOMS SONT LUS. `wrangler secret list` ne renvoie jamais de
+          # valeur, et aucune valeur n'est affichée ni comparée ici.
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || unset CLOUDFLARE_ACCOUNT_ID
+
+          poses=$(bunx wrangler secret list $WRANGLER_ENV --format json | jq -r '.[].name')
+          echo "Secrets posés sur le Worker :"
+          echo "$poses" | sed 's/^/  - /'
+
+          # Les trois sans lesquels rien ne fonctionne : la clé de service ouvre
+          # la base, la clé de chiffrement déchiffre les jetons partenaires, et
+          # le secret d'état signe les parcours OAuth.
+          manquants=""
+          for nom in SUPABASE_SERVICE_ROLE_KEY DATA_CONNECTIONS_ENCRYPTION_KEY OAUTH_STATE_SECRET; do
+            echo "$poses" | grep -qx "$nom" || manquants="$manquants $nom"
+          done
+
+          if [ -n "$manquants" ]; then
+            echo "::error::Le Worker est déployé mais ne peut pas fonctionner — secrets absents :$manquants"
+            echo "::error::À ajouter dans Settings → Secrets and variables → Actions du dépôt GitHub, puis relancer ce déploiement."
+            exit 1
+          fi
+          echo "Configuration d'exécution complète."
+
       - name: Appliquer les migrations Supabase
         # APRÈS le déploiement, délibérément : on ne modifie le schéma qu'une
         # fois le worker publié sans erreur. Sautée si le projet n'est pas relié.
@@ -270,14 +321,25 @@ jobs:
 
       - name: Contrôle de démarrage
         env:
-          TARGET: ${{ vars.DEPLOY_HEALTHCHECK_URL }}
+          # La variable du dépôt l'emporte : c'est ainsi qu'on vise le domaine
+          # définitif plutôt que l'adresse `workers.dev`. À défaut, l'adresse
+          # que wrangler vient de publier — un contrôle qui s'exécute vaut mieux
+          # qu'un contrôle parfaitement ciblé qui ne s'exécute jamais.
+          TARGET: ${{ vars.DEPLOY_HEALTHCHECK_URL || steps.deploiement.outputs.url }}
         run: |
           # Un worker peut se déployer et refuser de démarrer — module manquant,
           # variable absente. On le vérifie plutôt que de le supposer.
           if [ -z "$TARGET" ]; then
-            echo "::notice::DEPLOY_HEALTHCHECK_URL non renseignée, contrôle sauté."
+            # AVERTISSEMENT, PAS SIMPLE NOTE. Sans adresse, le déploiement n'est
+            # vérifié par personne et le worker peut être injoignable sans que
+            # rien ne le signale. Le cas s'est produit : ni `workers.dev` ni
+            # domaine attaché, donc aucune URL publique — une application
+            # déployée que personne ne peut ouvrir.
+            echo "::warning::Aucune adresse à contrôler : ni DEPLOY_HEALTHCHECK_URL (variables du dépôt) ni sous-domaine workers.dev publié."
+            echo "::warning::Le worker est peut-être injoignable. Attachez un domaine dans Cloudflare → Workers → Custom Domains, ou activez le sous-domaine workers.dev."
             exit 0
           fi
+          echo "Adresse contrôlée : $TARGET"
           for attempt in 1 2 3 4 5; do
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$TARGET" || echo 000)
             echo "tentative $attempt : HTTP $code"
