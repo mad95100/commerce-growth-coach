@@ -315,7 +315,7 @@ export function buildNextMovePlan(
     parts.push(
       "Tout ce que le dernier diagnostic avait relevé est corrigé.",
       ...learningSentences(proven, ineffective),
-      "Relance un diagnostic : c'est en mesurant l'effet des corrections qu'on trouve le prochain levier.",
+      "Relancez un diagnostic : c'est en mesurant l'effet des corrections qu'on trouve le prochain levier.",
     );
     return {
       alert,
@@ -447,8 +447,8 @@ export function buildNextMovePlan(
   if (unknowns.length > 0) {
     parts.push(
       unknowns.length === 1
-        ? `Une réserve : sur ${enumerate([unknowns[0].title])}, je n'ai pas la donnée pour trancher. Vérifie avant d'y mettre du budget.`
-        : `Une réserve : sur ${unknowns.length} points, je n'ai pas la donnée pour trancher. Vérifie-les avant d'y mettre du budget.`,
+        ? `Une réserve : sur ${enumerate([unknowns[0].title])}, je n'ai pas la donnée pour trancher. Vérifiez avant d'y mettre du budget.`
+        : `Une réserve : sur ${unknowns.length} points, je n'ai pas la donnée pour trancher. Vérifiez-les avant d'y mettre du budget.`,
     );
   }
 
@@ -471,7 +471,7 @@ function rollbackSentence(alert: RollbackAlert): string {
     ? `Avant tout : « ${alert.title} » a dégradé la situation. ${alert.headline}`
     : `Avant tout : « ${alert.title} » a dégradé la situation.`;
   return alert.automatic
-    ? `${constat} Annule cette correction — un bouton suffit, l'état d'avant est connu.`
+    ? `${constat} Annulez cette correction — un bouton suffit, l'état d'avant est connu.`
     : `${constat} Revenez en arrière à la main dans votre compte : cette correction ne s'annule pas toute seule.`;
 }
 

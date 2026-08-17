@@ -54,7 +54,7 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   t.check("et rien derrière", [empty.then.length, empty.blocked.length], [0, 0]);
   t.check(
     "la réponse invite à relancer un diagnostic",
-    empty.rationale.includes("Relance un diagnostic"),
+    empty.rationale.includes("Relancez un diagnostic"),
     true,
   );
 
@@ -460,7 +460,7 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   t.check(
     "et la réponse le dit avant d'inviter à relancer",
     doneAndLearned.rationale.indexOf("Prix revu") <
-      doneAndLearned.rationale.indexOf("Relance un diagnostic"),
+      doneAndLearned.rationale.indexOf("Relancez un diagnostic"),
     true,
   );
 

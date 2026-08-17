@@ -300,7 +300,7 @@ export default defineSuite("Mesure — chemin réel et équité de la file", (t)
     early?.caveat?.includes("Trop tôt pour conclure"),
     true,
   );
-  t.check("et une échéance est donnée", /Reviens dans \d+ jour/.test(early?.caveat ?? ""), true);
+  t.check("et une échéance est donnée", /Revenez dans \d+ jour/.test(early?.caveat ?? ""), true);
 
   const partial = verdictBasis({ days: 15, coverage: 0.5 });
   t.check(

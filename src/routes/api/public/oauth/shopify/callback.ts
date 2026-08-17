@@ -55,7 +55,7 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
             return htmlResponse(
               errorBody(
                 "Retour Shopify non authentifié",
-                "La signature de la requête ne correspond pas. Relance la connexion depuis l'application ; si le problème persiste, vérifie que SHOPIFY_CLIENT_SECRET correspond bien à l'app Shopify utilisée.",
+                "La signature de la requête ne correspond pas. Relancez la connexion depuis l'application ; si le problème persiste, vérifie que SHOPIFY_CLIENT_SECRET correspond bien à l'app Shopify utilisée.",
               ),
               401,
             );
@@ -85,7 +85,7 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
             return htmlResponse(
               errorBody(
                 "Session de connexion invalide",
-                "La demande ne correspond pas à la boutique attendue. Relance la connexion depuis l'application.",
+                "La demande ne correspond pas à la boutique attendue. Relancez la connexion depuis l'application.",
               ),
               400,
             );
@@ -106,7 +106,7 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
             return htmlResponse(
               errorBody(
                 "Shopify a refusé la connexion",
-                `Échange du code impossible (HTTP ${tokenRes.status}). Vérifie que l'URL de redirection déclarée dans l'app Shopify correspond exactement à celle de l'application.`,
+                `Échange du code impossible (HTTP ${tokenRes.status}). Vérifiez que l'URL de redirection déclarée dans l'app Shopify correspond exactement à celle de l'application.`,
               ),
               502,
             );

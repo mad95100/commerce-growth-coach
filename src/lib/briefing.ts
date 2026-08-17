@@ -175,7 +175,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
       nextDecision:
         plan === null
           ? "Lancez un premier diagnostic pour savoir où vous en êtes."
-          : "Relance un diagnostic : c'est en mesurant l'effet des corrections qu'on trouve le prochain levier.",
+          : "Relancez un diagnostic : c'est en mesurant l'effet des corrections qu'on trouve le prochain levier.",
     };
   }
 

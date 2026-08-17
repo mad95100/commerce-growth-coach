@@ -317,7 +317,7 @@ export function verdictBasis(input: {
   let caveat: string | null = null;
   if (bounded < MIN_COVERAGE) {
     const remaining = Math.max(1, Math.ceil(METRIC_WINDOW_DAYS * MIN_COVERAGE - rounded));
-    caveat = `Trop tôt pour conclure : l'essentiel de ce qui est mesuré est encore antérieur à la correction. Reviens dans ${remaining} jour(s).`;
+    caveat = `Trop tôt pour conclure : l'essentiel de ce qui est mesuré est encore antérieur à la correction. Revenez dans ${remaining} jour(s).`;
   } else if (bounded < 1) {
     caveat = `Les ${100 - coveragePct} % restants de la fenêtre décrivent encore la période d'avant : l'écart affiché est ramené à fenêtre pleine, pas constaté tel quel.`;
   }
@@ -426,7 +426,7 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
           ? `Trop peu de commandes pour conclure (${Math.round(volume)} sur ${METRIC_WINDOW_DAYS} jours).`
           : `Mesure en cours — verdict dans ${remaining} jour${remaining > 1 ? "s" : ""}.`,
       explanation: missing
-        ? "Aucun des indicateurs qui devraient bouger n'est disponible pour l'instant. Vérifie que le canal concerné est bien connecté : sans lui, l'effet de cette correction ne peut pas être prouvé."
+        ? "Aucun des indicateurs qui devraient bouger n'est disponible pour l'instant. Vérifiez que le canal concerné est bien connecté : sans lui, l'effet de cette correction ne peut pas être prouvé."
         : tooFewObservations
           ? `Avec ${Math.round(volume)} commande(s) sur ${METRIC_WINDOW_DAYS} jours, un écart en pourcentage ne veut rien dire : une commande de plus ou de moins suffit à le faire basculer. Il faut au moins ${MIN_ORDERS_FOR_VERDICT} commandes pour qu'un verdict soit autre chose qu'une illusion d'optique. Nous préférons vous dire que nous ne savons pas.`
           : `Les indicateurs sont des cumuls sur ${METRIC_WINDOW_DAYS} jours. ${round(days)} jour(s) après la correction, seuls ${Math.round(coverage * 100)} % de ce qui est mesuré lui sont postérieurs — trop peu pour conclure sans risquer de défaire ce qui commence à marcher.`,
@@ -461,7 +461,7 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
         possible: input.revertible === true,
         reason:
           input.revertible === true
-            ? `Annule cette correction : ${worstGuard.label} ne se rétablira pas tout seul.`
+            ? `Annulez cette correction : ${worstGuard.label} ne se rétablira pas tout seul.`
             : `Cette correction n'est pas annulable automatiquement. Revenez en arrière à la main dans votre compte, en surveillant ${worstGuard.label}.`,
       },
       legacyStatus: LEGACY_STATUS.regression,
@@ -482,8 +482,8 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
         possible: input.revertible === true,
         reason:
           input.revertible === true
-            ? "Annule cette correction, puis relance un diagnostic : la cause identifiée n'était pas la bonne."
-            : "Cette correction n'est pas annulable automatiquement. Reviens en arrière à la main, puis relance un diagnostic.",
+            ? "Annulez cette correction, puis relancez un diagnostic : la cause identifiée n'était pas la bonne."
+            : "Cette correction n'est pas annulable automatiquement. Revenez en arrière à la main, puis relancez un diagnostic.",
       },
       legacyStatus: LEGACY_STATUS.regression,
     };
@@ -499,7 +499,7 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
       emoji: VERDICT_EMOJI.insuffisant,
       label: VERDICT_LABELS.insuffisant,
       headline: `Signaux contradictoires : ${rising[0].label} monte, ${falling[0].label} descend.`,
-      explanation: `${context} ${rising[0].label} progresse de ${signed(rising[0].effect_pct)} pendant que ${falling[0].label} recule de ${signed(falling[0].effect_pct)}. On ne peut pas conclure : soit la correction déplace la demande sans la créer, soit un autre changement intervenu au même moment brouille la mesure. Attends une semaine de plus avant de trancher.`,
+      explanation: `${context} ${rising[0].label} progresse de ${signed(rising[0].effect_pct)} pendant que ${falling[0].label} recule de ${signed(falling[0].effect_pct)}. On ne peut pas conclure : soit la correction déplace la demande sans la créer, soit un autre changement intervenu au même moment brouille la mesure. Attendez une semaine de plus avant de trancher.`,
       rollback: {
         recommended: false,
         possible: input.revertible === true,
@@ -535,7 +535,7 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
       emoji: VERDICT_EMOJI.nul,
       label: VERDICT_LABELS.nul,
       headline: `${best.label} n'a pas bougé (${signed(best.effect_pct)}).`,
-      explanation: `${context} L'écart reste dans le bruit ordinaire. La correction n'a rien cassé, mais elle n'a rien produit non plus : ce n'était pas le vrai blocage. Relance un diagnostic pour chercher ailleurs.`,
+      explanation: `${context} L'écart reste dans le bruit ordinaire. La correction n'a rien cassé, mais elle n'a rien produit non plus : ce n'était pas le vrai blocage. Relancez un diagnostic pour chercher ailleurs.`,
       rollback: {
         recommended: false,
         possible: input.revertible === true,

@@ -24,7 +24,7 @@ export const startMetaConnect = createServerFn({ method: "POST" })
 
     const clientId = process.env.META_CLIENT_ID;
     if (!clientId) {
-      throw new Error("META_CLIENT_ID non configuré. Ajoute les clés Meta dans les secrets.");
+      throw new Error("META_CLIENT_ID non configuré. Ajoutez les clés Meta dans les secrets.");
     }
 
     const { signOAuthState } = await import("@/lib/crypto.server");

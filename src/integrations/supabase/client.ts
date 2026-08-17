@@ -38,7 +38,7 @@ function createSupabaseClient() {
       ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
       ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
     ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Renseigne ces variables dans les secrets du serveur.`;
+    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Renseignez ces variables dans les secrets du serveur.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }

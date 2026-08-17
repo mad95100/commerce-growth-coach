@@ -31,7 +31,7 @@ export function FunnelView({ funnel, className }: { funnel: Funnel; className?: 
           Parcours client non reconstituable
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          Il faut au moins deux étapes mesurées pour suivre où les visiteurs s'arrêtent. Connecte
+          Il faut au moins deux étapes mesurées pour suivre où les visiteurs s'arrêtent. Connectez
           davantage de sources pour que nous puissions vous dire où cela bloque.
         </p>
       </div>

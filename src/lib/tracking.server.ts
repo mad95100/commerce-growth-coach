@@ -155,7 +155,7 @@ export async function refreshStoreOutcomes(supabase: Db, storeId: string, now: D
   const creds = await loadChannelCredentials(supabase, storeId);
   if (!creds.shopify && !creds.meta && !creds.google) {
     throw new Error(
-      "Connecte au moins Shopify, Meta Ads ou Google Ads pour mesurer l'impact des corrections.",
+      "Connectez au moins Shopify, Meta Ads ou Google Ads pour mesurer l'impact des corrections.",
     );
   }
 

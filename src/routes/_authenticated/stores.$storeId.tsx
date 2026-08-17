@@ -136,7 +136,7 @@ function StorePage() {
         <div>
           <h2 className="font-display text-lg font-bold">Suivi des gains (avant / après)</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Vérifie si les corrections appliquées ont vraiment fait monter la conversion, le CTR et
+            Vérifiez si les corrections appliquées ont vraiment fait monter la conversion, le CTR et
             le ROAS.
           </p>
         </div>
@@ -180,7 +180,7 @@ function StorePage() {
           <div className="text-sm text-muted-foreground">...</div>
         ) : !auditsQ.data || auditsQ.data.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            Aucun audit pour l'instant. Lance le premier ci-dessus.
+            Aucun audit pour l'instant. Lancez le premier ci-dessus.
           </div>
         ) : (
           <div className="space-y-3">

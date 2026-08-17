@@ -470,7 +470,7 @@ export default defineSuite("Moteur — robustesse et boutiques réelles", (t) =>
   t.check("et le plan reste honnête", emptyPlan.now, null);
   t.check(
     "en invitant à lancer un diagnostic",
-    emptyPlan.rationale.includes("Relance un diagnostic"),
+    emptyPlan.rationale.includes("Relancez un diagnostic"),
     true,
   );
 

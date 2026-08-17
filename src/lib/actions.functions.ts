@@ -62,7 +62,7 @@ async function loadChannels(supabase: Db, storeId: string) {
 
   if (!shopify && !meta && !google) {
     throw new Error(
-      "Connecte d'abord Shopify, Meta Ads ou Google Ads pour que je puisse appliquer les corrections directement.",
+      "Connectez d'abord Shopify, Meta Ads ou Google Ads pour que nous puissions appliquer les corrections directement.",
     );
   }
 

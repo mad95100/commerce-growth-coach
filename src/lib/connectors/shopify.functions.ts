@@ -45,7 +45,7 @@ export const startShopifyConnect = createServerFn({ method: "POST" })
 
     if (missing.length > 0) {
       throw new Error(
-        `Connexion Shopify impossible : ${missing.join(", ")} manquant(s) côté serveur. Ajoute ces clés dans les secrets du projet, puis réessaie.`,
+        `Connexion Shopify impossible : ${missing.join(", ")} manquant(s) côté serveur. Ajoutez ces clés dans les secrets du projet, puis réessaie.`,
       );
     }
     const clientId = process.env.SHOPIFY_CLIENT_ID as string;

@@ -266,9 +266,9 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "ui/voice.test.ts",
-    minChecks: 300,
+    minChecks: 2000,
     covers:
-      "Une seule voix, du premier écran au dernier. Le rapport annonçait « L'IA analyse ta boutique… » puis, trois blocs plus bas, « Nous n'avons pas réussi à lire les données de votre boutique » : le produit tutoyait sur les écrans écrits en premier et vouvoyait dans tout ce que le moteur produit depuis. Cela ne se lit pas comme un choix mais comme un logiciel assemblé par plusieurs mains. Le tutoiement est désormais interdit fichier par fichier dans tout ce que le marchand lit ; les consignes adressées au MODÈLE, que personne d'autre ne lit, sont exclues nommément et doivent garder leur forme.",
+      "Une seule voix, du premier écran au dernier. Le rapport annonçait « L'IA analyse ta boutique… » puis, trois blocs plus bas, « Nous n'avons pas réussi à lire les données de votre boutique » : le produit tutoyait sur les écrans écrits en premier et vouvoyait dans tout ce que le moteur produit depuis. Cela ne se lit pas comme un choix mais comme un logiciel assemblé par plusieurs mains. Le tutoiement est désormais interdit fichier par fichier dans tout ce que le marchand lit ; les consignes adressées au MODÈLE, que personne d'autre ne lit, sont exclues nommément et doivent garder leur forme. La première version de ce contrôle ne cherchait que les pronoms : elle a laissé passer « Patiente… », « Clique sur » et « Relance la correction ». Les impératifs se cherchent maintenant aussi — mais en TÊTE DE PHRASE uniquement, parce que « relance » et « vérifie » sont aussi des indicatifs et des noms, et qu'un contrôle qui crie faux finit desserré puis supprimé.",
   },
   {
     file: "audits/shopify-funnel.test.ts",

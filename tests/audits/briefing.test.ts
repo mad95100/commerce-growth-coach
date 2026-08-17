@@ -217,7 +217,7 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
   t.check("et rien n'est chiffré", nothing.impact.includes("Rien à chiffrer"), true);
   t.check(
     "on invite à relancer un diagnostic",
-    nothing.nextDecision.includes("Relance un diagnostic"),
+    nothing.nextDecision.includes("Relancez un diagnostic"),
     true,
   );
 

@@ -249,7 +249,7 @@ function AdsRow({
           >
             {busy ? (
               <>
-                <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Patiente...
+                <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Patientez...
               </>
             ) : conn ? (
               "Déconnecter"

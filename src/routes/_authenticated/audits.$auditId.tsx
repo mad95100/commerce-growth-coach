@@ -836,7 +836,7 @@ function FindingCard({
                   </>
                 ) : (
                   <>
-                    <Sparkles className="mr-2 h-3 w-3" /> Corrige ça pour moi
+                    <Sparkles className="mr-2 h-3 w-3" /> Corriger à ma place
                   </>
                 )}
               </Button>

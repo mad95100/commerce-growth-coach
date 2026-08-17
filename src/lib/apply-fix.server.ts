@@ -870,7 +870,7 @@ Applique maintenant la correction en appelant l'outil le plus pertinent.`;
     }>;
   };
   const call = json.choices?.[0]?.message?.tool_calls?.[0];
-  if (!call) throw new Error("L'IA n'a proposé aucune action. Réessaie.");
+  if (!call) throw new Error("L'IA n'a proposé aucune action. Réessayez.");
 
   const toolName = call.function.name;
   if (!isKnownTool(toolName)) {
@@ -881,7 +881,7 @@ Applique maintenant la correction en appelant l'outil le plus pertinent.`;
   try {
     rawArgs = JSON.parse(call.function.arguments);
   } catch {
-    throw new Error("Réponse IA illisible (arguments non JSON). Relance la correction.");
+    throw new Error("Réponse IA illisible (arguments non JSON). Relancez la correction.");
   }
 
   if (toolName === "no_action") {

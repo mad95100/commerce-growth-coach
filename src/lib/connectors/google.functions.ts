@@ -22,7 +22,7 @@ export const startGoogleAdsConnect = createServerFn({ method: "POST" })
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
-      throw new Error("GOOGLE_CLIENT_ID non configuré. Ajoute les clés Google dans les secrets.");
+      throw new Error("GOOGLE_CLIENT_ID non configuré. Ajoutez les clés Google dans les secrets.");
     }
 
     const { signOAuthState } = await import("@/lib/crypto.server");

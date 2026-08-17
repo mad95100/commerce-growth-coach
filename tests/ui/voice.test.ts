@@ -54,8 +54,52 @@ const DESTINÉS_AU_MODÈLE = new Set([
   "src/lib/storefront-experience.ts",
 ]);
 
-/** Marqueurs du tutoiement. Chacun est sans ambiguïté une fois les mots isolés. */
+/**
+ * Marqueurs du tutoiement. Chacun est sans ambiguïté une fois les mots isolés.
+ *
+ * CE QUE CETTE LISTE NE COUVRE PAS, ET IL FAUT LE SAVOIR. Elle attrape les
+ * pronoms, les possessifs et les impératifs NOMMÉS ci-dessous — pas toutes les
+ * conjugaisons de la deuxième personne. La première version de ce contrôle
+ * s'arrêtait aux pronoms : elle est passée à côté de « Patiente… », « Clique
+ * sur », « Relance la correction », et un lot est parti en production avec ces
+ * boutons. Un impératif nouveau échappera de la même façon jusqu'à ce qu'on
+ * l'ajoute ici. Le contrôle réduit la surface, il ne la ferme pas.
+ */
 const TUTOIEMENT = ["tu", "toi", "ta", "ton", "tes", "te"];
+
+/**
+ * Impératifs de la deuxième personne du singulier.
+ *
+ * ILS NE SE CHERCHENT PAS COMME LES PRONOMS. « Relance », « vérifie »,
+ * « annule » sont aussi des indicatifs de troisième personne et parfois des
+ * noms — « un e-mail de relance », « le service qui vérifie ». Les chercher
+ * partout produisait dix-sept accusations dont aucune n'était fondée, et un
+ * contrôle qui crie faux finit desserré, puis supprimé.
+ *
+ * On les cherche donc là où un impératif se trouve réellement : en TÊTE DE
+ * PHRASE et avec une majuscule. Un impératif glissé en milieu de phrase après
+ * une virgule échappe — c'est le prix d'un contrôle qui ne se trompe jamais
+ * plutôt que d'un contrôle exhaustif que personne ne garderait.
+ */
+const IMPÉRATIFS = [
+  "Patiente",
+  "Clique",
+  "Choisis",
+  "Renseigne",
+  "Ajoute",
+  "Coche",
+  "Vérifie",
+  "Relance",
+  "Connecte",
+  "Réessaie",
+  "Annule",
+  "Reviens",
+  "Lance",
+  "Branche",
+  "Colle",
+  "Corrige",
+  "Attends",
+];
 
 function fichiersDe(dossier: string): string[] {
   const out: string[] = [];
@@ -102,6 +146,10 @@ export default defineSuite("Interface — une seule voix", (t) => {
       // les faire taire. On délimite donc sur les LETTRES, accents compris.
       const trouvé = new RegExp(`(^|[^\\p{L}])${mot}($|[^\\p{L}])`, "iu").test(contenu);
       t.check(`${chemin} n'emploie pas « ${mot} »`, trouvé, false);
+    }
+    for (const verbe of IMPÉRATIFS) {
+      const trouvé = new RegExp(`(?:^|[.!?:»"'\`(>{])\\s*${verbe}(?![\\p{L}])`, "mu").test(contenu);
+      t.check(`${chemin} n'ouvre pas une phrase par « ${verbe} »`, trouvé, false);
     }
   }
 

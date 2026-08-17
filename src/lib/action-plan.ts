@@ -236,7 +236,7 @@ export function canConfirmProposal(input: {
       reason:
         input.status === "applied"
           ? "Cette correction a déjà été appliquée."
-          : "Cette proposition n'est plus applicable. Relance la correction.",
+          : "Cette proposition n'est plus applicable. Relancez la correction.",
     };
   }
   if (!input.hasFindingId) {

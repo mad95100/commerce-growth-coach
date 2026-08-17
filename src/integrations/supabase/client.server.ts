@@ -38,7 +38,7 @@ function createSupabaseAdminClient() {
       ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
       ...(!SUPABASE_SERVICE_ROLE_KEY ? ['SUPABASE_SERVICE_ROLE_KEY'] : []),
     ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Renseigne ces variables dans les secrets du serveur.`;
+    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Renseignez ces variables dans les secrets du serveur.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }

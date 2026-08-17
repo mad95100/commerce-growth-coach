@@ -460,7 +460,7 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     );
   if (!rawArgs) {
     throw new Error(
-      `Réponse IA invalide (${json.choices?.[0]?.finish_reason ?? "sans contenu"}). Relance l'audit.`,
+      `Réponse IA invalide (${json.choices?.[0]?.finish_reason ?? "sans contenu"}). Relancez l'audit.`,
     );
   }
   // Le modèle renvoie du texte libre validé par un schéma que RIEN ne garantit
@@ -473,7 +473,7 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
   try {
     rawPayload = JSON.parse(rawArgs);
   } catch {
-    throw new Error("Réponse IA illisible (JSON invalide). Relance l'audit.");
+    throw new Error("Réponse IA illisible (JSON invalide). Relancez l'audit.");
   }
   const parsed = sanitizeAuditPayload(rawPayload);
   if (parsed.repairs.length > 0) {

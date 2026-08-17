@@ -293,8 +293,8 @@ function TrackingPage() {
 
                 {deltas.length === 0 ? (
                   <p className="mt-4 text-sm text-muted-foreground">
-                    Pas encore de mesure. Clique sur « Remesurer maintenant ». Les indicateurs étant
-                    des cumuls sur 30 jours, comptez une semaine de recul avant qu'un verdict
+                    Pas encore de mesure. Cliquez sur « Remesurer maintenant ». Les indicateurs
+                    étant des cumuls sur 30 jours, comptez une semaine de recul avant qu'un verdict
                     veuille dire quelque chose.
                   </p>
                 ) : (
