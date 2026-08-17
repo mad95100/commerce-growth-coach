@@ -130,6 +130,35 @@ export default defineSuite("Sécurité — isolation de la comparaison d'audits"
     /measured: a\.measured/.test(runner),
     true,
   );
+  // LE CODE PART AVANT LA MIGRATION, TOUJOURS. L'étape `db push` est sautée
+  // quand le jeton d'accès manque : entre le déploiement du worker et
+  // l'application du schéma, le nouveau code écrit dans des colonnes absentes.
+  // Sans repli, PostgREST rejette la mise à jour ENTIÈRE — l'audit resterait
+  // « en cours » pour toujours et le marchand aurait payé un passage qui ne
+  // rend rien. C'est le défaut le plus coûteux qu'un déploiement puisse créer.
+  t.check(
+    "la conclusion est séparée de l'enrichissement",
+    /const conclusion = \{/.test(runner) && /const enrichissement = \{/.test(runner),
+    true,
+  );
+  t.check(
+    "un enrichissement impossible ne perd pas la conclusion",
+    /if \(complet\.error\)[\s\S]{0,600}\.update\(conclusion\)/.test(runner),
+    true,
+  );
+  t.check(
+    "une conclusion impossible lève, plutôt que de laisser l'audit en cours",
+    /if \(error\) throw new Error\(`Conclusion de l'audit impossible/.test(runner),
+    true,
+  );
+  // `status: "completed"` doit rester du côté de la conclusion : le mettre dans
+  // l'enrichissement rendrait sa perte invisible et bloquerait l'audit.
+  t.check(
+    "le passage à « terminé » appartient à la conclusion",
+    /const conclusion = \{\n\s*status: "completed"/.test(runner),
+    true,
+  );
+
   // La migration doit exister, sinon l'écriture échouerait en production.
   const migration = read("supabase/migrations/20260817090000_audit_causes.sql");
   t.check(

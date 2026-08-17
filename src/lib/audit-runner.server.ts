@@ -541,39 +541,68 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
   // avant leurs symptômes, le plus rentable d'abord à contrainte satisfaite.
   const analysis = analyseFindings(parsed.findings);
 
-  await supabase
+  // LE CODE PART TOUJOURS AVANT LA MIGRATION. Cloudflare déploie le worker,
+  // puis `supabase db push` s'exécute — et cette étape est SAUTÉE quand le
+  // jeton d'accès manque, ce qui est le cas aujourd'hui. Entre les deux, le
+  // nouveau code écrit dans des colonnes que la base n'a pas encore.
+  //
+  // Sans précaution, PostgREST rejette la mise à jour ENTIÈRE : l'audit reste
+  // « en cours » pour toujours, ses conclusions sont perdues, et le marchand a
+  // payé un passage qui ne rend rien. La conclusion est donc scindée — ce qui
+  // doit absolument être écrit d'un côté, ce qui enrichit de l'autre — et la
+  // seconde écriture a le droit d'échouer sans emporter la première.
+  const conclusion = {
+    status: "completed" as const,
+    score: globalScore,
+    category_scores: categoryScores,
+    potential_gain_min: potential.min,
+    potential_gain_max: potential.max,
+    verdict: parsed.verdict,
+    summary: parsed.summary,
+    // Conservés tels qu'ils étaient au moment de conclure. Les recalculer à
+    // l'affichage produirait un écran qui contredit son propre texte.
+    funnel,
+    cross_signals: crossed,
+    data_gaps: allGaps(reports),
+    completed_at: new Date().toISOString(),
+  };
+
+  // CONSERVÉS POUR LA COMPARAISON. Sans eux, deux audits ne se comparent que
+  // par leur score global — le seul chiffre qui n'apprend rien au marchand.
+  // `measured` est la valeur décisive : sans elle, un axe perdu de vue entre
+  // deux passages se lirait comme une dégradation.
+  const enrichissement = {
+    root_causes: causes.map((c) => ({
+      id: c.id,
+      title: c.title,
+      level: c.level,
+      priority: c.priority,
+    })),
+    axis_scores: ruleReport.axes.map((a) => ({
+      axis: a.axis,
+      score: a.score,
+      measured: a.measured,
+    })),
+  };
+
+  const complet = await supabase
     .from("audits")
-    .update({
-      status: "completed",
-      score: globalScore,
-      category_scores: categoryScores,
-      potential_gain_min: potential.min,
-      potential_gain_max: potential.max,
-      verdict: parsed.verdict,
-      summary: parsed.summary,
-      // Conservés tels qu'ils étaient au moment de conclure. Les recalculer à
-      // l'affichage produirait un écran qui contredit son propre texte.
-      funnel,
-      cross_signals: crossed,
-      data_gaps: allGaps(reports),
-      // CONSERVÉS POUR LA COMPARAISON. Sans eux, deux audits ne se comparent
-      // que par leur score global — le seul chiffre qui n'apprend rien au
-      // marchand. `measured` est la valeur décisive : sans elle, un axe perdu
-      // de vue entre deux passages se lirait comme une dégradation.
-      root_causes: causes.map((c) => ({
-        id: c.id,
-        title: c.title,
-        level: c.level,
-        priority: c.priority,
-      })),
-      axis_scores: ruleReport.axes.map((a) => ({
-        axis: a.axis,
-        score: a.score,
-        measured: a.measured,
-      })),
-      completed_at: new Date().toISOString(),
-    })
+    .update({ ...conclusion, ...enrichissement })
     .eq("id", auditId);
+
+  if (complet.error) {
+    // Repli sur la seule conclusion. Le rapport reste complet et lisible ;
+    // seule la comparaison avec l'audit suivant sera moins riche — et elle sait
+    // déjà dire « nous n'avions pas cette information » plutôt que d'inventer.
+    console.error(
+      "[audit] enrichissement indisponible, conclusion écrite seule :",
+      complet.error.message,
+    );
+    const { error } = await supabase.from("audits").update(conclusion).eq("id", auditId);
+    // Si MÊME la conclusion échoue, il faut lever : l'audit resterait « en
+    // cours » indéfiniment, et le passage périodique le reprendrait sans fin.
+    if (error) throw new Error(`Conclusion de l'audit impossible : ${error.message}`);
+  }
 
   if (analysis.findings.length > 0) {
     const rows = analysis.findings.map((a) => {
