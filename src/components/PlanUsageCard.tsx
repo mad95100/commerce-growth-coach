@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getEntitlements } from "@/lib/actions.functions";
-import { PLAN_LABELS, QUOTA_LABELS, type QuotaKey } from "@/lib/plans";
+import { PLAN_LABELS, QUOTA_LABELS, quotaLimit, type QuotaKey } from "@/lib/plans";
+import { ErrorState } from "@/components/AppShell";
 
 const SHOWN: QuotaKey[] = ["audits", "fixes"];
 
@@ -23,9 +24,23 @@ export function PlanUsageCard() {
   });
 
   if (q.isLoading) {
-    return <div className="text-sm text-muted-foreground">Chargement de votre plan...</div>;
+    return <div className="text-sm text-muted-foreground">Chargement de votre plan…</div>;
   }
-  if (!q.data) return null;
+  // L'ÉCHEC SE DIT. La carte se contentait de disparaître : `return null` sur
+  // une lecture ratée laissait un blanc à l'endroit exact où le marchand vient
+  // vérifier ce qu'il lui reste. Rien ne distinguait « la lecture a échoué » de
+  // « vous n'avez pas de plan » — et la seconde lecture est la plus naturelle
+  // quand on ne voit rien. C'est la règle déjà tenue par tous les écrans
+  // distants du produit ; cette carte y échappait parce qu'elle n'en est pas un.
+  if (q.isError || !q.data) {
+    return (
+      <ErrorState
+        title="Impossible d'afficher votre plan"
+        description="Le solde de vos audits et de vos corrections n'a pas pu être lu. Vos compteurs ne sont pas touchés : c'est l'affichage qui a échoué, pas votre plan."
+        onRetry={() => void q.refetch()}
+      />
+    );
+  }
   const e = q.data;
 
   const periodLabel = new Date(`${e.periodStart}T00:00:00Z`).toLocaleDateString("fr-FR", {
@@ -45,16 +60,29 @@ export function PlanUsageCard() {
         {SHOWN.map((key) => {
           const used = e.used[key];
           const left = e.remaining[key];
-          const unlimited = left === null;
-          const total = unlimited ? null : used + left;
-          const pct = total && total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+          // LA LIMITE SE LIT, ELLE NE SE DÉDUIT PAS. La carte affichait
+          // `used + left`. Or `remainingQuota` ne descend jamais sous zéro : dès
+          // qu'un compteur dépasse son plafond — deux onglets qui lancent un
+          // audit en même temps suffisent — le reste vaut 0 et la somme vaut la
+          // consommation elle-même. Le marchand lisait alors « 4 / 4 utilisés »
+          // sur un plan qui en inclut 3, c'est-à-dire son propre dépassement
+          // présenté comme son allocation. Et l'écran suivant, celui du refus,
+          // lui disait « vos 3 audits du mois » : deux chiffres différents pour
+          // le même plan, à deux clics d'écart.
+          //
+          // `quotaLimit` est la source dont sort déjà `remaining`, côté serveur.
+          // La lire ici plutôt que de la reconstituer supprime la possibilité
+          // même du désaccord.
+          const limit = quotaLimit(e.tier, key);
+          const unlimited = limit === null;
+          const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
 
           return (
             <div key={key}>
               <div className="mb-1 flex items-center justify-between text-xs">
                 <span className="capitalize text-muted-foreground">{QUOTA_LABELS[key]}</span>
                 <span className={!unlimited && left === 0 ? "text-destructive" : ""}>
-                  {unlimited ? `${used} utilisés · sans limite` : `${used} / ${total} utilisés`}
+                  {unlimited ? `${used} utilisés · sans limite` : `${used} / ${limit} utilisés`}
                 </span>
               </div>
               {!unlimited && (

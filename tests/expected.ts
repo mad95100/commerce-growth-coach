@@ -181,6 +181,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Historique des migrations : versions uniques et ordonnées, durcissement RLS rejouable sans dommage, et déploiement qui annonce ce qu'il applique. Un décalage d'une seconde avait fait rejouer la migration initiale.",
   },
   {
+    file: "billing/affichage-quota.test.ts",
+    minChecks: 20,
+    covers:
+      "Le compteur affiché dit le vrai plan : la carte lisait `used + remaining`, or le solde ne descend jamais sous zéro — au dépassement, la somme affichait la consommation du marchand comme son allocation, en contradiction avec le message de refus. Et une lecture ratée s'effaçait au lieu de se dire.",
+  },
+  {
     file: "infra/schema-coherence.test.ts",
     minChecks: 180,
     covers:
