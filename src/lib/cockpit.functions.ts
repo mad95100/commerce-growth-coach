@@ -61,6 +61,13 @@ export type Cockpit = {
   roas: number | null;
   margin: number | null;
   profit: number | null;
+  /**
+   * Le bénéfice affiché déduit-il les charges fixes ?
+   *
+   * Faux quand le marchand ne les a pas renseignées : le chiffre reste utile,
+   * mais il ne vaut pas ce que son intitulé annonçait.
+   */
+  profitIncludesFixedCosts: boolean;
   score: number | null;
   categoryScores: Record<string, number>;
   potentialMin: number | null;
@@ -178,10 +185,22 @@ export const getCockpit = createServerFn({ method: "POST" })
     // La marge est un pourcentage du chiffre d'affaires : elle reste dans sa devise.
     const margin = revenue != null && costRatio != null ? revenue * (1 - costRatio) : null;
     // Le bénéfice retranche la dépense publicitaire : il exige la même devise.
+    // LES CHARGES FIXES MANQUANTES NE VALENT PAS ZÉRO CHARGE. Le champ est
+    // facultatif — l'ajout de boutique dit « laissez vide ce que vous ne
+    // connaissez pas » — et un marchand qui a mille deux cents euros de
+    // charges par mois et n'a rien saisi lisait un « bénéfice » qui les
+    // ignorait. Le chiffre reste utile, mais il ne s'appelle plus pareil : ce
+    // qu'il vaut est dit à l'écran, et la donnée manquante est réclamée.
+    const chargesConnues = store.fixed_costs_monthly != null;
     const profit =
       margin != null && spendComparable
         ? margin - (adSpend ?? 0) - (store.fixed_costs_monthly ?? 0)
         : null;
+    if (profit != null && !chargesConnues) {
+      unavailable.push(
+        "Vos charges fixes mensuelles ne sont pas renseignées : le bénéfice affiché ne les déduit pas. Ajoutez-les dans le modèle économique de la boutique pour obtenir un bénéfice réel.",
+      );
+    }
 
     const { data: audit } = await supabase
       .from("audits")
@@ -341,6 +360,8 @@ export const getCockpit = createServerFn({ method: "POST" })
       roas,
       margin,
       profit,
+      /** Faux quand les charges fixes manquent : le bénéfice ne les déduit pas. */
+      profitIncludesFixedCosts: chargesConnues,
       score: audit?.score ?? null,
       categoryScores: (audit?.category_scores as Record<string, number>) ?? {},
       potentialMin: audit?.potential_gain_min ?? null,

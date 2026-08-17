@@ -144,10 +144,19 @@ export function Cockpit({ storeId }: { storeId: string }) {
           value={formatMoney(c.margin, c.currency)}
           hint="Après coût produit"
         />
+        {/* L'INTITULÉ SUIT CE QUI A RÉELLEMENT ÉTÉ SOUSTRAIT. L'indication
+            annonçait « Marge − pub − charges » même quand les charges fixes
+            n'étaient pas renseignées : la formule affichée n'était alors pas
+            celle du calcul, et le marchand lisait un bénéfice qui ignorait ses
+            charges. */}
         <Kpi
           label="Bénéfice estimé"
           value={formatMoney(c.profit, c.currency)}
-          hint="Marge − pub − charges"
+          hint={
+            c.profitIncludesFixedCosts
+              ? "Marge − pub − charges"
+              : "Marge − pub (charges fixes non renseignées)"
+          }
         />
         <Kpi
           label="Potentiel"

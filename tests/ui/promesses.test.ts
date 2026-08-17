@@ -202,6 +202,42 @@ export default defineSuite("Produit — les promesses faites au marchand sont te
   );
 
   // =========================================================================
+  // 3 ter. UNE ABSENCE NE DEVIENT NI UN ZÉRO ACCABLANT, NI UN ZÉRO FLATTEUR
+  // =========================================================================
+  // Deux formes du même geste, trouvées dans le même passage.
+  //
+  // L'accablante : le bloc décrivant les ensembles de pubs au modèle écrivait
+  // « ROAS 0 » quand la régie n'avait rien remonté — le signal le plus fort qui
+  // soit de couper cette dépense. Les garde-fous refusent bien l'écriture sans
+  // chiffre, mais le modèle raisonnait déjà sur un zéro fabriqué, et le motif
+  // qu'il en tirait était lu par le marchand.
+  const applyPrompt = sansCommentaires(lire("src/lib/apply-fix.server.ts"));
+  t.check(
+    "un ROAS non remonté n'est pas écrit 0",
+    /ROAS \$\{a\.roas \?\? 0\}/.test(applyPrompt),
+    false,
+  );
+  t.check("il est déclaré inconnu", /a\.roas \?\? "inconnu"/.test(applyPrompt), true);
+  t.check("la dépense absente aussi", /a\.spend \?\? "inconnue"/.test(applyPrompt), true);
+
+  // La flatteuse : « Bénéfice estimé », indication « Marge − pub − charges »,
+  // alors que des charges fixes non renseignées valaient zéro charge. Le champ
+  // est facultatif — l'ajout de boutique invite à laisser vide ce qu'on ne
+  // connaît pas — donc le cas est courant, pas marginal.
+  const cockpitFn = sansCommentaires(lire("src/lib/cockpit.functions.ts"));
+  t.check(
+    "l'absence de charges fixes est signalée",
+    /charges fixes mensuelles ne sont pas renseignées/.test(cockpitFn),
+    true,
+  );
+  const cockpitUi = sansCommentaires(lire("src/components/Cockpit.tsx"));
+  t.check(
+    "l'intitulé suit ce qui a été réellement soustrait",
+    /profitIncludesFixedCosts[\s\S]{0,200}charges fixes non renseignées/.test(cockpitUi),
+    true,
+  );
+
+  // =========================================================================
   // 4. « Rien n'a encore été modifié » — l'aperçu ne passe pas par l'écriture
   // =========================================================================
   // L'aperçu affiche cette phrase sous le bouton. Elle n'est vraie que si la

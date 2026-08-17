@@ -227,10 +227,18 @@ function buildToolsAndContext(
           ? metaSnap.adsets
               .map(
                 (a) =>
-                  `- adset ${a.id} | "${a.name}" | ${a.status} | budget/j ${a.daily_budget ?? "?"} ${metaCur} | dépense ${
-                    a.spend ?? 0
-                  } ${metaCur} | achats ${a.purchases ?? 0} | ROAS ${a.roas ?? 0} | CTR ${a.ctr ?? 0}% | CPC ${
-                    a.cpc ?? 0
+                  // « INCONNU », JAMAIS ZÉRO. Un ROAS non remonté par la régie
+                  // devenait « ROAS 0 » sous les yeux du modèle, c'est-à-dire
+                  // le signal le plus fort qui soit de couper cet ensemble de
+                  // pubs. Les garde-fous refusent bien l'écriture sans chiffre
+                  // de dépense, mais le modèle raisonnait déjà sur un zéro
+                  // fabriqué — et le motif qu'il en tirait était lu par le
+                  // marchand. Le budget journalier montrait déjà « ? » ; les
+                  // autres avaient été oubliés.
+                  `- adset ${a.id} | "${a.name}" | ${a.status} | budget/j ${a.daily_budget ?? "inconnu"} ${metaCur} | dépense ${
+                    a.spend ?? "inconnue"
+                  } ${metaCur} | achats ${a.purchases ?? "inconnus"} | ROAS ${a.roas ?? "inconnu"} | CTR ${a.ctr ?? "inconnu"}% | CPC ${
+                    a.cpc ?? "inconnu"
                   } ${metaCur} | ciblage : ${a.targeting_summary}`,
               )
               .join("\n")
