@@ -52,10 +52,18 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
             await import("@/lib/shopify-hmac.server");
 
           if (!verifyShopifyHmac(url.searchParams, clientSecret)) {
+            // LA CAUSE PROBABLE VA AU JOURNAL, PAS À LA PAGE. Cette page est lue
+            // par le MARCHAND, et elle lui demandait de vérifier
+            // `SHOPIFY_CLIENT_SECRET` — un secret de serveur auquel il n'a aucun
+            // accès. Lui donner à faire ce qu'il ne peut pas faire est pire que
+            // de ne rien lui donner : il croit la panne sienne et cherche.
+            console.error(
+              "[Shopify OAuth] signature invalide — vérifier que SHOPIFY_CLIENT_SECRET correspond à l'app Shopify utilisée.",
+            );
             return htmlResponse(
               errorBody(
                 "Retour Shopify non authentifié",
-                "La signature de la requête ne correspond pas. Relancez la connexion depuis l'application ; si le problème persiste, vérifie que SHOPIFY_CLIENT_SECRET correspond bien à l'app Shopify utilisée.",
+                "La signature de la requête ne correspond pas : nous ne pouvons pas garantir que ce retour vient bien de Shopify, donc nous n'enregistrons rien. Relancez la connexion depuis l'application. Si cela se reproduit, la panne est de notre côté et nous en avons la trace — inutile de chercher chez vous.",
               ),
               401,
             );

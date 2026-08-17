@@ -521,7 +521,7 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
       emoji: VERDICT_EMOJI.confirme,
       label: VERDICT_LABELS.confirme,
       headline: `${best.label} : ${signed(best.effect_pct)} depuis la correction.`,
-      explanation: `${context} ${best.label} progresse de ${signed(best.effect_pct)}, au-delà du bruit habituel. La correction a produit son effet — garde-la.${guardNote}`,
+      explanation: `${context} ${best.label} progresse de ${signed(best.effect_pct)}, au-delà du bruit habituel. La correction a produit son effet — gardez-la.${guardNote}`,
       rollback: rollbackImpossible("confirme"),
       legacyStatus: LEGACY_STATUS.confirme,
     };

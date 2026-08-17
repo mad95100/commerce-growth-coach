@@ -193,7 +193,7 @@ export function parseToolArgs<N extends ToolName>(name: N, raw: unknown): GuardR
     .map((issue) => `${issue.path.join(".") || "(racine)"} : ${issue.message}`)
     .join(" ; ");
   return refuse(
-    `L'IA a proposé une action mal formée (${name}) : ${detail}. Rien n'a été modifié — relance la correction.`,
+    `L'IA a proposé une action mal formée (${name}) : ${detail}. Rien n'a été modifié — relancez la correction.`,
   );
 }
 

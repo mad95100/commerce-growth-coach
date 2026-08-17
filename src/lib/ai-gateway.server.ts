@@ -82,7 +82,7 @@ export function resolveAiEndpoint(env: NodeJS.ProcessEnv = process.env): AiEndpo
   }
 
   throw new Error(
-    "Configuration IA absente : renseigne AI_BASE_URL et AI_API_KEY dans les secrets du serveur.",
+    "Configuration IA absente : renseignez AI_BASE_URL et AI_API_KEY dans les secrets du serveur.",
   );
 }
 

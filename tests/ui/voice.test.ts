@@ -132,6 +132,73 @@ const IMPÉRATIFS = [
 ];
 
 /**
+ * L'impératif EN MINUSCULE, en seconde proposition.
+ *
+ * QUATRE PHRASES Y VIVAIENT, dont deux que le marchand rencontre au moment le
+ * plus sensible du produit — la saisie de ses marges : « Coût produit moyen :
+ * indique un pourcentage entre 0 et 100, ou laisse le champ vide. » Elles ont
+ * traversé les deux contrôles précédents sans les effleurer : la recherche en
+ * tête de phrase exige une MAJUSCULE, et le passage après adverbe ne regarde
+ * que cinq mots d'ouverture.
+ *
+ * DEUX CONDITIONS, ET IL FAUT LES DEUX. Ni l'une ni l'autre ne suffit.
+ *
+ * La PONCTUATION qui précède — deux-points, point-virgule, virgule, tiret —
+ * ouvre une proposition sans sujet. Elle écarte « le service qui vérifie », les
+ * faux positifs qui avaient fait renoncer à chercher ces verbes ailleurs qu'en
+ * tête de phrase.
+ *
+ * Mais elle ne suffit pas, et une énumération l'a montré tout de suite :
+ * « email, relance panier, post-achat » — un NOM, dans une liste, précédé
+ * d'une virgule. D'où la seconde condition : ce qui SUIT le verbe. Un impératif
+ * prend un objet, et cet objet s'annonce par un déterminant, une conjonction,
+ * une préposition de lieu ou un pronom accroché — « laissez LE champ vide »,
+ * « vérifiez QUE », « gardez-LA ». Le nom « relance », lui, est suivi de son
+ * complément : « relance panier », « relance de panier ». La distinction est
+ * nette, et elle évite d'avoir à réécrire un texte juste pour faire taire un
+ * contrôle — ce qui aurait été le geste inverse de celui qu'on cherche.
+ *
+ * La liste reste nommée, pour la même raison que les précédentes : ce qui n'y
+ * est pas n'est pas cherché, et l'y ajouter doit rester un geste conscient.
+ */
+const IMPÉRATIFS_EN_SECONDE_PROPOSITION = [
+  "indique",
+  "laisse",
+  "vérifie",
+  "relance",
+  "clique",
+  "choisis",
+  "renseigne",
+  "ajoute",
+  "coche",
+  "connecte",
+  "réessaie",
+  "annule",
+  "lance",
+  "corrige",
+  "regarde",
+  "garde",
+  "saisis",
+  "remplis",
+  "sélectionne",
+];
+
+/**
+ * Ce qui suit un impératif : son objet.
+ *
+ * Déterminants, conjonction complétive, prépositions, et les pronoms accrochés
+ * par un trait d'union (« gardez-la », « allez-y »). Un nom homographe du verbe
+ * n'a jamais cette suite.
+ *
+ * LE NOM DE VARIABLE EN CAPITALES compte aussi comme objet : « renseignez
+ * AI_BASE_URL » n'a pas de déterminant, et cette phrase-là existait. Les
+ * capitales la distinguent sans ambiguïté d'une énumération de noms communs,
+ * qui est le seul faux positif que cette règle ait produit.
+ */
+const OBJET_D_IMPÉRATIF =
+  "(?:le|la|les|l['’]|un|une|des|votre|vos|ce|cet|cette|ces|mon|ma|mes|que|qu['’]|à|au|aux|dans|sur|vers|depuis|ici)(?![\\p{L}])|['’-](?:la|le|les|y|en|moi|nous)(?![\\p{L}])|[A-Z][A-Z_]{2,}";
+
+/**
  * Le seul fichier où la première personne du singulier est celle du MARCHAND.
  *
  * `store-profile.ts` ne contient que des phrases qu'il choisit pour se décrire
@@ -248,6 +315,17 @@ export default defineSuite("Interface — une seule voix", (t) => {
       t.check(
         `${chemin} ne tutoie pas après « ${ouverture}, »`,
         new RegExp(`${ouverture},\\s*(?:${verbes})(?![\\p{L}])`, "iu").test(contenu),
+        false,
+      );
+    }
+
+    // L'IMPÉRATIF EN MINUSCULE APRÈS PONCTUATION. Voir
+    // `IMPÉRATIFS_EN_SECONDE_PROPOSITION` : c'est la ponctuation, pas le verbe,
+    // qui garantit qu'aucun sujet ne précède.
+    for (const verbe of IMPÉRATIFS_EN_SECONDE_PROPOSITION) {
+      t.check(
+        `${chemin} n'enchaîne pas sur « ${verbe} »`,
+        new RegExp(`[:;,–—]\\s*${verbe}\\s*(?:${OBJET_D_IMPÉRATIF})`, "u").test(contenu),
         false,
       );
     }

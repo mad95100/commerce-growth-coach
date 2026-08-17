@@ -123,7 +123,7 @@ const optionalAmount = (label: string) =>
     .trim()
     .transform((raw) => (raw === "" ? null : Number(raw)))
     .refine((value) => value === null || (Number.isFinite(value) && value >= 0), {
-      message: `${label} : indique un montant positif, ou laisse le champ vide.`,
+      message: `${label} : indiquez un montant positif, ou laissez le champ vide.`,
     });
 
 const optionalPercent = z
@@ -131,7 +131,8 @@ const optionalPercent = z
   .trim()
   .transform((raw) => (raw === "" ? null : Number(raw)))
   .refine((value) => value === null || (Number.isFinite(value) && value >= 0 && value <= 100), {
-    message: "Coût produit moyen : indique un pourcentage entre 0 et 100, ou laisse le champ vide.",
+    message:
+      "Coût produit moyen : indiquez un pourcentage entre 0 et 100, ou laissez le champ vide.",
   });
 
 const optionalSituation = z

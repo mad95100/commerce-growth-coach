@@ -184,7 +184,7 @@ export default defineSuite("Mesure — verdict d'une correction", (t) => {
   const confirmed = measureOutcome({ ...full, deltas: [delta("revenue_30d", 25)] });
   t.check("une hausse nette est confirmée", confirmed.verdict, "confirme");
   t.check("le titre porte le chiffre", confirmed.headline.includes("+25 %"), true);
-  t.check("on invite à garder la correction", confirmed.explanation.includes("garde-la"), true);
+  t.check("on invite à garder la correction", confirmed.explanation.includes("gardez-la"), true);
   t.check("rien à annuler", confirmed.rollback.recommended, false);
 
   const flat = measureOutcome({ ...full, deltas: [delta("revenue_30d", 1)] });
