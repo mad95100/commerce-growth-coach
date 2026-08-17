@@ -237,7 +237,7 @@ export function guardDailyBudget(input: {
     currentDailyBudget <= 0
   ) {
     return refuse(
-      `Je ne connais pas le budget quotidien actuel de ${targetLabel} : je ne modifie pas un budget à l'aveugle. Rien n'a été modifié.`,
+      `Nous ne connaissons pas le budget quotidien actuel de ${targetLabel} : nous ne modifions pas un budget à l'aveugle. Rien n'a été modifié.`,
     );
   }
 
@@ -278,7 +278,7 @@ export function guardMetaPause(input: {
 
   if (spend == null || !Number.isFinite(spend)) {
     return refuse(
-      `Je n'ai pas les chiffres de dépense de ${targetLabel} : je ne mets pas un ensemble de publicités en pause sans preuve qu'il perd de l'argent. Rien n'a été modifié.`,
+      `Nous n'avons pas les chiffres de dépense de ${targetLabel} : nous ne mettons pas un ensemble de publicités en pause sans preuve qu'il perd de l'argent. Rien n'a été modifié.`,
     );
   }
 
@@ -294,7 +294,7 @@ export function guardMetaPause(input: {
     return refuse(
       `${targetLabel} rapporte plus qu'il ne coûte (ROAS ${effectiveRoas.toFixed(
         2,
-      )}) : je ne le coupe pas. Rien n'a été modifié.`,
+      )}) : nous ne le coupons pas. Rien n'a été modifié.`,
     );
   }
 
@@ -313,13 +313,13 @@ export function guardGooglePause(input: {
 
   if (cost30d == null || !Number.isFinite(cost30d)) {
     return refuse(
-      `Je n'ai pas le coût de ${targetLabel} sur 30 jours : je ne mets pas une campagne en pause sans preuve. Rien n'a été modifié.`,
+      `Nous n'avons pas le coût de ${targetLabel} sur 30 jours : nous ne mettons pas une campagne en pause sans preuve. Rien n'a été modifié.`,
     );
   }
 
   if (conversions30d == null || !Number.isFinite(conversions30d)) {
     return refuse(
-      `Je n'ai pas le nombre de conversions de ${targetLabel} : impossible de dire si elle est rentable. Rien n'a été modifié.`,
+      `Nous n'avons pas le nombre de conversions de ${targetLabel} : impossible de dire si elle est rentable. Rien n'a été modifié.`,
     );
   }
 
@@ -331,7 +331,7 @@ export function guardGooglePause(input: {
 
   if (conversions30d !== 0) {
     return refuse(
-      `${targetLabel} a généré ${conversions30d} conversion(s) sur 30 jours : je ne coupe pas une campagne qui convertit. Rien n'a été modifié.`,
+      `${targetLabel} a généré ${conversions30d} conversion(s) sur 30 jours : nous ne coupons pas une campagne qui convertit. Rien n'a été modifié.`,
     );
   }
 
@@ -345,8 +345,8 @@ export function guardGooglePause(input: {
  * `BUDGET_ABSOLUTE_CAP`. Or une annulation qui rétablit un budget que le
  * marchand avait lui-même fixé au-dessus de ce plafond est vue comme une hausse
  * interdite. Concrètement, une campagne à 120/jour ramenée à 60 par EcomPilot ne
- * pouvait plus jamais remonter à 120 — alors que l'aperçu avait promis « tu
- * pourras annuler cette action et revenir à l'état précédent ».
+ * pouvait plus jamais remonter à 120 — alors que l'aperçu avait promis « vous
+ * pourrez annuler cette action et revenir à l'état précédent ».
  *
  * Rétablir un état qu'on a soi-même écrasé n'est pas une hausse de budget :
  * c'est rendre au marchand ce qui était à lui. Le plancher produit ne s'y
@@ -368,13 +368,13 @@ export function guardRestoreBudget(input: {
 
   if (!Number.isFinite(previousDailyBudget) || previousDailyBudget <= 0) {
     return refuse(
-      `Le budget précédent de ${targetLabel} n'a pas été enregistré : je ne peux pas le rétablir à l'aveugle. Rien n'a été modifié.`,
+      `Le budget précédent de ${targetLabel} n'a pas été enregistré : nous ne pouvons pas le rétablir à l'aveugle. Rien n'a été modifié.`,
     );
   }
 
   if (previousDailyBudget > BUDGET_RESTORE_SANITY_CAP) {
     return refuse(
-      `Le budget à rétablir sur ${targetLabel} (${amount(previousDailyBudget, currency)}/jour) est aberrant : je refuse de l'écrire. Rétablissez-le à la main dans votre compte. Rien n'a été modifié.`,
+      `Le budget à rétablir sur ${targetLabel} (${amount(previousDailyBudget, currency)}/jour) est aberrant : nous refusons de l'écrire. Rétablissez-le à la main dans votre compte. Rien n'a été modifié.`,
     );
   }
 

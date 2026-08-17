@@ -210,7 +210,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
     );
   }
   for (const u of plan?.unknowns ?? []) {
-    unknown.push(`« ${u.title} » : je n'ai pas la donnée pour trancher.`);
+    unknown.push(`« ${u.title} » : nous n'avons pas la donnée pour trancher.`);
   }
 
   // --- L'action -------------------------------------------------------------
@@ -236,7 +236,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
         writes: false,
       };
 
-  const duration = move.timeMinutes ? ` Compte ${formatMinutes(move.timeMinutes)}.` : "";
+  const duration = move.timeMinutes ? ` Comptez ${formatMinutes(move.timeMinutes)}.` : "";
 
   return {
     headline: `Priorité #1 — ${move.title}`,
@@ -254,11 +254,11 @@ export function buildBriefing(input: BriefingInput): Briefing {
     expected: leak
       ? `Si ce passage remonte à ${leak.reference} %, vous récupérez jusqu'à ${leak.missing} ${leak.toLabel.toLowerCase()} par mois.${duration}`
       : `Une amélioration sur ${move.category}, dont l'ampleur reste à mesurer.${duration}`,
-    verification: `Ensuite, je regarde ${move.measure}. C'est ça qui dira si ça a marché — pas une impression.`,
+    verification: `Ensuite, nous regardons ${move.measure}. C'est ça qui dira si ça a marché — pas une impression.`,
     nextDecision:
       plan && plan.then.length > 0
         ? `Une fois mesuré : « ${plan.then[0].title} ».`
-        : "Une fois mesuré, je relancerai un diagnostic pour trouver le levier suivant.",
+        : "Une fois mesuré, nous relancerons un diagnostic pour trouver le levier suivant.",
   };
 }
 

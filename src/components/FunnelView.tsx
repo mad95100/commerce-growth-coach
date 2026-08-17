@@ -70,8 +70,9 @@ export function FunnelView({ funnel, className }: { funnel: Funnel; className?: 
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Je n'ai pas cette donnée. Je n'ai donc pas cherché de fuite autour de cette étape
-                  : je ne veux pas vous attribuer une perte dont je ne sais rien.
+                  Nous n'avons pas cette donnée. Nous n'avons donc pas cherché de fuite autour de
+                  cette étape : nous ne voulons pas vous attribuer une perte dont nous ne savons
+                  rien.
                 </p>
               </div>
             );
@@ -111,7 +112,7 @@ export function FunnelView({ funnel, className }: { funnel: Funnel; className?: 
       {funnel.leaks.length === 0 && funnel.unknown.length > 0 && (
         <p className="mt-4 rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
           Aucune des étapes mesurées ne décroche. Cela ne veut pas dire que tout va bien : si une
-          fuite existe, elle est sur une étape que je ne mesure pas encore.
+          fuite existe, elle est sur une étape que nous ne mesurons pas encore.
         </p>
       )}
     </div>

@@ -336,7 +336,10 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
   );
   t.check(
     "et on dit pourquoi aucune fuite n'y est cherchée",
-    funnelView.includes("je ne sais rien"),
+    // ESPACES SOUPLES, PAS `includes`. Prettier reflowe cette phrase sur trois
+    // lignes du JSX, et un fragment littéral se casserait au prochain
+    // formatage sans qu'un seul mot ait changé.
+    /vous attribuer une perte dont\s+nous ne savons\s+rien/.test(funnelView),
     true,
   );
   t.check("une fuite non chiffrable le dit", funnelView.includes("sans votre panier moyen"), true);
@@ -352,10 +355,10 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
   const card = read("src/components/BriefingCard.tsx");
   t.check("le briefing affiche la preuve", card.includes("Preuve"), true);
   t.check("la cause racine", card.includes("Cause racine"), true);
-  t.check("ce qu'on sait", card.includes("Ce que je sais"), true);
-  t.check("ce qu'on ignore", card.includes("Ce que je ne sais pas encore"), true);
+  t.check("ce qu'on sait", card.includes("Ce que nous savons"), true);
+  t.check("ce qu'on ignore", card.includes("Ce que nous ne savons pas encore"), true);
   t.check("le résultat attendu", card.includes("Résultat attendu"), true);
-  t.check("et comment ce sera vérifié", card.includes("Comment je vérifierai"), true);
+  t.check("et comment ce sera vérifié", card.includes("Comment nous vérifierons"), true);
   // LE garde-fou : le bouton mène à l'aperçu, il n'exécute rien.
   t.check(
     "le bouton annonce l'aperçu avant écriture",

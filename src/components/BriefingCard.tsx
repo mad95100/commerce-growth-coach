@@ -41,7 +41,7 @@ export function BriefingCard({
         }`}
       >
         <Compass className="h-4 w-4" />
-        {isAlert ? "À réparer avant tout" : "Ce que je ferais maintenant"}
+        {isAlert ? "À réparer avant tout" : "Ce que nous ferions maintenant"}
       </div>
 
       {briefing.headline ? (
@@ -93,7 +93,7 @@ export function BriefingCard({
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {briefing.known.length > 0 && (
           <div>
-            <div className="text-xs uppercase text-muted-foreground">Ce que je sais</div>
+            <div className="text-xs uppercase text-muted-foreground">Ce que nous savons</div>
             <ul className="mt-1 space-y-1">
               {briefing.known.map((k, i) => (
                 <li key={i} className="flex items-start gap-1.5 text-sm">
@@ -109,7 +109,7 @@ export function BriefingCard({
         {briefing.unknown.length > 0 && (
           <div>
             <div className="text-xs uppercase text-muted-foreground">
-              Ce que je ne sais pas encore
+              Ce que nous ne savons pas encore
             </div>
             <ul className="mt-1 space-y-1">
               {briefing.unknown.map((u, i) => (
@@ -147,7 +147,7 @@ export function BriefingCard({
           )}
           {briefing.verification && (
             <p className="mt-2 text-sm text-muted-foreground">
-              <span className="font-medium">Comment je vérifierai : </span>
+              <span className="font-medium">Comment nous vérifierons : </span>
               {briefing.verification}
             </p>
           )}

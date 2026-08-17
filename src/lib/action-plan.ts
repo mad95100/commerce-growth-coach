@@ -191,7 +191,7 @@ export function executionNotice(outcome: ExecutionOutcome, targetLabel: string |
     case "en_cours":
       return `Application en cours${cible}. Attendez la fin avant de relancer.`;
     case "issue_inconnue":
-      return `Je ne sais pas si cette correction${cible} est partie : l'exécution a été interrompue avant que le résultat nous revienne. Vérifiez dans votre compte avant de relancer — nous ne rejouons rien tout seuls, au risque de l'appliquer deux fois.`;
+      return `Nous ne savons pas si cette correction${cible} est partie : l'exécution a été interrompue avant que le résultat nous revienne. Vérifiez dans votre compte avant de relancer — nous ne rejouons rien tout seuls, au risque de l'appliquer deux fois.`;
     case "appliquee":
       return "Appliquée sur votre compte.";
     case "echouee":
@@ -252,7 +252,7 @@ export function canConfirmProposal(input: {
     return {
       ok: false,
       reason:
-        "Une correction a déjà été appliquée sur ce problème. Je n'en applique pas une seconde par-dessus : annulez la première si vous voulez repartir de l'état d'origine.",
+        "Une correction a déjà été appliquée sur ce problème. Nous n'en appliquons pas une seconde par-dessus : annulez la première si vous voulez repartir de l'état d'origine.",
     };
   }
   return { ok: true };

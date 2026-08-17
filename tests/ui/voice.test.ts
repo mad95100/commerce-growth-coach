@@ -24,6 +24,28 @@ import { defineSuite } from "../harness";
  * instructions dont la précision compte. Ces fichiers sont donc exclus
  * NOMMÉMENT : une exclusion par motif large finirait par couvrir un écran.
  *
+ * LA SECONDE FRACTURE, TROUVÉE APRÈS COUP : QUI EST « NOUS » ET QUI EST « JE ».
+ * Le vouvoiement réglait la façon dont le produit s'adresse au marchand ; il ne
+ * disait rien de la façon dont il se désigne LUI-MÊME. Sur un même écran, le
+ * briefing annonçait « Ce que je ferais maintenant » et l'échec d'audit, trois
+ * blocs plus bas, « Nous n'avons pas réussi à lire les données ». Un lecteur
+ * n'a aucun moyen de savoir s'il a devant lui une personne ou une équipe — et
+ * l'hésitation tombe au pire endroit : sur un produit qui demande l'accès en
+ * écriture à une boutique, savoir à qui on le confie n'est pas un détail de ton.
+ *
+ * C'EST « NOUS ». Le produit n'est pas un assistant qui aurait un avis
+ * personnel : c'est une équipe qui répond de ses écritures, et un refus de
+ * garde-fou — « nous ne coupons pas une campagne qui convertit » — engage cette
+ * équipe. « Je ne coupe pas » n'engageait personne.
+ *
+ * CE QUI RESTE AU SINGULIER, ET POURQUOI. Un seul fichier : celui où c'est le
+ * MARCHAND qui parle, en choisissant la phrase qui décrit sa situation — « Je
+ * n'ai pas encore de vente ». Les boutons gardent aussi ses possessifs
+ * (« Créer mon compte », « Mes boutiques ») : c'est lui qui les prononce en
+ * cliquant. Le contrôle ci-dessous ne poursuit donc que « je » et « j' », les
+ * deux formes qui ne peuvent être que la voix du produit une fois ce fichier
+ * excepté.
+ *
  * POURQUOI UN TEST ET PAS UNE CONSIGNE. Un texte se réécrit à chaque nouvelle
  * fonctionnalité, souvent en copiant une phrase voisine. Sans contrôle
  * mécanique, la première page ajoutée après celle-ci rouvrira l'écart.
@@ -99,7 +121,54 @@ const IMPÉRATIFS = [
   "Colle",
   "Corrige",
   "Attends",
+  // AJOUTÉS APRÈS COUP, ET C'EST LA RÈGLE. « Ensuite, regarde le taux de
+  // conversion » vivait en production : le verbe manquait à cette liste, si
+  // bien que le second passage — celui qui inspecte l'après-virgule — n'avait
+  // rien à chercher. Une liste nommée ne protège que de ce qu'elle nomme ;
+  // c'est la mutation qui l'a montré, pas la lecture.
+  "Regarde",
+  "Ouvre",
+  "Compare",
 ];
+
+/**
+ * Le seul fichier où la première personne du singulier est celle du MARCHAND.
+ *
+ * `store-profile.ts` ne contient que des phrases qu'il choisit pour se décrire
+ * — « Je vends, mais je ne gagne pas d'argent ». Les mettre au pluriel n'aurait
+ * aucun sens. Une exception unique et nommée, plutôt qu'un motif large qui
+ * finirait par couvrir un écran du produit.
+ */
+const LE_MARCHAND_PARLE = new Set(["src/lib/store-profile.ts"]);
+
+/**
+ * Adverbes qui ouvrent une proposition sans sujet.
+ *
+ * POURQUOI CE SECOND PASSAGE. La recherche d'impératifs ne regarde qu'en TÊTE
+ * de phrase, avec majuscule — délibérément, pour ne jamais accuser à tort. Un
+ * impératif glissé après « Ensuite, » échappait donc, et c'est exactement ce qui
+ * s'est produit : « Ensuite, regarde le taux de conversion » a vécu en
+ * production dans la phrase la plus lue du produit, celle qui dit quoi faire.
+ *
+ * Après l'un de ces adverbes suivi d'une virgule, un verbe sans sujet ne peut
+ * être qu'un impératif : la position lève l'ambiguïté qui interdisait de
+ * chercher ces verbes ailleurs qu'en tête de phrase.
+ */
+const OUVERTURES_SANS_SUJET = ["Ensuite", "Puis", "Alors", "Enfin", "Maintenant"];
+
+/**
+ * « Compte » suivi d'un chiffre — le seul cas où ce mot est un impératif.
+ *
+ * Il ne peut PAS rejoindre `IMPÉRATIFS` : « Compte publicitaire enregistré »,
+ * « Compte créé », « Compte analysé pour cette boutique » ouvrent des phrases
+ * dans six fichiers irréprochables. L'y mettre a produit six accusations, toutes
+ * fausses — la démonstration exacte de ce que la liste ci-dessus documente.
+ *
+ * Ce qui distingue l'impératif est ce qui le suit : une DURÉE. « Compte 1,5 h »,
+ * « Compte 20 min » tutoyaient dans le briefing et dans le plan ; aucun nom
+ * « compte » de ce produit n'est jamais suivi d'un chiffre.
+ */
+const COMPTE_IMPÉRATIF = /(^|[^\p{L}])Compte\s+[\d{$]/u;
 
 function fichiersDe(dossier: string): string[] {
   const out: string[] = [];
@@ -124,6 +193,9 @@ function fichiersDe(dossier: string): string[] {
 function texteAffiché(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
 }
+
+/** Le texte d'un fichier, commentaires retirés. */
+const parle = (chemin: string) => texteAffiché(readFileSync(`${ROOT}${chemin}`, "utf8"));
 
 export default defineSuite("Interface — une seule voix", (t) => {
   const fichiers = [
@@ -161,11 +233,75 @@ export default defineSuite("Interface — une seule voix", (t) => {
       /(^|[^\p{L}])t['’][aeiouéèêàhy]/iu.test(contenu),
       false,
     );
+
+    t.check(
+      `${chemin} n'écrit pas « Compte » suivi d'une durée`,
+      COMPTE_IMPÉRATIF.test(contenu),
+      false,
+    );
+
+    // L'IMPÉRATIF APRÈS UN ADVERBE D'OUVERTURE. Voir `OUVERTURES_SANS_SUJET` :
+    // la virgule garantit qu'aucun sujet ne suit, donc qu'un verbe de la liste
+    // trouvé là est bien un impératif adressé au marchand.
+    for (const ouverture of OUVERTURES_SANS_SUJET) {
+      const verbes = IMPÉRATIFS.map((v) => v.toLowerCase()).join("|");
+      t.check(
+        `${chemin} ne tutoie pas après « ${ouverture}, »`,
+        new RegExp(`${ouverture},\\s*(?:${verbes})(?![\\p{L}])`, "iu").test(contenu),
+        false,
+      );
+    }
+
+    // LA PREMIÈRE PERSONNE DU SINGULIER. Elle ne peut être que la voix du
+    // produit une fois `LE_MARCHAND_PARLE` excepté — et le produit est une
+    // équipe. Les possessifs (« mon compte », « ma boutique ») ne sont PAS
+    // poursuivis : ils appartiennent aux boutons, que le marchand prononce en
+    // cliquant. Les poursuivre aurait forcé une seconde liste d'exceptions
+    // aussi longue que la liste des écrans, et un contrôle qu'on allonge à
+    // chaque page est un contrôle qu'on finit par retirer.
+    if (!LE_MARCHAND_PARLE.has(chemin)) {
+      t.check(`${chemin} ne dit pas « je »`, /(^|[^\p{L}])je($|[^\p{L}])/iu.test(contenu), false);
+      t.check(`${chemin} ne dit pas « j' »`, /(^|[^\p{L}])j['’]/iu.test(contenu), false);
+    }
   }
+
+  // LE TÉMOIN. Les contrôles ci-dessus sont des absences : un produit devenu
+  // muet les passerait tous. Ces trois-là vérifient que la voix retenue est
+  // bien PRÉSENTE, et à l'endroit qui compte — le briefing, les garde-fous, et
+  // le refus d'écrire, c'est-à-dire partout où le produit engage sa parole.
+  t.check(
+    "le briefing parle au nom de l'équipe",
+    /Ce que nous ferions maintenant/.test(parle("src/components/BriefingCard.tsx")),
+    true,
+  );
+  t.check(
+    "un garde-fou refuse au nom de l'équipe",
+    /nous ne coupons pas une campagne qui convertit/.test(parle("src/lib/action-guards.ts")),
+    true,
+  );
+  t.check(
+    "l'issue inconnue s'annonce au nom de l'équipe",
+    /Nous ne savons pas si cette correction/.test(parle("src/lib/action-plan.ts")),
+    true,
+  );
+
+  // ET LE MARCHAND, LUI, GARDE SA VOIX. Sans ce contrôle, la façon la plus
+  // simple de faire taire celui du dessus serait de mettre ses réponses au
+  // pluriel — « Nous n'avons pas encore de vente » — et le contrôle vert
+  // signerait une régression.
+  t.check(
+    "le marchand se décrit encore à la première personne",
+    /Je n'ai pas encore de vente/.test(parle("src/lib/store-profile.ts")),
+    true,
+  );
+  t.check(
+    "et les boutons restent les siens",
+    /Créer mon compte/.test(parle("src/routes/auth.tsx")),
+    true,
+  );
 
   // Les écrans les plus lus disent bien « vous » — un fichier peut passer le
   // contrôle ci-dessus simplement en n'adressant personne.
-  const parle = (chemin: string) => texteAffiché(readFileSync(`${ROOT}${chemin}`, "utf8"));
   t.check(
     "l'accueil s'adresse au marchand",
     /\bvotre boutique\b/i.test(parle("src/routes/index.tsx")),

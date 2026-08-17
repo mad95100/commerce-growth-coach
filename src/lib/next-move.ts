@@ -416,8 +416,8 @@ export function buildNextMovePlan(
 
   parts.push(
     alert
-      ? `Ensuite, je reprendrais par « ${now.title} ».`
-      : `Si cette boutique était la mienne, je commencerais par « ${now.title} ».`,
+      ? `Ensuite, nous reprendrions par « ${now.title} ».`
+      : `Si cette boutique était la nôtre, nous commencerions par « ${now.title} ».`,
   );
   if (now.reason) parts.push(now.reason);
   if (now.unlocks.length > 0) {
@@ -438,17 +438,22 @@ export function buildNextMovePlan(
     const names = enumerate([...demoted].slice(0, 2).map((f) => f.title));
     parts.push(
       demoted.size === 1
-        ? `${names} est un constat technique réel, mais rien ne mesure encore ce qu'il coûte : je ne le fais pas passer devant une perte chiffrée.`
+        ? `${names} est un constat technique réel, mais rien ne mesure encore ce qu'il coûte : nous ne le faisons pas passer devant une perte chiffrée.`
         : `${names} et ${demoted.size - 2 > 0 ? `${demoted.size - 2} autre(s) constat(s) technique(s)` : "l'autre constat technique"} sont réels, mais rien ne mesure encore ce qu'ils coûtent : ils ne passent pas devant une perte chiffrée.`,
     );
   }
-  if (now.timeMinutes) parts.push(`Compte ${formatMinutes(now.timeMinutes)}.`);
-  parts.push(`Ensuite, regarde ${now.measure} : c'est ça qui dira si ça a marché.`);
+  // TUTOIEMENT RÉSIDUEL, PASSÉ SOUS LES DEUX CONTRÔLES. « Compte » n'était pas
+  // dans la liste des impératifs surveillés, et « regarde » se trouvait en
+  // milieu de phrase, là où la recherche en tête de phrase ne va pas. Ces deux
+  // lignes tutoyaient donc au beau milieu d'un briefing qui vouvoie partout
+  // ailleurs — dans la phrase la plus lue du produit, celle qui dit quoi faire.
+  if (now.timeMinutes) parts.push(`Comptez ${formatMinutes(now.timeMinutes)}.`);
+  parts.push(`Ensuite, regardez ${now.measure} : c'est ça qui dira si ça a marché.`);
   if (unknowns.length > 0) {
     parts.push(
       unknowns.length === 1
-        ? `Une réserve : sur ${enumerate([unknowns[0].title])}, je n'ai pas la donnée pour trancher. Vérifiez avant d'y mettre du budget.`
-        : `Une réserve : sur ${unknowns.length} points, je n'ai pas la donnée pour trancher. Vérifiez-les avant d'y mettre du budget.`,
+        ? `Une réserve : sur ${enumerate([unknowns[0].title])}, nous n'avons pas la donnée pour trancher. Vérifiez avant d'y mettre du budget.`
+        : `Une réserve : sur ${unknowns.length} points, nous n'avons pas la donnée pour trancher. Vérifiez-les avant d'y mettre du budget.`,
     );
   }
 

@@ -439,12 +439,12 @@ function AuditPage() {
             <div className="mt-6 rounded-xl border border-dashed border-border bg-surface p-4">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                Ce qu'il me manque pour conclure
+                Ce qu'il nous manque pour conclure
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Sur ces {unverified.length} point{unverified.length > 1 ? "s" : ""}, je n'ai pas la
-                donnée. Nous vous les signalons quand même, mais ne dépensez rien dessus avant de
-                les avoir vérifiés.
+                Sur ces {unverified.length} point{unverified.length > 1 ? "s" : ""}, nous n'avons
+                pas la donnée. Nous vous les signalons quand même, mais ne dépensez rien dessus
+                avant de les avoir vérifiés.
               </p>
               <ul className="mt-3 space-y-1">
                 {unverified.map((f) => (

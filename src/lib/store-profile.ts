@@ -13,6 +13,18 @@ import type { Database } from "@/integrations/supabase/types";
 export type StoreSituation = Database["public"]["Enums"]["store_situation"];
 export type ExperienceLevel = Database["public"]["Enums"]["experience_level"];
 
+/**
+ * LE SEUL ENDROIT DU PRODUIT OÙ « JE » EST JUSTE.
+ *
+ * Partout ailleurs, la première personne du singulier était celle d'EcomPilot —
+ * « Ce que je ferais maintenant », « je n'ai pas la donnée » — et elle a été
+ * ramenée au « nous » de l'équipe. Ici, celui qui parle est le MARCHAND : il
+ * choisit la phrase qui décrit sa propre situation. La lui faire dire au
+ * pluriel n'aurait aucun sens.
+ *
+ * C'est pourquoi ce fichier est nommément excepté du contrôle de voix. Une
+ * exception unique et argumentée vaut mieux qu'un contrôle qu'on desserre.
+ */
 type Choice<T extends string> = {
   value: T;
   label: string;
@@ -45,7 +57,9 @@ const SITUATION_META: Record<StoreSituation, Omit<Choice<StoreSituation>, "value
 const EXPERIENCE_META: Record<ExperienceLevel, Omit<Choice<ExperienceLevel>, "value">> = {
   debutant: {
     label: "Débutant",
-    description: "Je découvre l'e-commerce. Explique-moi tout simplement.",
+    // « Explique-moi » tutoyait EcomPilot — dans un produit qui vouvoie le
+    // marchand du premier écran au dernier, la réciproque doit tenir aussi.
+    description: "Je découvre l'e-commerce. Expliquez-moi tout simplement.",
   },
   intermediaire: {
     label: "Intermédiaire",

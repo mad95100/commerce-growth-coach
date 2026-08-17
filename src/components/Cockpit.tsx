@@ -243,7 +243,7 @@ export function Cockpit({ storeId }: { storeId: string }) {
         <details className="rounded-2xl border border-border/60 bg-card/50 p-6">
           <summary className="cursor-pointer text-xs uppercase tracking-wider text-muted-foreground">
             <HelpCircle className="mr-2 inline h-4 w-4" />
-            Ce que je n'ai pas pu mesurer ({c.dataGaps.length})
+            Ce que nous n'avons pas pu mesurer ({c.dataGaps.length})
           </summary>
           <ul className="mt-4 space-y-4">
             {c.dataGaps.map((gap) => {
@@ -288,7 +288,7 @@ export function Cockpit({ storeId }: { storeId: string }) {
       {c.plan && !c.briefing && (
         <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-primary">
-            <Compass className="h-4 w-4" /> Ce que je ferais maintenant
+            <Compass className="h-4 w-4" /> Ce que nous ferions maintenant
           </div>
           <p className="mt-3 text-sm leading-relaxed">{c.plan.rationale}</p>
 
@@ -377,7 +377,7 @@ export function Cockpit({ storeId }: { storeId: string }) {
                     )}
                     {p.reason && <p className="mt-2 text-xs text-muted-foreground">{p.reason}</p>}
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Ensuite, regarde {p.measure}.
+                      Ensuite, regardez {p.measure}.
                     </p>
                   </div>
                 </div>

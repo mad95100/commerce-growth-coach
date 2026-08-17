@@ -122,7 +122,7 @@ export default defineSuite("Actions — exécution, issue et réversibilité", (
   // Ce que le marchand lit. Une issue inconnue doit dire trois choses :
   // qu'on ne sait pas, qu'il faut vérifier, et qu'on ne rejouera pas seul.
   const notice = executionNotice("issue_inconnue", "la campagne « Hiver »");
-  t.check("l'issue inconnue s'annonce comme telle", notice.includes("Je ne sais pas"), true);
+  t.check("l'issue inconnue s'annonce comme telle", notice.includes("Nous ne savons pas"), true);
   t.check("elle nomme la cible", notice.includes("la campagne « Hiver »"), true);
   t.check("elle renvoie à une vérification chez le partenaire", /[Vv]érifie/.test(notice), true);
   t.check(

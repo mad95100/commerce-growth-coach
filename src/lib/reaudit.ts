@@ -178,7 +178,7 @@ export function decideReaudit(signal: ReauditSignal, now: Date = new Date()): Re
   if (signal.quotaRemaining === null) {
     return {
       action: "lancer",
-      reason: `${summary} La boutique n'est plus celle qui a été auditée : je relance le diagnostic.`,
+      reason: `${summary} La boutique n'est plus celle qui a été auditée : nous relançons le diagnostic.`,
       learned,
     };
   }

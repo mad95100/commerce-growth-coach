@@ -81,7 +81,9 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   t.check("l'audit d'origine est transmis", simple.now?.auditId, "audit-1");
   t.check(
     "la réponse nomme le geste",
-    simple.rationale.startsWith("Si cette boutique était la mienne, je commencerais par « Gros »."),
+    simple.rationale.startsWith(
+      "Si cette boutique était la nôtre, nous commencerions par « Gros ».",
+    ),
     true,
   );
 
@@ -203,7 +205,7 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   );
   t.check(
     "la réserve est dite dans la réponse",
-    unsure.rationale.includes("je n'ai pas la donnée pour trancher"),
+    unsure.rationale.includes("nous n'avons pas la donnée pour trancher"),
     true,
   );
   t.check(
@@ -235,7 +237,7 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   );
   t.check(
     "la réponse annonce le temps à y passer",
-    buildNextMovePlan([make({ time_minutes: 90 })]).rationale.includes("Compte 1.5 h."),
+    buildNextMovePlan([make({ time_minutes: 90 })]).rationale.includes("Comptez 1.5 h."),
     true,
   );
 
@@ -268,7 +270,7 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   t.check("aucune justification n'est inventée", legacy.now?.reason, null);
   t.check(
     "la réponse tient sans justification",
-    legacy.rationale.startsWith("Si cette boutique était la mienne"),
+    legacy.rationale.startsWith("Si cette boutique était la nôtre"),
     true,
   );
 
@@ -370,7 +372,7 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   t.check("le geste suivant n'est pas annulé", withRegression.now?.title, "Le prochain levier");
   t.check(
     "il est présenté comme la suite",
-    withRegression.rationale.includes("Ensuite, je reprendrais par « Le prochain levier »."),
+    withRegression.rationale.includes("Ensuite, nous reprendrions par « Le prochain levier »."),
     true,
   );
 
@@ -470,7 +472,7 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   t.check("aucun apprentissage", [noOutcomes.proven.length, noOutcomes.ineffective.length], [0, 0]);
   t.check(
     "et la réponse garde sa forme d'origine",
-    noOutcomes.rationale.startsWith("Si cette boutique était la mienne"),
+    noOutcomes.rationale.startsWith("Si cette boutique était la nôtre"),
     true,
   );
 
