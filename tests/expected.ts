@@ -211,6 +211,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Chemin de la mesure et du verdict : file équitable même quand une boutique échoue à répétition, verdicts définitifs jamais recalculés sur une fenêtre qui ne recouvre plus la correction, outil attribué à partir des seules écritures abouties, et aucun verdict affiché sans sa période ni sa couverture.",
   },
   {
+    file: "audits/storefront-experience.test.ts",
+    minChecks: 110,
+    covers:
+      "Ce que le visiteur comprend du site, et la limite que ce module ne franchit pas : le HTML ne dit pas ce qui est VU — ni taille de texte, ni couleur après cascade, ni ce qui tombe au-dessus de la ligne de flottaison. Ce qui relève de la perception plafonne à « à vérifier », aucun jugement esthétique n'est produit, et six mots de perception visuelle sont interdits un par un. Le public déduit change la GRAVITÉ d'un constat, jamais le fait : l'absence de réassurance pèse plus lourd sur un acheteur qui compare que sur un achat d'impulsion. Éprouvé sur quatre pages réalistes — saine, thème jamais rempli, surchargée, cassée. Couvre aussi la rétention : sans commandes, rien n'est fabriqué, l'axe est déclaré non évaluable et le moteur dit à partir de quel volume il se prononcera.",
+  },
+  {
     file: "audits/audience.test.ts",
     minChecks: 90,
     covers:

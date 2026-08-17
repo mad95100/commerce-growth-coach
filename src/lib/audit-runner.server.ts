@@ -12,6 +12,11 @@ import {
   deduceAudience,
   findIncoherences,
 } from "@/lib/audience";
+import {
+  experienceFindings,
+  experienceToPromptBlock,
+  extractExperience,
+} from "@/lib/storefront-experience";
 import { assessDiagnostics, diagnosticsToPromptBlock } from "@/lib/diagnostics";
 import { crossSignals, crossSignalsToPromptBlock } from "@/lib/cross-source";
 import { anchorGainsOnLeak, buildFunnel, funnelToPromptBlock } from "@/lib/funnel";
@@ -127,9 +132,19 @@ export async function executeAuditWork(input: {
   // panne, et cela ne doit jamais emporter un audit qui a par ailleurs de quoi
   // conclure. Ce qu'il produit reste des FAITS TECHNIQUES — leur passage à une
   // explication commerciale n'a lieu que dans le croisement, avec preuve.
+  /**
+   * Le document d'accueil, conservé hors du `try`.
+   *
+   * Il sert à la lecture d'expérience, bien plus bas. Le déclarer ici plutôt
+   * qu'au vol garantit qu'un scan qui échoue laisse `null` — donc une lecture
+   * d'expérience qui ne s'exécute pas — au lieu d'une variable absente.
+   */
+  let homeHtml: string | null = null;
   try {
     const { scanStorefront } = await import("@/lib/connectors/storefront.server");
-    reports.push(await scanStorefront(store.url, landings));
+    const storefrontScan = await scanStorefront(store.url, landings);
+    reports.push(storefrontScan);
+    homeHtml = storefrontScan.homeHtml;
   } catch (err) {
     console.error("[audit] scan du site public impossible :", err);
   }
@@ -230,6 +245,11 @@ export async function executeAuditWork(input: {
   const audience = deduceAudience(audienceInput);
   const incoherences = audience ? findIncoherences(audience, audienceInput) : [];
 
+  // CE QUE LE VISITEUR COMPREND, lu sur le MÊME document que le scan technique.
+  // Deux questions différentes sur une seule page téléchargée : « fonctionne-
+  // t-elle ? » et « que dit-elle ? ». La seconde n'a jamais été posée jusqu'ici.
+  const experience = homeHtml ? experienceFindings(extractExperience(homeHtml), audience) : [];
+
   const userPrompt = `Voici les infos de la boutique à auditer :
 
 - Nom : ${store.name}
@@ -255,6 +275,8 @@ ${diagnosticsToPromptBlock(availability, allGaps(reports))}
 ${rulesToPromptBlock(ruleReport)}
 
 ${audienceToPromptBlock(audience, incoherences)}
+
+${experienceToPromptBlock(experience, Boolean(homeHtml))}
 
 ${funnelToPromptBlock(funnel)}
 

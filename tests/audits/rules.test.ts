@@ -146,10 +146,17 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
     obs({ id: "shopify.top_product_revenue_share", value: 0.95, unit: "percent", sample: 19 }),
     obs({ id: "shopify.discounted_order_share", value: 0.9, unit: "percent", sample: 19 }),
   ]);
+  // Un constat « donnée insuffisante » n'est PAS un taux commenté : c'est
+  // précisément le refus d'en commenter un. Il est donc exclu du décompte.
   t.check(
     "sous le seuil d'échantillon, aucun taux n'est commenté",
-    runRules(petitEchantillon).length,
+    runRules(petitEchantillon).filter((f) => f.level !== "donnee_insuffisante").length,
     0,
+  );
+  t.check(
+    "sous le seuil, l'impossibilité de conclure est déclarée",
+    runRules(petitEchantillon).some((f) => f.level === "donnee_insuffisante"),
+    true,
   );
 
   // Juste au-dessus, les mêmes valeurs produisent bien les constats.

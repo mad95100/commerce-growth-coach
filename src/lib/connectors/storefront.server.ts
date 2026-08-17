@@ -186,11 +186,14 @@ async function withinBudget<T, R>(
  * ventes ont atterri. Les vérifier n'est pas une supposition — c'est constater
  * que des chemins qui ont produit du chiffre d'affaires répondent encore.
  */
+/** Le rapport du scan, augmenté du document d'accueil réellement reçu. */
+export type StorefrontScan = SourceReport & { homeHtml: string | null };
+
 export async function scanStorefront(
   storeUrl: string | null,
   landingPaths: Array<{ path: string; orders: number }> = [],
   fetcher: Fetcher = fetch,
-): Promise<SourceReport> {
+): Promise<StorefrontScan> {
   const origin = toOrigin(storeUrl);
   if (!origin) {
     return {
@@ -209,6 +212,7 @@ export async function scanStorefront(
       ],
       reachable: false,
       error: "Adresse de boutique absente ou invalide.",
+      homeHtml: null,
     };
   }
 
@@ -333,5 +337,12 @@ export async function scanStorefront(
     gaps,
     reachable,
     error: reachable ? null : "Le site public n'a répondu sur aucune de ses adresses.",
+    // LE DOCUMENT LUI-MÊME, conservé pour la lecture d'expérience.
+    //
+    // Le scan répond à « la page fonctionne-t-elle ? » ; la lecture
+    // d'expérience répond à « que comprend le visiteur ? ». Ce sont deux
+    // questions différentes sur le MÊME document, et le retélécharger pour la
+    // seconde doublerait le coût d'un audit sans rien apprendre de plus.
+    homeHtml: home.html ?? null,
   };
 }

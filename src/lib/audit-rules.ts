@@ -818,6 +818,47 @@ export const RULES: Rule[] = [
   },
 
   // --- Rétention -----------------------------------------------------------
+  /**
+   * LA RÉTENTION NE PEUT PAS ÊTRE ÉVALUÉE, ET C'EST UN CONSTAT.
+   *
+   * Sans commandes, aucun taux de réachat, aucun délai entre achats, aucune
+   * valeur client n'existe. La tentation est d'écrire « pensez à fidéliser vos
+   * clients », ce qui est vrai pour toutes les boutiques du monde et n'aide
+   * personne. Le moteur dit plutôt ce qui manque, pourquoi, et à partir de quand
+   * il pourra se prononcer.
+   */
+  {
+    id: "data.retention_non_evaluable",
+    axis: "data",
+    requires: [],
+    evaluate: (ctx) => {
+      const orders = num(ctx, "shopify.orders_30d");
+      const returning = num(ctx, "shopify.returning_customer_rate");
+      // Si la rétention EST mesurable, cette règle n'a rien à dire.
+      if (returning !== null && orders !== null && orders >= THRESHOLDS.MIN_ORDERS_FOR_RATES) {
+        return null;
+      }
+      if (orders === null) return null;
+      const t = trace(ctx, ["shopify.orders_30d"]);
+      return emit(RULES_BY_ID["data.retention_non_evaluable"], {
+        title: "La rétention n'est pas encore évaluable",
+        statement:
+          orders === 0
+            ? "Aucune commande sur la période : ni réachat, ni fréquence, ni valeur client ne peuvent être calculés."
+            : `${orders} commande(s) sur la période : il en faut au moins ${THRESHOLDS.MIN_ORDERS_FOR_RATES} pour qu'un taux de réachat veuille dire quelque chose.`,
+        why: "La rétention se mesure sur des clients qui reviennent — donc sur des clients qui sont déjà venus. Avant ce volume, toute conclusion sur la fidélité serait une opinion déguisée en mesure : un seul client qui repasse ferait passer le taux de 0 à 50 %.",
+        level: "donnee_insuffisante",
+        ...t,
+        impact: 3,
+        effort: 1,
+        // Sans commandes, l'axe rétention n'est pas notable : lui donner 100
+        // reviendrait à féliciter une boutique dont on ne sait rien.
+        blocksAxes: ["retention"],
+        recommendation: `Revenir sur cet axe une fois ${THRESHOLDS.MIN_ORDERS_FOR_RATES} commandes payées atteintes. Le moteur calculera alors la part de clients revenants, le délai entre deux commandes et la dépendance à l'acquisition de nouveaux clients — trois mesures qu'aucune source externe ne fournit et que Shopify porte déjà.`,
+      });
+    },
+  },
+
   {
     id: "retention.returning_rate_low",
     axis: "retention",
