@@ -8,6 +8,8 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
 import { auditFailureText, canRetryNow } from "@/lib/audit-errors";
+import { AuditNarrative } from "@/components/AuditNarrative";
+import { readAudience, readCauses } from "@/lib/audit-narrative";
 import { updateFindingStatus, generateFix, processAudit, getAuditJob } from "@/lib/audit.functions";
 import {
   proposeFix,
@@ -386,6 +388,20 @@ function AuditPage() {
                 )}
               </div>
             </div>
+          </div>
+
+          {/*
+            LE RAISONNEMENT AVANT LES CONSTATS. Le portrait du client donne son
+            sens à tout ce qui suit — « il manque des avis » ne veut pas dire la
+            même chose selon qu'on vend à douze euros ou à sept cents — et les
+            causes disent quoi corriger. Les deux étaient calculés puis perdus :
+            ils nourrissaient le texte de l'audit sans jamais être montrés.
+          */}
+          <div className="mt-8">
+            <AuditNarrative
+              audience={readAudience(audit.audience)}
+              causes={readCauses(audit.root_causes)}
+            />
           </div>
 
           {/* Progress */}

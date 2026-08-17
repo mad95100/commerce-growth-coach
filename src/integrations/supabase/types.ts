@@ -282,6 +282,7 @@ export type Database = {
           cross_signals: Json | null
           data_gaps: Json | null
           root_causes: Json | null
+          audience: Json | null
           axis_scores: Json | null
           funnel: Json | null
           created_at: string
@@ -305,6 +306,7 @@ export type Database = {
           cross_signals?: Json | null
           data_gaps?: Json | null
           root_causes?: Json | null
+          audience?: Json | null
           axis_scores?: Json | null
           funnel?: Json | null
           created_at?: string
@@ -328,6 +330,7 @@ export type Database = {
           cross_signals?: Json | null
           data_gaps?: Json | null
           root_causes?: Json | null
+          audience?: Json | null
           axis_scores?: Json | null
           funnel?: Json | null
           created_at?: string
