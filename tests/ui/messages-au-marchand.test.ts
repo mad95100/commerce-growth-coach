@@ -123,6 +123,28 @@ export default defineSuite("Interface — aucun message ne renvoie le marchand �
         NOM_DE_SECRET.test(corps),
         false,
       );
+      // LE NOM PEUT ÊTRE ASSEMBLÉ À L'EXÉCUTION, et c'est ainsi qu'un message
+      // est passé : « Connexion Shopify impossible : ${missing.join(", ")}
+      // manquant(s) côté serveur. Ajoutez ces clés dans les secrets du projet. »
+      // Les quatre noms de secrets étaient bien là, mais dans une VARIABLE — la
+      // recherche de littéraux ne pouvait pas les voir, et la phrase demandait
+      // au marchand d'aller modifier des secrets auxquels il n'a aucun accès.
+      //
+      // On ne peut pas deviner ce que contiendra une interpolation. On cherche
+      // donc la CONSIGNE, qui est le vrai défaut : un message d'interface ne
+      // demande jamais de toucher aux secrets ou à la configuration du serveur.
+      t.check(
+        `${chemin} : une erreur montrée au marchand ne lui demande pas d'agir sur le serveur`,
+        /(?:ajoutez|renseignez|configurez|définissez|vérifiez)[^"'`]{0,60}(?:secrets?|variables? d'environnement|configuration du (?:serveur|projet))/i.test(
+          corps,
+        ),
+        false,
+      );
+      t.check(
+        `${chemin} : une erreur montrée au marchand n'invoque pas « côté serveur »`,
+        /côté serveur/i.test(corps),
+        false,
+      );
     }
   }
   t.check("des erreurs ont bien été relevées", jetsRelevés >= 10, true);

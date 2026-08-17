@@ -129,6 +129,12 @@ const IMPÉRATIFS = [
   "Regarde",
   "Ouvre",
   "Compare",
+  // TROUVÉ EN PARCOURANT L'APPLICATION RENDUE, pas en relisant le code : la
+  // page de suivi affichait, dans son état vide, « Applique une correction
+  // depuis un rapport d'audit, puis reviens ici pour voir l'avant / après ».
+  // Deux tutoiements dans une phrase de douze mots, sur le seul écran qui
+  // répond à « est-ce que ce que j'ai fait a servi ? ».
+  "Applique",
 ];
 
 /**
@@ -315,6 +321,16 @@ export default defineSuite("Interface — une seule voix", (t) => {
       t.check(
         `${chemin} ne tutoie pas après « ${ouverture}, »`,
         new RegExp(`${ouverture},\\s*(?:${verbes})(?![\\p{L}])`, "iu").test(contenu),
+        false,
+      );
+      // LA VIRGULE EST DEVANT L'ADVERBE, PAS DERRIÈRE — et c'est la forme la
+      // plus courante en français : « …, puis revenez ici », « …, ensuite
+      // regardez ». La règle ci-dessus exigeait « Puis, » et laissait donc
+      // passer « , puis ». C'est exactement par là que « Applique une
+      // correction …, puis reviens ici » est entré en production.
+      t.check(
+        `${chemin} ne tutoie pas après « , ${ouverture.toLowerCase()} »`,
+        new RegExp(`[,;]\\s*${ouverture}\\s+(?:${verbes})(?![\\p{L}])`, "iu").test(contenu),
         false,
       );
     }

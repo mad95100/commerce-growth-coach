@@ -227,8 +227,8 @@ function TrackingPage() {
           <ListSkeleton rows={3} label="Chargement du suivi de vos corrections" />
         ) : outcomes.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-            Aucune correction suivie pour l'instant. Applique une correction depuis un rapport
-            d'audit, puis reviens ici pour voir l'avant / après.
+            Aucune correction suivie pour l'instant. Appliquez une correction depuis un rapport
+            d'audit, puis revenez ici pour voir l'avant / après.
           </div>
         ) : (
           outcomes.map((o) => {

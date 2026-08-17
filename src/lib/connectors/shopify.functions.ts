@@ -44,8 +44,18 @@ export const startShopifyConnect = createServerFn({ method: "POST" })
       .map(([name]) => name);
 
     if (missing.length > 0) {
+      // LA LISTE VA AU JOURNAL, PAS AU MARCHAND — et elle échappait au contrôle
+      // qui interdit de nommer un secret dans un message d'interface, parce que
+      // les noms sont ASSEMBLÉS À L'EXÉCUTION : la recherche de littéraux ne
+      // pouvait pas les voir. Le message remontait tel quel dans une
+      // notification et demandait au marchand d'« ajouter ces clés dans les
+      // secrets du projet » — quatre secrets de serveur auxquels il n'a aucun
+      // accès, au moment précis où il s'apprête à nous confier sa boutique.
+      console.error(
+        `[Shopify OAuth] secrets absents du worker : ${missing.join(", ")} — connexion impossible.`,
+      );
       throw new Error(
-        `Connexion Shopify impossible : ${missing.join(", ")} manquant(s) côté serveur. Ajoutez ces clés dans les secrets du projet, puis réessaie.`,
+        "La connexion Shopify n'est pas encore ouverte sur ce produit. Rien à faire de votre côté : il nous reste à la brancher. Vos autres connexions et votre diagnostic ne sont pas affectés.",
       );
     }
     const clientId = process.env.SHOPIFY_CLIENT_ID as string;

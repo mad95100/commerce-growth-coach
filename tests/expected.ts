@@ -182,7 +182,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "ui/messages-au-marchand.test.ts",
-    minChecks: 25,
+    minChecks: 80,
     covers:
       "Aucun message atteignant le marchand ne le renvoie à un secret de serveur : les pages d'erreur OAuth lui demandaient de vérifier SHOPIFY_CLIENT_SECRET, et le bouton de connexion Meta d'ajouter META_CLIENT_ID « dans les secrets » — une action impossible, au moment où il vient de confier l'accès à sa boutique. Le nom est déplacé au journal, pas supprimé.",
   },
@@ -308,7 +308,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "ui/voice.test.ts",
-    minChecks: 2000,
+    minChecks: 8000,
     covers:
       "Une seule voix, du premier écran au dernier. Le rapport annonçait « L'IA analyse ta boutique… » puis, trois blocs plus bas, « Nous n'avons pas réussi à lire les données de votre boutique » : le produit tutoyait sur les écrans écrits en premier et vouvoyait dans tout ce que le moteur produit depuis. Cela ne se lit pas comme un choix mais comme un logiciel assemblé par plusieurs mains. Le tutoiement est désormais interdit fichier par fichier dans tout ce que le marchand lit ; les consignes adressées au MODÈLE, que personne d'autre ne lit, sont exclues nommément et doivent garder leur forme. La première version de ce contrôle ne cherchait que les pronoms : elle a laissé passer « Patiente… », « Clique sur » et « Relance la correction ». Les impératifs se cherchent maintenant aussi — mais en TÊTE DE PHRASE uniquement, parce que « relance » et « vérifie » sont aussi des indicatifs et des noms, et qu'un contrôle qui crie faux finit desserré puis supprimé.",
   },
