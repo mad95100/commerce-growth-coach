@@ -109,12 +109,34 @@ export function hasDescription(html: string | null | undefined): boolean {
   );
 }
 
-/** Un produit est en rupture si TOUTES ses variantes suivies le sont. */
+/**
+ * Un produit est en rupture si TOUTES ses variantes suivies le sont.
+ *
+ * UNE QUANTITÉ ILLISIBLE N'EST PAS UN ZÉRO. Le calcul écrivait
+ * `inventory_quantity ?? 0` : une variante dont Shopify ne renvoie pas la
+ * quantité — le champ est déclaré facultatif ici même, donc son absence est
+ * prévue — comptait comme une variante à zéro, et le produit était déclaré en
+ * rupture. Le constat remonte ensuite tel quel au marchand, avec une preuve qui
+ * affirme la mesure : « toutes leurs variantes suivies à zéro ». Puis le
+ * raisonnement croisé s'en sert pour lui dire que son trafic payant tombe sur
+ * des produits indisponibles. Une chaîne entière de conclusions, sur un chiffre
+ * que personne n'a lu.
+ *
+ * La branche voisine tenait déjà exactement ce raisonnement pour le stock non
+ * suivi — « le compter en rupture inventerait un problème inexistant ». Une
+ * quantité non lue n'est pas différente d'un stock non suivi : dans les deux
+ * cas, nous ne savons pas.
+ *
+ * UNE SEULE VARIANTE ILLISIBLE SUFFIT À EMPÊCHER DE CONCLURE, et c'est
+ * délibéré : l'affirmation à démontrer est que TOUTES les variantes sont à
+ * zéro. Elle ne se démontre pas sur un ensemble dont un membre n'a pas été lu.
+ */
 export function isOutOfStock(product: RawProduct): boolean {
   const variants = Array.isArray(product.variants) ? product.variants : [];
   const tracked = variants.filter((v) => v.inventory_management != null);
   if (tracked.length === 0) return false;
-  return tracked.every((v) => (v.inventory_quantity ?? 0) <= 0);
+  if (tracked.some((v) => typeof v.inventory_quantity !== "number")) return false;
+  return tracked.every((v) => v.inventory_quantity! <= 0);
 }
 
 function imageCount(product: RawProduct): number {

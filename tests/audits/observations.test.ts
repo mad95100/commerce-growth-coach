@@ -264,6 +264,48 @@ export default defineSuite("Sources — observations et diagnosticabilité", (t)
   );
   t.check("un produit sans variante non plus", isOutOfStock({ variants: [] }), false);
 
+  // ET UNE QUANTITÉ QU'ON N'A PAS LUE N'EST PAS UN ZÉRO. Le calcul écrivait
+  // `inventory_quantity ?? 0` : la variante suivie dont Shopify ne renvoie pas
+  // la quantité — un champ déclaré facultatif, donc dont l'absence est prévue —
+  // devenait une variante à zéro, et le produit partait en rupture avec une
+  // preuve qui affirme la mesure. C'est le même raisonnement que deux contrôles
+  // plus haut, appliqué à l'autre façon de ne pas savoir.
+  t.check(
+    "une quantité absente n'est pas une rupture",
+    isOutOfStock({ variants: [{ inventory_management: "shopify" }] }),
+    false,
+  );
+  t.check(
+    "une quantité nulle non plus",
+    isOutOfStock({ variants: [{ inventory_management: "shopify", inventory_quantity: null }] }),
+    false,
+  );
+  // UNE SEULE VARIANTE ILLISIBLE SUFFIT À EMPÊCHER DE CONCLURE : l'affirmation
+  // à démontrer est que TOUTES sont à zéro, et elle ne se démontre pas sur un
+  // ensemble dont un membre n'a pas été lu.
+  t.check(
+    "une variante illisible empêche de conclure à la rupture",
+    isOutOfStock({
+      variants: [
+        { inventory_management: "shopify", inventory_quantity: 0 },
+        { inventory_management: "shopify", inventory_quantity: null },
+      ],
+    }),
+    false,
+  );
+  // Le cas mesuré, lui, conclut toujours : la prudence ne doit pas rendre le
+  // constat impossible à produire.
+  t.check(
+    "deux variantes lues et à zéro font toujours une rupture",
+    isOutOfStock({
+      variants: [
+        { inventory_management: "shopify", inventory_quantity: 0 },
+        { inventory_management: "shopify", inventory_quantity: 0 },
+      ],
+    }),
+    true,
+  );
+
   // --- CE QUI N'EST PAS OBSERVÉ N'EXISTE PAS ------------------------------
   // La règle qui protège une boutique neuve d'être diagnostiquée comme une
   // boutique en échec.
