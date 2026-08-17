@@ -493,10 +493,29 @@ jobs:
       - name: Appliquer les migrations Supabase
         # APRÈS le déploiement, délibérément : on ne modifie le schéma qu'une
         # fois le worker publié sans erreur. Sautée si le projet n'est pas relié.
-        if: env.SUPABASE_ACCESS_TOKEN != '' && vars.SUPABASE_PROJECT_ID != ''
-        env:
-          PROJECT_ID: ${{ vars.SUPABASE_PROJECT_ID }}
+        # UNE SEULE CONDITION, ET ELLE EST LA BONNE. L'étape exigeait aussi une
+        # VARIABLE `SUPABASE_PROJECT_ID` — un réglage séparé des secrets, sur un
+        # autre écran de GitHub. Résultat : le jeton d'accès a été fourni, et
+        # l'étape a continué d'être sautée en silence, sans dire laquelle des
+        # deux valeurs manquait. Le schéma est resté en retard sans que rien ne
+        # l'annonce.
+        #
+        # La référence du projet n'a jamais eu besoin d'être configurée : elle
+        # est VERSIONNÉE dans `supabase/config.toml`, testée, et c'est déjà elle
+        # que le dépôt utilise partout ailleurs. La lire là plutôt que de la
+        # redemander supprime une source de désaccord entre deux endroits — et
+        # une étape que personne ne voyait s'arrêter.
+        if: env.SUPABASE_ACCESS_TOKEN != ''
         run: |
+          # La référence vient du fichier versionné. Si elle en disparaissait,
+          # mieux vaut échouer ici que relier le mauvais projet.
+          PROJECT_ID=$(grep -m1 '^project_id' supabase/config.toml | cut -d'"' -f2)
+          if [ -z "$PROJECT_ID" ]; then
+            echo "::error::project_id introuvable dans supabase/config.toml."
+            exit 1
+          fi
+          echo "Projet Supabase : $PROJECT_ID"
+
           npm install -g supabase@latest
           supabase link --project-ref "$PROJECT_ID"
 
@@ -516,6 +535,19 @@ jobs:
           # `supabase_migrations.schema_migrations`. Ne recrée rien, ne rejoue
           # rien, ne touche à aucune donnée.
           supabase db push
+
+      - name: Le schéma est-il à jour ?
+        if: env.SUPABASE_ACCESS_TOKEN == ''
+        run: |
+          # POURQUOI CETTE ÉTAPE EXISTE. Sautée, l'étape précédente ne laissait
+          # aucune trace : le déploiement était vert, et le schéma restait en
+          # retard indéfiniment. Un audit écrivant dans une colonne absente
+          # aurait alors perdu sa conclusion — c'est arrivé.
+          #
+          # Une étape sautée doit dire pourquoi. C'est la différence entre une
+          # configuration incomplète et une configuration incomplète QU'ON SAIT.
+          echo "::warning::Migrations non appliquées : SUPABASE_ACCESS_TOKEN absent des secrets du dépôt."
+          echo "::warning::Le schéma de production reste en l'état. À ajouter dans Settings → Secrets and variables → Actions."
 
       - name: Contrôle de démarrage
         env:

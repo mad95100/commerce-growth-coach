@@ -182,7 +182,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "infra/deploy-config.test.ts",
-    minChecks: 78,
+    minChecks: 85,
     covers:
       "Cohérence du déploiement Cloudflare : entrée du worker, nodejs_compat, actifs statiques, cron, absence de secret versionné, et concordance entre wrangler.toml, vite.config.ts et .env.example. Vérifie aussi que « déployé » ne se confond plus avec « fonctionne » — un worker publié sans clé de service fait échouer le déploiement au lieu d'afficher un vert trompeur, le contrôle de démarrage se rabat sur l'adresse que wrangler vient de publier plutôt que d'être sauté en silence, le parcours de connexion Shopify est sondé en lecture seule pour prouver que les identifiants arrivent jusqu'au code, et une origine OAuth injoignable est signalée — sinon le worker répond, le déploiement est vert, et pourtant aucune boutique ne peut se connecter.",
   },

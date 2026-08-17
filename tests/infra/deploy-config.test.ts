@@ -264,6 +264,50 @@ export default defineSuite("Infrastructure — configuration de déploiement", (
     true,
   );
 
+  // --- Les migrations ne se sautent plus en silence -------------------------
+  // L'ÉTAPE EXIGEAIT DEUX VALEURS, dont une VARIABLE de dépôt distincte des
+  // secrets, sur un autre écran de GitHub. Le jeton d'accès a été fourni et
+  // l'étape a continué d'être sautée sans dire laquelle des deux manquait : le
+  // schéma est resté en retard sans que rien ne l'annonce, et un audit écrivant
+  // dans une colonne absente aurait perdu sa conclusion.
+  //
+  // La référence du projet est VERSIONNÉE : la relire supprime une source de
+  // désaccord entre deux endroits, et une étape que personne ne voyait
+  // s'arrêter.
+  t.check(
+    "la référence du projet ne dépend plus d'une variable de dépôt",
+    /vars\.SUPABASE_PROJECT_ID/.test(deployCode),
+    false,
+  );
+  t.check(
+    "elle est lue dans le fichier versionné",
+    /grep -m1 '\^project_id' supabase\/config\.toml/.test(deployCode),
+    true,
+  );
+  t.check(
+    "une référence absente fait échouer plutôt que relier au hasard",
+    /project_id introuvable dans supabase\/config\.toml[\s\S]{0,80}exit 1/.test(deployCode),
+    true,
+  );
+  t.check(
+    "la seule condition restante est le jeton d'accès",
+    /if: env\.SUPABASE_ACCESS_TOKEN != ''/.test(deploy),
+    true,
+  );
+  // UNE ÉTAPE SAUTÉE DOIT DIRE POURQUOI. C'est la différence entre une
+  // configuration incomplète et une configuration incomplète qu'on sait.
+  t.check(
+    "l'absence de jeton est annoncée au lieu d'être tue",
+    /if: env\.SUPABASE_ACCESS_TOKEN == ''/.test(deploy) &&
+      /Migrations non appliquées/.test(deployCode),
+    true,
+  );
+  t.check(
+    "l'avertissement dit où poser le jeton",
+    /Settings → Secrets and variables → Actions/.test(deployCode),
+    true,
+  );
+
   // --- Les modèles configurés sont éprouvés, pas supposés -------------------
   // Un modèle peut disparaître du catalogue d'un fournisseur sans que rien ne
   // change chez nous. Et il peut FIGURER au catalogue tout en étant refusé à
