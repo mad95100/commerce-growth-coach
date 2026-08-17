@@ -124,7 +124,7 @@ export function quotaExhaustedMessage(tier: PlanTier, key: QuotaKey): string {
   const limit = quotaLimit(tier, key);
   const what = QUOTA_LABELS[key];
   return (
-    `Tu as utilisé tes ${limit} ${what} du mois inclus dans le plan ${PLAN_LABELS[tier]}. ` +
+    `Vous avez utilisé vos ${limit} ${what} du mois inclus dans le plan ${PLAN_LABELS[tier]}. ` +
     `Le compteur repart le 1er du mois prochain, ou passe au plan ${PLAN_LABELS.pro} pour ne plus en avoir.`
   );
 }

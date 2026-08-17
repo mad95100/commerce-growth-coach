@@ -193,7 +193,9 @@ export async function consumeQuota(admin: Db, userId: string, key: QuotaKey): Pr
   for (let attempt = 0; attempt < MAX_CAS_ATTEMPTS; attempt++) {
     const usage = await loadOrResetUsage(admin, userId);
     if (!usage) {
-      throw new Error("Impossible de vérifier ton quota pour le moment. Réessaie dans un instant.");
+      throw new Error(
+        "Impossible de vérifier votre quota pour le moment. Réessayez dans un instant.",
+      );
     }
 
     const current = (usage[column] as number | null) ?? 0;
@@ -215,7 +217,7 @@ export async function consumeQuota(admin: Db, userId: string, key: QuotaKey): Pr
 
   // Contention persistante : refuser vaut mieux que laisser passer sans compter.
   throw new Error(
-    "Ton quota n'a pas pu être décompté à cause d'un accès simultané. Réessaie dans un instant.",
+    "Votre quota n'a pas pu être décompté à cause d'un accès simultané. Réessayez dans un instant.",
   );
 }
 

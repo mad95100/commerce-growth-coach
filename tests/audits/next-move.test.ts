@@ -394,7 +394,7 @@ export default defineSuite("Audits — le prochain geste", (t) => {
   );
   t.check(
     "et la marche à suivre est donnée",
-    manualRollback.rationale.includes("Reviens en arrière à la main"),
+    manualRollback.rationale.includes("Revenez en arrière à la main"),
     true,
   );
 

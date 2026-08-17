@@ -1114,7 +1114,7 @@ export async function executePlannedAction(
   // restent comparées strictement.
   if (!sameActionState(description.beforeValue, input.expectedBefore)) {
     throw new Error(
-      `${description.targetLabel} a changé depuis la proposition : je n'écrase pas une modification que tu n'as pas vue. Rien n'a été modifié — relance la correction pour repartir de l'état actuel.`,
+      `${description.targetLabel} a changé depuis la proposition : nous n'écrasons pas une modification que vous n'avez pas vue. Rien n'a été modifié — relancez la correction pour repartir de l'état actuel.`,
     );
   }
 

@@ -53,8 +53,8 @@ export const EPISTEMIC_LABELS: Record<EpistemicLevel, string> = {
 
 /** Ce que chaque niveau autorise à dire, en une phrase, pour l'interface. */
 export const EPISTEMIC_HINTS: Record<EpistemicLevel, string> = {
-  fait: "Mesuré dans tes données. Tu peux agir dessus sans vérifier.",
-  deduction_forte: "Déduit de tes données, avec des hypothèses annoncées. Très probable.",
+  fait: "Mesuré dans vos données. Vous pouvez agir dessus sans vérifier.",
+  deduction_forte: "Déduit de vos données, avec des hypothèses annoncées. Très probable.",
   hypothese: "Piste plausible, non démontrée. À vérifier avant d'y mettre du budget.",
   donnee_manquante:
     "Il manque la donnée pour conclure. La première action est d'aller la chercher.",
@@ -483,8 +483,8 @@ const SEVERITY_SENTENCE: Record<string, string> = {
 };
 
 const EPISTEMIC_SENTENCE: Record<EpistemicLevel, string> = {
-  fait: "Établi sur tes données réelles.",
-  deduction_forte: "Déduit de tes données, avec des hypothèses annoncées.",
+  fait: "Établi sur vos données réelles.",
+  deduction_forte: "Déduit de vos données, avec des hypothèses annoncées.",
   hypothese: "Repose sur une hypothèse : à vérifier avant d'y consacrer un budget.",
   donnee_manquante: "La donnée qui permettrait de conclure manque.",
 };

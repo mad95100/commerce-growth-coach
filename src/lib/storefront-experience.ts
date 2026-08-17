@@ -241,8 +241,8 @@ export const OUT_OF_REACH = [
       "Dire si les photos soutiennent le positionnement ou le contredisent — souvent l'écart le plus visible d'une boutique.",
   },
   {
-    id: "storefront.ton_reel",
-    label: "Ton et qualité rédactionnelle",
+    id: "storefront.style_redactionnel",
+    label: "Style et qualité rédactionnelle",
     reason:
       "La longueur d'un texte et la présence de mots-clés se comptent ; sa justesse ne se compte pas. Un texte long et creux et un texte court et juste ont la même signature technique.",
     wouldEnable: "Évaluer si le discours parle au public visé ou à personne en particulier.",

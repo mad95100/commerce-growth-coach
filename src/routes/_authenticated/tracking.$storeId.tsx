@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/tracking/$storeId")({
       { title: "Suivi des gains — EcomPilot AI" },
       {
         name: "description",
-        content: "Compare tes indicateurs avant et après chaque correction appliquée par l'IA.",
+        content: "Comparez vos indicateurs avant et après chaque correction appliquée.",
       },
       { property: "og:title", content: "Suivi des gains — EcomPilot AI" },
       {
@@ -212,8 +212,8 @@ function TrackingPage() {
                   <p className="mt-2 text-sm font-medium text-destructive">
                     {o.rollback_reason ??
                       (o.rollback_possible
-                        ? "Annule cette correction depuis le rapport d'audit."
-                        : "Reviens en arrière à la main dans ton compte.")}
+                        ? "Annulez cette correction depuis le rapport d'audit."
+                        : "Revenez en arrière à la main dans votre compte.")}
                   </p>
                 )}
               </div>

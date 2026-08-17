@@ -315,7 +315,7 @@ export default defineSuite("Moteur — robustesse et boutiques réelles", (t) =>
   t.check("deux commandes ne permettent aucun verdict", tinyTraffic.verdict, "en_cours");
   t.check(
     "et on dit franchement qu'on ne sait pas",
-    tinyTraffic.explanation.includes("Je préfère te dire que je ne sais pas"),
+    tinyTraffic.explanation.includes("Nous préférons vous dire que nous ne savons pas"),
     true,
   );
   t.check(

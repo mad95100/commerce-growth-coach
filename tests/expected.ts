@@ -265,6 +265,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Ce que l'écran dit quand la lecture échoue. Le tableau de bord confondait « il n'y a rien » et « je n'ai pas réussi à lire » : sur échec de requête il annonçait « Aucune boutique » et proposait d'en recréer une — un marchand voyait sa boutique disparaître. L'échec est désormais testé avant le vide, porte son propre message et son propre geste, et la redirection automatique vers la création n'a lieu que sur un succès.",
   },
   {
+    file: "ui/voice.test.ts",
+    minChecks: 300,
+    covers:
+      "Une seule voix, du premier écran au dernier. Le rapport annonçait « L'IA analyse ta boutique… » puis, trois blocs plus bas, « Nous n'avons pas réussi à lire les données de votre boutique » : le produit tutoyait sur les écrans écrits en premier et vouvoyait dans tout ce que le moteur produit depuis. Cela ne se lit pas comme un choix mais comme un logiciel assemblé par plusieurs mains. Le tutoiement est désormais interdit fichier par fichier dans tout ce que le marchand lit ; les consignes adressées au MODÈLE, que personne d'autre ne lit, sont exclues nommément et doivent garder leur forme.",
+  },
+  {
     file: "audits/shopify-funnel.test.ts",
     minChecks: 55,
     covers:

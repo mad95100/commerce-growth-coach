@@ -472,7 +472,7 @@ function rollbackSentence(alert: RollbackAlert): string {
     : `Avant tout : « ${alert.title} » a dégradé la situation.`;
   return alert.automatic
     ? `${constat} Annule cette correction — un bouton suffit, l'état d'avant est connu.`
-    : `${constat} Reviens en arrière à la main dans ton compte : cette correction ne s'annule pas toute seule.`;
+    : `${constat} Revenez en arrière à la main dans votre compte : cette correction ne s'annule pas toute seule.`;
 }
 
 /**

@@ -13,7 +13,7 @@ import { Loader2, Rocket } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
-    meta: [{ title: "Ajoute ta boutique — EcomPilot AI" }],
+    meta: [{ title: "Ajoutez votre boutique — EcomPilot AI" }],
   }),
   component: Onboarding,
 });
@@ -61,7 +61,7 @@ function Onboarding() {
         .select()
         .single();
       if (error) throw error;
-      toast.success("Boutique ajoutée ! Prêt pour ton premier audit ?");
+      toast.success("Boutique ajoutée ! Prêt pour votre premier audit ?");
       navigate({ to: "/stores/$storeId", params: { storeId: data.id } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
@@ -77,15 +77,15 @@ function Onboarding() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-primary">
             <Rocket className="h-6 w-6 text-primary-foreground" />
           </div>
-          <h1 className="mt-4 font-display text-3xl font-bold">Parle-nous de ta boutique</h1>
+          <h1 className="mt-4 font-display text-3xl font-bold">Parlez-nous de votre boutique</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Ces infos servent à personnaliser ton audit. Rien n'est partagé.
+            Ces informations servent à personnaliser votre audit. Rien n'est partagé.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="card-elevated space-y-5 rounded-2xl p-8">
           <div>
-            <Label htmlFor="name">Nom de ta boutique *</Label>
+            <Label htmlFor="name">Nom de votre boutique *</Label>
             <Input
               id="name"
               value={form.name}
@@ -121,7 +121,7 @@ function Onboarding() {
             </p>
           </div>
           <div>
-            <Label htmlFor="niche">Ta niche / secteur</Label>
+            <Label htmlFor="niche">Votre niche / secteur</Label>
             <Input
               id="niche"
               value={form.niche}
@@ -154,10 +154,10 @@ function Onboarding() {
             </div>
           </div>
           <div className="border-t border-border/60 pt-5">
-            <h2 className="font-display text-lg font-bold">Ton modèle économique</h2>
+            <h2 className="font-display text-lg font-bold">Votre modèle économique</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Facultatif, mais c'est ce qui permet à l'audit de chiffrer ta marge et ton bénéfice
-              réel. Tu pourras compléter plus tard.
+              Facultatif, mais c'est ce qui permet à l'audit de chiffrer votre marge et votre
+              bénéfice réel. Vous pourrez compléter plus tard.
             </p>
             <div className="mt-5">
               <StoreEconomicsFields
@@ -170,7 +170,7 @@ function Onboarding() {
           </div>
 
           <div>
-            <Label htmlFor="goal">Ton objectif principal</Label>
+            <Label htmlFor="goal">Votre objectif principal</Label>
             <Textarea
               id="goal"
               value={form.goal}

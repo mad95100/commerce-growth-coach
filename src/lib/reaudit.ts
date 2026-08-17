@@ -104,11 +104,11 @@ function millis(value: string | null | undefined): number | null {
 
 /** La plus récente de deux dates, en ignorant celles qui sont illisibles. */
 function mostRecent(a: string | null | undefined, b: string | null | undefined): string | null {
-  const ta = millis(a);
-  const tb = millis(b);
-  if (ta === null) return tb === null ? null : (b as string);
-  if (tb === null) return a as string;
-  return ta >= tb ? (a as string) : (b as string);
+  const msA = millis(a);
+  const msB = millis(b);
+  if (msA === null) return msB === null ? null : (b as string);
+  if (msB === null) return a as string;
+  return msA >= msB ? (a as string) : (b as string);
 }
 
 function daysSince(value: string | null | undefined, now: Date): number | null {
@@ -149,7 +149,7 @@ export function decideReaudit(signal: ReauditSignal, now: Date = new Date()): Re
   // relancer coûte un quota à chaque fois et ne dit rien de plus.
   if ((signal.consecutiveFailures ?? 0) >= MAX_CONSECUTIVE_AUDIT_FAILURES) {
     return wait(
-      `Les ${signal.consecutiveFailures} derniers diagnostics de cette boutique ont échoué. Je n'en relance pas un de plus tout seul : relance-le à la main quand tu veux, pour qu'un quota ne parte pas dans le vide.`,
+      `Les ${signal.consecutiveFailures} derniers diagnostics de cette boutique ont échoué. Nous n'en relançons pas un de plus automatiquement : relancez-le à la main quand vous le voulez, pour qu'un quota ne parte pas dans le vide.`,
     );
   }
 
@@ -193,7 +193,7 @@ export function decideReaudit(signal: ReauditSignal, now: Date = new Date()): Re
 
   return {
     action: "proposer",
-    reason: `${summary} Un nouveau diagnostic trouverait le prochain levier — il te reste ${signal.quotaRemaining} audit${signal.quotaRemaining > 1 ? "s" : ""} ce mois-ci.`,
+    reason: `${summary} Un nouveau diagnostic trouverait le prochain levier — il vous reste ${signal.quotaRemaining} audit${signal.quotaRemaining > 1 ? "s" : ""} ce mois-ci.`,
     learned,
   };
 }

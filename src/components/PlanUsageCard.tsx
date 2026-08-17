@@ -23,7 +23,7 @@ export function PlanUsageCard() {
   });
 
   if (q.isLoading) {
-    return <div className="text-sm text-muted-foreground">Chargement de ton plan...</div>;
+    return <div className="text-sm text-muted-foreground">Chargement de votre plan...</div>;
   }
   if (!q.data) return null;
   const e = q.data;

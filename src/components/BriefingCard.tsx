@@ -173,8 +173,8 @@ export function BriefingCard({
           ) : null}
           {briefing.action.kind === "corriger" && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Tu verras exactement ce qui sera modifié avant que quoi que ce soit ne parte sur ta
-              boutique.
+              Vous verrez exactement ce qui sera modifié avant que quoi que ce soit ne parte sur
+              votre boutique.
             </p>
           )}
         </div>

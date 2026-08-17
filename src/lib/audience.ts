@@ -581,7 +581,7 @@ function expectationsFor(tier: PriceTier | null): string[] {
     premium: [
       "Une présentation soignée, cohérente d'une page à l'autre",
       "Des preuves visibles sans avoir à les chercher",
-      "Un ton qui traite l'acheteur en adulte",
+      "Une écriture qui traite l'acheteur en adulte",
     ],
     luxe: [
       "Une identité visuelle tenue jusqu'au moindre détail",

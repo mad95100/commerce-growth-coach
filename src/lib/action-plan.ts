@@ -189,11 +189,11 @@ export function executionNotice(outcome: ExecutionOutcome, targetLabel: string |
     case "proposee":
       return "Proposée, pas encore appliquée. Rien n'a été modifié.";
     case "en_cours":
-      return `Application en cours${cible}. Attends la fin avant de relancer.`;
+      return `Application en cours${cible}. Attendez la fin avant de relancer.`;
     case "issue_inconnue":
-      return `Je ne sais pas si cette correction${cible} est partie : l'exécution a été interrompue avant que le résultat me revienne. Vérifie dans ton compte avant de relancer — je ne rejoue rien tout seul, au risque de l'appliquer deux fois.`;
+      return `Je ne sais pas si cette correction${cible} est partie : l'exécution a été interrompue avant que le résultat nous revienne. Vérifiez dans votre compte avant de relancer — nous ne rejouons rien tout seuls, au risque de l'appliquer deux fois.`;
     case "appliquee":
-      return "Appliquée sur ton compte.";
+      return "Appliquée sur votre compte.";
     case "echouee":
       return "Échec : rien n'a été modifié.";
     case "annulee":
@@ -245,14 +245,14 @@ export function canConfirmProposal(input: {
   if (input.expiresAt && isProposalExpired(input.expiresAt, input.now ?? Date.now())) {
     return {
       ok: false,
-      reason: `Cette proposition a plus de ${PROPOSAL_TTL_MINUTES} minutes : l'état de ton compte a pu changer. Relance la correction.`,
+      reason: `Cette proposition a plus de ${PROPOSAL_TTL_MINUTES} minutes : l'état de votre compte a pu changer. Relancez la correction.`,
     };
   }
   if (input.alreadyAppliedOnFinding) {
     return {
       ok: false,
       reason:
-        "Une correction a déjà été appliquée sur ce problème. Je n'en applique pas une seconde par-dessus : annule la première si tu veux repartir de l'état d'origine.",
+        "Une correction a déjà été appliquée sur ce problème. Je n'en applique pas une seconde par-dessus : annulez la première si vous voulez repartir de l'état d'origine.",
     };
   }
   return { ok: true };
@@ -287,8 +287,8 @@ export function canRevertAction(input: {
 
 export function revertibilityNotice(tool: string): string {
   return isRevertible(tool)
-    ? "Tu pourras annuler cette action et revenir à l'état précédent."
-    : "Cette action ne pourra pas être annulée automatiquement : il faudra revenir en arrière à la main dans ton compte.";
+    ? "Vous pourrez annuler cette action et revenir à l'état précédent."
+    : "Cette action ne pourra pas être annulée automatiquement : il faudra revenir en arrière à la main dans votre compte.";
 }
 
 /**

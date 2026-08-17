@@ -68,7 +68,7 @@ function StorePage() {
       // suite, et l'analyse se poursuit sur la page de l'audit. On y navigue
       // sans attendre, au lieu de bloquer sur une requête qui pouvait expirer.
       const res = await runAuditFn({ data: { storeId } });
-      toast.info("Audit lancé, l'IA analyse ta boutique.");
+      toast.info("Audit lancé, nous analysons votre boutique.");
       navigate({ to: "/audits/$auditId", params: { auditId: res.auditId } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur audit");
@@ -152,7 +152,7 @@ function StorePage() {
           <div>
             <h2 className="font-display text-xl font-bold">Lancer un nouvel audit</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              L'IA analyse ta boutique et te sort un plan d'action en 2 min.
+              Nous analysons votre boutique et en sortons un plan d'action en 2 minutes.
             </p>
           </div>
           <Button
@@ -362,10 +362,10 @@ function StoreEconomicsCard({ store }: { store: EconomicsStore }) {
 
   return (
     <div className="card-elevated rounded-2xl p-6">
-      <h2 className="font-display text-lg font-bold">Ton modèle économique</h2>
+      <h2 className="font-display text-lg font-bold">Votre modèle économique</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Ces informations servent à chiffrer ta marge, ton bénéfice et à orienter l'audit. Laisse
-        vide ce que tu ne connais pas encore.
+        Ces informations servent à chiffrer votre marge, votre bénéfice et à orienter l'audit.
+        Laissez vide ce que vous ne connaissez pas encore.
       </p>
 
       <div className="mt-5">

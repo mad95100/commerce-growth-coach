@@ -301,7 +301,7 @@ export default defineSuite("Audits — relance du diagnostic", (t) => {
     NOW,
   );
   t.check("deux échecs d'affilée arrêtent la relance automatique", repeated.action, "attendre");
-  t.check("et le marchand garde la main", repeated.reason.includes("relance-le à la main"), true);
+  t.check("et le marchand garde la main", repeated.reason.includes("relancez-le à la main"), true);
   t.check(
     "un seul échec ne suffit pas à bloquer",
     decideReaudit(

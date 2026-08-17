@@ -5,11 +5,11 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "EcomPilot AI — Découvre pourquoi ta boutique ne vend pas" },
+      { title: "EcomPilot AI — Découvrez pourquoi votre boutique ne vend pas" },
       {
         name: "description",
         content:
-          "L'IA qui audite ta boutique Shopify et te dit exactement quoi corriger pour enfin vendre. Diagnostic en 2 minutes.",
+          "L'IA qui audite votre boutique Shopify et vous dit exactement quoi corriger pour enfin vendre. Diagnostic en 2 minutes.",
       },
     ],
   }),
@@ -50,13 +50,13 @@ function Landing() {
             Chaque jour sans audit = de l'argent qui part
           </div>
           <h1 className="mt-6 font-display text-5xl font-bold leading-tight md:text-7xl">
-            Ta boutique perd de l'argent.
+            Votre boutique perd de l'argent.
             <br />
-            <span className="text-gradient-primary">On te dit exactement où.</span>
+            <span className="text-gradient-primary">Nous vous disons exactement où.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
-            EcomPilot AI audite ta boutique en 2 minutes, chiffre chaque fuite en euros et génère
-            les corrections prêtes à coller. Pas de blabla. Que du cash à récupérer.
+            EcomPilot AI audite votre boutique en 2 minutes, chiffre chaque fuite en euros et génère
+            les corrections prêtes à coller. Pas de blabla. Que du chiffre d'affaires à récupérer.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Link to="/auth" search={{ mode: "signup" }}>
@@ -80,11 +80,11 @@ function Landing() {
                   Score global
                 </div>
                 <div className="mt-1 font-display text-2xl font-bold">
-                  Tu laisses ~2 400 €/mois sur la table
+                  Vous laissez ~2 400 €/mois sur la table
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  3 fuites majeures identifiées. Toutes réparables cette semaine avec les textes
-                  qu'on te génère.
+                  3 fuites majeures identifiées. Toutes réparables cette semaine avec les textes que
+                  nous générons.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Tag color="destructive">Page produit qui tue la vente</Tag>
@@ -108,8 +108,8 @@ function Landing() {
             {[
               {
                 icon: Target,
-                title: "1. Tu donnes ton URL",
-                desc: "Ta boutique, ta niche, ton budget pub. 60 secondes. C'est tout.",
+                title: "1. Vous donnez votre adresse",
+                desc: "Votre boutique, votre niche, votre budget publicitaire. 60 secondes. C'est tout.",
               },
               {
                 icon: Zap,
@@ -118,7 +118,7 @@ function Landing() {
               },
               {
                 icon: TrendingUp,
-                title: "3. Tu colles les corrections",
+                title: "3. Vous collez les corrections",
                 desc: "Fiches produit, emails, accroches pubs. Un clic, un copier-coller, plus de ventes.",
               },
             ].map((step) => (
@@ -144,17 +144,17 @@ function Landing() {
             <FeatureCard
               icon={TrendingUp}
               title="Chaque fuite chiffrée en €/mois"
-              desc="Tu sais combien tu récupères en corrigeant chaque point. Priorité = impact financier."
+              desc="Vous savez combien vous récupérez en corrigeant chaque point. Priorité = impact financier."
             />
             <FeatureCard
               icon={Sparkles}
               title={"Bouton \u00abCorrige maintenant\u00bb"}
-              desc="L'IA écrit ta fiche produit, ton email de relance, ton accroche pub. Tu colles. C'est réglé."
+              desc="L'IA écrit votre fiche produit, votre e-mail de relance, votre accroche publicitaire. Vous collez. C'est réglé."
             />
             <FeatureCard
               icon={Rocket}
-              title="Suivi de tes progrès"
-              desc="Coche les actions faites. Nouvel audit → tu vois ton score grimper et tes ventes suivre."
+              title="Suivi de vos progrès"
+              desc="Cochez les actions faites. Nouvel audit → vous voyez votre score grimper et vos ventes suivre."
             />
           </div>
         </section>
@@ -163,11 +163,12 @@ function Landing() {
         <section className="mx-auto max-w-4xl px-6 py-24">
           <div className="card-elevated rounded-3xl p-12 text-center">
             <h2 className="font-display text-4xl font-bold">
-              Arrête de brûler ton budget.{" "}
-              <span className="text-gradient-primary">Récupère ton cash.</span>
+              Arrêtez de brûler votre budget.{" "}
+              <span className="text-gradient-primary">Récupérez votre chiffre d'affaires.</span>
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-              Ton premier audit est gratuit. Aucune installation. Aucune CB. Résultats en 2 minutes.
+              Votre premier audit est gratuit. Aucune installation. Aucune carte bancaire. Résultats
+              en 2 minutes.
             </p>
             <Link to="/auth" search={{ mode: "signup" }}>
               <Button

@@ -26,7 +26,7 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
           return htmlResponse(
             errorBody(
               "Réponse Shopify incomplète",
-              "Shopify n'a pas renvoyé les paramètres attendus (code, shop, state). Relance la connexion depuis ta boutique.",
+              "Shopify n'a pas renvoyé les paramètres attendus (code, shop, state). Relancez la connexion depuis votre boutique.",
             ),
             400,
           );
@@ -161,8 +161,8 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
           return htmlResponse(
             `<h1>Shopify connecté !</h1>` +
               (scopeWarning
-                ? `<p>Ta boutique est reliée, avec une réserve : ${escapeHtml(scopeWarning)}</p>`
-                : `<p>Ta boutique est reliée. On te ramène à l'application…</p>`) +
+                ? `<p>Votre boutique est reliée, avec une réserve : ${escapeHtml(scopeWarning)}</p>`
+                : `<p>Votre boutique est reliée. Nous vous ramenons à l'application…</p>`) +
               `<p><a href="/stores/${payload.storeId}">Continuer maintenant</a></p>`,
             200,
             `/stores/${payload.storeId}`,

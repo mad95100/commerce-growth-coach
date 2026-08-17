@@ -374,7 +374,7 @@ export function guardRestoreBudget(input: {
 
   if (previousDailyBudget > BUDGET_RESTORE_SANITY_CAP) {
     return refuse(
-      `Le budget à rétablir sur ${targetLabel} (${amount(previousDailyBudget, currency)}/jour) est aberrant : je refuse de l'écrire. Rétablis-le à la main dans ton compte. Rien n'a été modifié.`,
+      `Le budget à rétablir sur ${targetLabel} (${amount(previousDailyBudget, currency)}/jour) est aberrant : je refuse de l'écrire. Rétablissez-le à la main dans votre compte. Rien n'a été modifié.`,
     );
   }
 
@@ -485,7 +485,7 @@ export function parseRevertPayload<N extends RevertableTool>(
 export function guardTargetExists<T>(target: T | null | undefined, label: string): GuardResult<T> {
   if (target == null) {
     return refuse(
-      `${label} est introuvable dans ton compte : l'IA a visé une cible qui n'existe plus. Rien n'a été modifié — relance la correction.`,
+      `${label} est introuvable dans votre compte : l'IA a visé une cible qui n'existe plus. Rien n'a été modifié — relancez la correction.`,
     );
   }
   return allow(target);

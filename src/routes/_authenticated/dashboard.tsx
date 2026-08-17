@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
       { title: "Tableau de bord — EcomPilot AI" },
-      { name: "description", content: "Vue d'ensemble de tes boutiques et audits." },
+      { name: "description", content: "Vue d'ensemble de vos boutiques et audits." },
     ],
   }),
   component: Dashboard,
@@ -63,7 +63,7 @@ function Dashboard() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="font-display text-3xl font-bold">Salut 👋</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Voici l'état de tes boutiques.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Voici l'état de vos boutiques.</p>
         </div>
         <Link to="/onboarding">
           <Button variant="outline">
@@ -118,7 +118,7 @@ function Dashboard() {
       ) : !storesQ.data || storesQ.data.length === 0 ? (
         <EmptyState
           title="Aucune boutique pour l'instant"
-          description="Ajoute ta première boutique pour lancer ton premier audit gratuit."
+          description="Ajoutez votre première boutique pour lancer votre premier audit gratuit."
           actionLabel="Ajouter ma boutique"
           onAction={() => navigate({ to: "/onboarding" })}
         />

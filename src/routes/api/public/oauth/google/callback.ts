@@ -55,7 +55,7 @@ export const Route = createFileRoute("/api/public/oauth/google/callback")({
 
           if (!tokenJson.refresh_token) {
             return htmlResponse(
-              "Google n'a pas renvoyé de refresh token. Retire l'accès de l'app dans ton compte Google puis reconnecte.",
+              "Google n'a pas renvoyé de refresh token. Retirez l'accès de l'application dans votre compte Google puis reconnectez-la.",
               400,
             );
           }

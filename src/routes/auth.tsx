@@ -25,7 +25,7 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Connexion — EcomPilot AI" },
-      { name: "description", content: "Connecte-toi ou crée ton compte EcomPilot AI." },
+      { name: "description", content: "Connectez-vous ou créez votre compte EcomPilot AI." },
     ],
   }),
   beforeLoad: async () => {

@@ -77,16 +77,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "EcomPilot AI — Découvre pourquoi ta boutique ne vend pas" },
+      { title: "EcomPilot AI — Découvrez pourquoi votre boutique ne vend pas" },
       {
         name: "description",
         content:
-          "L'IA qui audite ta boutique et te dit exactement quoi corriger pour enfin vendre. Diagnostic en 2 minutes.",
+          "L'IA qui audite votre boutique et vous dit exactement quoi corriger pour enfin vendre. Diagnostic en 2 minutes.",
       },
       { property: "og:title", content: "EcomPilot AI — Audit e-commerce IA" },
       {
         property: "og:description",
-        content: "Découvre pourquoi ta boutique ne vend pas et corrige-le en 2 minutes.",
+        content: "Découvrez pourquoi votre boutique ne vend pas et corrigez-le en 2 minutes.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

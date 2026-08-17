@@ -30,13 +30,13 @@ export const CATEGORY_LABELS: Record<Category, string> = {
 };
 
 export const CATEGORY_HINTS: Record<Category, string> = {
-  offre: "Ce que tu vends et pourquoi on devrait te l'acheter à toi.",
-  produit: "Ta fiche produit : titre, photos, bénéfices, avis, objections.",
+  offre: "Ce que vous vendez, et pourquoi on devrait vous l'acheter à vous.",
+  produit: "Votre fiche produit : titre, photos, bénéfices, avis, objections.",
   boutique: "L'impression générale : accueil, navigation, confiance, mobile.",
   conversion: "Le passage du visiteur à la commande : panier, checkout, friction.",
-  acquisition: "Le trafic que tu payes ou que tu attires : pubs, ciblage, créas.",
+  acquisition: "Le trafic que vous payez ou que vous attirez : publicités, ciblage, visuels.",
   retention: "Faire revenir les clients : email, relance panier, post-achat.",
-  rentabilite: "Ce qu'il te reste vraiment : marge, coût d'acquisition, ROAS minimum.",
+  rentabilite: "Ce qu'il vous reste vraiment : marge, coût d'acquisition, ROAS minimum.",
   operations: "Livraison, retours, service client, suivi.",
 };
 

@@ -69,13 +69,13 @@ function SettingsPage() {
           <Input id="email" value={email} disabled />
         </div>
         <div>
-          <Label htmlFor="name">Ton prénom</Label>
+          <Label htmlFor="name">Votre prénom</Label>
           <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
         </div>
         <div>
-          <Label>Ton niveau en e-commerce</Label>
+          <Label>Votre niveau en e-commerce</Label>
           <p className="mt-1 text-xs text-muted-foreground">
-            Ça ajuste le ton et le niveau de détail de tes audits.
+            Cela ajuste le style et le niveau de détail de vos audits.
           </p>
           <RadioGroup
             className="mt-3 gap-2"

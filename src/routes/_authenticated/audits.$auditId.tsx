@@ -153,7 +153,7 @@ function AuditPage() {
         return next;
       });
       qc.invalidateQueries({ queryKey: ["findings", auditId] });
-      toast.success(res.detail ?? "Correction appliquée sur ton compte !");
+      toast.success(res.detail ?? "Correction appliquée sur votre compte !");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
@@ -325,7 +325,7 @@ function AuditPage() {
       {audit.status === "running" ? (
         <div className="card-elevated flex flex-col items-center rounded-2xl p-12 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <h1 className="mt-4 font-display text-xl">L'IA analyse ta boutique...</h1>
+          <h1 className="mt-4 font-display text-xl">Nous analysons votre boutique...</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {jobQ.data?.label ?? "Ça prend 30 à 90 secondes."}
           </p>
@@ -428,8 +428,8 @@ function AuditPage() {
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 Sur ces {unverified.length} point{unverified.length > 1 ? "s" : ""}, je n'ai pas la
-                donnée. Je te les signale quand même, mais ne dépense rien dessus avant de les avoir
-                vérifiés.
+                donnée. Nous vous les signalons quand même, mais ne dépensez rien dessus avant de
+                les avoir vérifiés.
               </p>
               <ul className="mt-3 space-y-1">
                 {unverified.map((f) => (
@@ -740,7 +740,7 @@ function FindingCard({
           )}
           {steps.length > 0 && (
             <div className="mt-4">
-              <div className="text-xs uppercase text-muted-foreground">Ce que tu dois faire</div>
+              <div className="text-xs uppercase text-muted-foreground">Ce que vous devez faire</div>
               <ol className="mt-2 space-y-1.5">
                 {steps.map((s, i) => (
                   <li key={i} className="flex gap-2 text-sm">
@@ -765,15 +765,15 @@ function FindingCard({
               <p className="mt-1 text-muted-foreground">
                 L'application de cette correction
                 {unknownAction.targetLabel ? ` sur ${unknownAction.targetLabel}` : ""} a été
-                interrompue avant que le résultat me revienne. Vérifie dans ton compte avant de
-                relancer : je ne rejoue rien tout seul, au risque de l'appliquer deux fois.
+                interrompue avant que le résultat nous revienne. Vérifiez dans votre compte avant de
+                relancer : nous ne rejouons rien tout seuls, au risque de l'appliquer deux fois.
               </p>
             </div>
           )}
           {applied && (
             <div className="mt-4 rounded-lg border border-success/30 bg-success/10 p-3 text-sm">
               <div className="flex items-center gap-2 font-medium text-success">
-                <CheckCircle2 className="h-4 w-4" /> Corrigé automatiquement sur ta boutique
+                <CheckCircle2 className="h-4 w-4" /> Corrigé automatiquement sur votre boutique
               </div>
               <p className="mt-1 text-muted-foreground">{applied.summary}</p>
               {applied.detail && <p className="mt-1">{applied.detail}</p>}
@@ -809,8 +809,8 @@ function FindingCard({
                   </div>
                 ) : (
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Cette action n'est pas annulable automatiquement : reviens en arrière depuis ton
-                    compte si besoin.
+                    Cette action n'est pas annulable automatiquement : revenez en arrière depuis
+                    votre compte si besoin.
                   </p>
                 ))}
             </div>

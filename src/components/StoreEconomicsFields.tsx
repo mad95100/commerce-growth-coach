@@ -38,9 +38,9 @@ export function StoreEconomicsFields({
   return (
     <div className="space-y-5">
       <div>
-        <Label>Où en es-tu aujourd'hui ?</Label>
+        <Label>Où en êtes-vous aujourd'hui ?</Label>
         <p className="mt-1 text-xs text-muted-foreground">
-          Ça oriente l'audit vers ce qui te bloque vraiment.
+          Cela oriente l'audit vers ce qui vous bloque vraiment.
         </p>
         <RadioGroup
           className="mt-3 gap-2"
@@ -120,9 +120,9 @@ export function StoreEconomicsFields({
           className="max-w-40"
         />
         <p className="mt-1 text-xs text-muted-foreground">
-          Ce que te coûte un produit, en % de son prix de vente. Un produit acheté 20 et vendu 50 =
-          40 %. Un pourcentage ne dépend d'aucune devise. C'est ce qui permet de calculer ta marge
-          et ton bénéfice réel.
+          Ce que vous coûte un produit, en % de son prix de vente. Un produit acheté 20 et vendu 50
+          = 40 %. Un pourcentage ne dépend d'aucune devise. C'est ce qui permet de calculer votre
+          marge et votre bénéfice réel.
         </p>
       </div>
     </div>

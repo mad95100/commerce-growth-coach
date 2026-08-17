@@ -109,7 +109,7 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
   t.check("l'impact est chiffré depuis les données", full.impact.includes("2400 EUR"), true);
   t.check(
     "et on dit d'où il vient",
-    full.impact.includes("Ce montant vient de tes chiffres"),
+    full.impact.includes("Ce montant vient de vos chiffres"),
     true,
   );
   t.check("la preuve de la fuite est citée", full.proof.length >= 2, true);
@@ -339,7 +339,7 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
     funnelView.includes("je ne sais rien"),
     true,
   );
-  t.check("une fuite non chiffrable le dit", funnelView.includes("sans ton panier moyen"), true);
+  t.check("une fuite non chiffrable le dit", funnelView.includes("sans votre panier moyen"), true);
   t.check(
     "un entonnoir sans décrochage ne conclut pas que tout va bien",
     funnelView.includes("Cela ne veut pas dire que tout va bien"),
@@ -362,7 +362,7 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
     // Fragment court : prettier reflowe les phrases longues sur plusieurs
     // lignes, et coller au texte entier rendrait le test faux au prochain
     // formatage sans que rien n'ait changé.
-    card.includes("Tu verras exactement ce qui sera modifié"),
+    card.includes("Vous verrez exactement ce qui sera modifié"),
     true,
   );
 
@@ -372,7 +372,7 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
   t.check("et la répartition du travail", cockpit.includes("WORK_STATE_LABELS"), true);
   t.check(
     "le briefing passe avant les statistiques détaillées",
-    cockpit.indexOf("BriefingCard") < cockpit.indexOf("Tes priorités"),
+    cockpit.indexOf("BriefingCard") < cockpit.indexOf("Vos priorités"),
     true,
   );
 
@@ -444,7 +444,7 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
   // Sans le drapeau, rien ne change pour les conclusions ordinaires.
   t.check(
     "une conclusion commerciale garde l'attribution directe",
-    full.impact.includes("Ce montant vient de tes chiffres"),
+    full.impact.includes("Ce montant vient de vos chiffres"),
     true,
   );
 

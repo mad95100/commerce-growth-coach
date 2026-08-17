@@ -68,7 +68,7 @@ export function Cockpit({ storeId }: { storeId: string }) {
   });
 
   if (q.isLoading) {
-    return <div className="text-sm text-muted-foreground">Chargement de ton pilotage...</div>;
+    return <div className="text-sm text-muted-foreground">Chargement de votre pilotage...</div>;
   }
   if (!q.data) return null;
   const c = q.data;
@@ -99,7 +99,7 @@ export function Cockpit({ storeId }: { storeId: string }) {
             <p className="mt-1 max-w-md text-sm text-muted-foreground">
               {c.potentialMin != null && c.potentialMax != null
                 ? `Potentiel identifié : ${formatMoney(c.potentialMin, c.currency)} à ${formatMoney(c.potentialMax, c.currency)} par mois.`
-                : "Lance un diagnostic pour connaître ton potentiel."}
+                : "Lancez un diagnostic pour connaître votre potentiel."}
             </p>
           </div>
           {c.score != null && <ScoreRing score={c.score} size={80} />}
@@ -319,7 +319,7 @@ export function Cockpit({ storeId }: { storeId: string }) {
       )}
 
       <div>
-        <h2 className="font-display text-xl font-bold">Tes priorités aujourd'hui</h2>
+        <h2 className="font-display text-xl font-bold">Vos priorités aujourd'hui</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Trois actions maximum, dans cet ordre. Une cause passe toujours avant ce qu'elle provoque
           — corriger un symptôme sans sa cause ne donne rien.
@@ -327,7 +327,8 @@ export function Cockpit({ storeId }: { storeId: string }) {
 
         {c.priorities.length === 0 ? (
           <div className="mt-4 rounded-xl border border-dashed border-border p-6 text-sm text-muted-foreground">
-            Aucune priorité en attente. Lance un nouveau diagnostic pour trouver le prochain levier.
+            Aucune priorité en attente. Lancez un nouveau diagnostic pour trouver le prochain
+            levier.
           </div>
         ) : (
           <div className="mt-4 space-y-3">
@@ -421,7 +422,7 @@ export function Cockpit({ storeId }: { storeId: string }) {
               {c.plan.technical.length > 1 ? "s" : ""}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Réels et vérifiés sur ton site. Ce qu'ils coûtent n'est pas mesuré : ils ne passent
+              Réels et vérifiés sur votre site. Ce qu'ils coûtent n'est pas mesuré : ils ne passent
               donc pas devant une perte chiffrée, et aucun montant ne leur est attribué.
             </p>
             <ul className="mt-3 space-y-1.5">

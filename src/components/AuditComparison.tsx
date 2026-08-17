@@ -156,9 +156,9 @@ export function AuditComparison({ storeId }: { storeId: string }) {
 
           {(c.resolved.length > 0 || c.appeared.length > 0 || c.worsened.length > 0) && (
             <div className="grid gap-4 sm:grid-cols-3">
-              <Compteur label="Réglés" valeur={c.resolved.length} ton="bien" />
-              <Compteur label="Aggravés" valeur={c.worsened.length} ton="mal" />
-              <Compteur label="Nouveaux" valeur={c.appeared.length} ton="neutre" />
+              <Compteur label="Réglés" valeur={c.resolved.length} teinte="bien" />
+              <Compteur label="Aggravés" valeur={c.worsened.length} teinte="mal" />
+              <Compteur label="Nouveaux" valeur={c.appeared.length} teinte="neutre" />
             </div>
           )}
 
@@ -228,14 +228,18 @@ function Bloc({ icon, titre, items }: { icon: React.ReactNode; titre: string; it
 function Compteur({
   label,
   valeur,
-  ton,
+  teinte,
 }: {
   label: string;
   valeur: number;
-  ton: "bien" | "mal" | "neutre";
+  teinte: "bien" | "mal" | "neutre";
 }) {
   const couleur =
-    ton === "bien" ? "text-emerald-500" : ton === "mal" ? "text-destructive" : "text-foreground";
+    teinte === "bien"
+      ? "text-emerald-500"
+      : teinte === "mal"
+        ? "text-destructive"
+        : "text-foreground";
   return (
     <div className="rounded-xl border border-border/50 p-4">
       <div className={`font-display text-2xl font-bold ${couleur}`}>{valeur}</div>

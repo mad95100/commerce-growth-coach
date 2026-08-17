@@ -129,7 +129,7 @@ function impactSentence(
       );
     }
 
-    return `Environ ${amount} par mois. Ce montant vient de tes chiffres : ${basis}.`;
+    return `Environ ${amount} par mois. Ce montant vient de vos chiffres : ${basis}.`;
   }
 
   const min = money(finding?.gainMin, finding?.currency ?? currency);
@@ -174,7 +174,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
       verification: "",
       nextDecision:
         plan === null
-          ? "Lance un premier diagnostic pour savoir où tu en es."
+          ? "Lancez un premier diagnostic pour savoir où vous en êtes."
           : "Relance un diagnostic : c'est en mesurant l'effet des corrections qu'on trouve le prochain levier.",
     };
   }
@@ -252,7 +252,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
     unknown,
     action,
     expected: leak
-      ? `Si ce passage remonte à ${leak.reference} %, tu récupères jusqu'à ${leak.missing} ${leak.toLabel.toLowerCase()} par mois.${duration}`
+      ? `Si ce passage remonte à ${leak.reference} %, vous récupérez jusqu'à ${leak.missing} ${leak.toLabel.toLowerCase()} par mois.${duration}`
       : `Une amélioration sur ${move.category}, dont l'ampleur reste à mesurer.${duration}`,
     verification: `Ensuite, je regarde ${move.measure}. C'est ça qui dira si ça a marché — pas une impression.`,
     nextDecision:
@@ -271,7 +271,7 @@ function regressionBriefing(alert: RollbackAlert, plan: NextMovePlan): Briefing 
     certainty: {
       level: "fait",
       label: EPISTEMIC_LABELS.fait,
-      hint: "Mesuré après la correction, sur tes propres chiffres.",
+      hint: "Mesuré après la correction, sur vos propres chiffres.",
     },
     rootCause: "Une correction appliquée récemment a produit l'effet inverse de celui attendu.",
     known: [alert.headline ?? "La dégradation est mesurée, pas supposée."],
@@ -287,7 +287,7 @@ function regressionBriefing(alert: RollbackAlert, plan: NextMovePlan): Briefing 
     },
     expected: "Retour à l'état d'avant la correction.",
     verification:
-      "Je remesure automatiquement, et je te préviens si la situation ne se rétablit pas.",
+      "Nous remesurons automatiquement, et nous vous prévenons si la situation ne se rétablit pas.",
     nextDecision: plan.now
       ? `Ensuite, on reprend par « ${plan.now.title} ».`
       : "Ensuite, on relance un diagnostic.",

@@ -125,7 +125,11 @@ export default defineSuite("Actions — exécution, issue et réversibilité", (
   t.check("l'issue inconnue s'annonce comme telle", notice.includes("Je ne sais pas"), true);
   t.check("elle nomme la cible", notice.includes("la campagne « Hiver »"), true);
   t.check("elle renvoie à une vérification chez le partenaire", /[Vv]érifie/.test(notice), true);
-  t.check("et elle promet de ne rien rejouer seule", notice.includes("je ne rejoue rien"), true);
+  t.check(
+    "et elle promet de ne rien rejouer seule",
+    notice.includes("nous ne rejouons rien"),
+    true,
+  );
   t.check(
     "aucune formulation d'issue ne prétend un succès à tort",
     (["en_cours", "issue_inconnue"] as const).some((o) =>
@@ -184,7 +188,7 @@ export default defineSuite("Actions — exécution, issue et réversibilité", (
   t.check("une seconde correction sur le même problème est refusée", duplicate.ok, false);
   t.check(
     "et le refus dit comment repartir proprement",
-    !duplicate.ok && duplicate.reason.includes("annule la première"),
+    !duplicate.ok && duplicate.reason.includes("annulez la première"),
     true,
   );
 

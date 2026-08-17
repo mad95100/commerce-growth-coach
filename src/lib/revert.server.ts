@@ -43,7 +43,7 @@ function channelUnavailable(label: string): Error {
 
 function changedSince(what: string): Error {
   return new Error(
-    `${what} a changé depuis l'application : je n'écrase pas une modification que tu as faite toi-même. Rien n'a été modifié.`,
+    `${what} a changé depuis l'application : nous n'écrasons pas une modification que vous avez faite vous-même. Rien n'a été modifié.`,
   );
 }
 
@@ -99,7 +99,7 @@ export async function executeRevert(
         tool: input.tool,
         detail: result.alreadyGone
           ? "Le code promo n'existait déjà plus."
-          : "Code promo supprimé de ta boutique.",
+          : "Code promo supprimé de votre boutique.",
         adminUrl: `https://${ctx.shopify.shop}/admin/discounts`,
       };
     }

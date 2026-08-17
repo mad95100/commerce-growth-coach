@@ -262,7 +262,7 @@ export const EXPLANATIONS: Record<string, PlainExplanation> = {
     how: "Aucune action nécessaire. Montrez votre page d'accueil à quelqu'un qui ne connaît pas votre boutique et demandez-lui ce que vous vendez : sa réponse en dit plus que n'importe quelle mesure.",
     unlocks: "Nous nous en tenons à ce qui se vérifie ; le reste vous appartient.",
   },
-  "storefront.ton_reel": {
+  "storefront.style_redactionnel": {
     what: "Nous ne jugeons pas la qualité d'écriture de vos textes.",
     why: "La longueur d'un texte se compte, sa justesse ne se compte pas. Un texte long et creux et un texte court et juste se ressemblent pour une machine.",
     how: "Aucune action nécessaire. Relisez la première phrase de votre page d'accueil : si elle ne dit pas à qui vous vendez et pourquoi vous, elle est à réécrire.",

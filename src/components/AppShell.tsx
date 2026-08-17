@@ -142,7 +142,7 @@ export function AppShell({ children }: { children: ReactNode }) {
  */
 export function ErrorState({
   title = "Impossible de charger ces données",
-  description = "La connexion au serveur a échoué. Tes données ne sont pas perdues — réessaie dans un instant.",
+  description = "La connexion au serveur a échoué. Vos données ne sont pas perdues — réessayez dans un instant.",
   onRetry,
 }: {
   title?: string;

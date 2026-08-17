@@ -55,7 +55,7 @@ export const SOURCE_LABELS: Record<ObservationSource, string> = {
   storefront: "Site public",
   market: "Marché",
   competitors: "Concurrents",
-  declared: "Déclaré par toi",
+  declared: "Déclaré par vous",
 };
 
 /** Unité de la valeur. Sans elle, un nombre nu n'est pas interprétable. */

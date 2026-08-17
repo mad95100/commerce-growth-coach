@@ -428,7 +428,7 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
       explanation: missing
         ? "Aucun des indicateurs qui devraient bouger n'est disponible pour l'instant. Vérifie que le canal concerné est bien connecté : sans lui, l'effet de cette correction ne peut pas être prouvé."
         : tooFewObservations
-          ? `Avec ${Math.round(volume)} commande(s) sur ${METRIC_WINDOW_DAYS} jours, un écart en pourcentage ne veut rien dire : une commande de plus ou de moins suffit à le faire basculer. Il faut au moins ${MIN_ORDERS_FOR_VERDICT} commandes pour qu'un verdict soit autre chose qu'une illusion d'optique. Je préfère te dire que je ne sais pas.`
+          ? `Avec ${Math.round(volume)} commande(s) sur ${METRIC_WINDOW_DAYS} jours, un écart en pourcentage ne veut rien dire : une commande de plus ou de moins suffit à le faire basculer. Il faut au moins ${MIN_ORDERS_FOR_VERDICT} commandes pour qu'un verdict soit autre chose qu'une illusion d'optique. Nous préférons vous dire que nous ne savons pas.`
           : `Les indicateurs sont des cumuls sur ${METRIC_WINDOW_DAYS} jours. ${round(days)} jour(s) après la correction, seuls ${Math.round(coverage * 100)} % de ce qui est mesuré lui sont postérieurs — trop peu pour conclure sans risquer de défaire ce qui commence à marcher.`,
       rollback: rollbackImpossible("en_cours"),
       legacyStatus: LEGACY_STATUS.en_cours,
@@ -462,7 +462,7 @@ export function measureOutcome(input: MeasureInput): MeasureOutcome {
         reason:
           input.revertible === true
             ? `Annule cette correction : ${worstGuard.label} ne se rétablira pas tout seul.`
-            : `Cette correction n'est pas annulable automatiquement. Reviens en arrière à la main dans ton compte, en surveillant ${worstGuard.label}.`,
+            : `Cette correction n'est pas annulable automatiquement. Revenez en arrière à la main dans votre compte, en surveillant ${worstGuard.label}.`,
       },
       legacyStatus: LEGACY_STATUS.regression,
     };

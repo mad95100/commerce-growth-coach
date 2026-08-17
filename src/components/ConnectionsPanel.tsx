@@ -88,7 +88,7 @@ export function ConnectionsPanel({
 
   async function handleConnectShopify() {
     if (!shopInput.trim()) {
-      toast.error("Renseigne ton domaine Shopify (ex : monshop.myshopify.com)");
+      toast.error("Renseignez votre domaine Shopify (ex : monshop.myshopify.com)");
       return;
     }
     setBusy("shopify");
@@ -121,7 +121,7 @@ export function ConnectionsPanel({
         <h2 className="font-display text-lg font-bold">Sources de données</h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Branche tes outils pour un audit basé sur tes vraies données (ventes, pubs, trafic).
+        Branchez vos outils pour un audit fondé sur vos vraies données (ventes, publicité, trafic).
       </p>
 
       <div className="mt-5 space-y-3">
@@ -290,7 +290,7 @@ function redirectToAuthorization(authorizeUrl: string | undefined) {
     target = new URL(String(authorizeUrl));
   } catch {
     throw new Error(
-      "Le serveur n'a pas renvoyé d'adresse d'autorisation valide. Vérifie la configuration OAuth du projet.",
+      "Le serveur n'a pas renvoyé d'adresse d'autorisation valide. Vérifiez la configuration OAuth du projet.",
     );
   }
   if (target.protocol !== "https:") {

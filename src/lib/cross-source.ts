@@ -266,7 +266,7 @@ export function crossSignals(observations: Observation[]): CrossSignal[] {
               ]
             : [
                 "La marge après coût produit : un ROAS supérieur à 1 ne signifie pas rentable.",
-                "Le seuil de rentabilité, qui dépend de ta marge et non d'un ROAS de référence.",
+                "Le seuil de rentabilité, qui dépend de votre marge et non d'un ROAS de référence.",
               ],
         doNotConclude:
           "Ce rapport ne tient pas compte du trafic non payant : une partie du chiffre d'affaires ne vient pas de la publicité. Ce n'est pas un ROAS, c'est un ordre de grandeur.",
@@ -340,7 +340,7 @@ export function crossSignals(observations: Observation[]): CrossSignal[] {
       investigate: [
         `Connecter ${missing} avant de conclure quoi que ce soit sur l'acquisition dans son ensemble.`,
       ],
-      doNotConclude: `Ne généralise pas à toute l'acquisition ce que tu observes sur un seul canal. Sans ${missing}, une contre-performance peut être locale.`,
+      doNotConclude: `Ne généralisez pas à toute l'acquisition ce qui est constaté sur un seul canal. Sans ${missing}, une contre-performance peut être locale.`,
       certainty: "fait",
       evidence: [],
     });
@@ -355,7 +355,7 @@ export function crossSignals(observations: Observation[]): CrossSignal[] {
       investigate: [
         "Les mots-clés : correspondent-ils à ce que le client cherche vraiment ?",
         "Les annonces : reprennent-elles les termes de la recherche ?",
-        "La concurrence sur ces requêtes, qui déplace le taux de clic sans que rien n'ait changé chez toi.",
+        "La concurrence sur ces mots-clés, qui déplace le taux de clic sans que rien n'ait changé chez vous.",
       ],
       doNotConclude:
         "Sur Google, un taux de clic bas vient plus souvent d'un décalage entre la requête et l'annonce que d'un problème de création. Le constat est un fait, sa cause est une hypothèse.",

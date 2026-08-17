@@ -265,7 +265,7 @@ export default defineSuite("Google Ads — observations et attribution", (t) => 
   t.check("il est nommé", missing.statement.includes("Google"), true);
   t.check(
     "et on interdit de généraliser",
-    missing.doNotConclude.includes("Ne généralise pas à toute l'acquisition"),
+    missing.doNotConclude.includes("Ne généralisez pas à toute l'acquisition"),
     true,
   );
   t.check("c'est un fait", missing.certainty, "fait");

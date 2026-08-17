@@ -32,7 +32,7 @@ export function FunnelView({ funnel, className }: { funnel: Funnel; className?: 
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
           Il faut au moins deux étapes mesurées pour suivre où les visiteurs s'arrêtent. Connecte
-          davantage de sources pour que je puisse te dire où ça bloque.
+          davantage de sources pour que nous puissions vous dire où cela bloque.
         </p>
       </div>
     );
@@ -49,7 +49,7 @@ export function FunnelView({ funnel, className }: { funnel: Funnel; className?: 
 
   return (
     <div className={`card-elevated rounded-2xl p-6 ${className ?? ""}`}>
-      <h2 className="font-display text-lg font-bold">Où passent tes visiteurs</h2>
+      <h2 className="font-display text-lg font-bold">Où passent vos visiteurs</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         Sur les 30 derniers jours. Chaque chiffre vient d'une source réelle — survole pour la voir.
       </p>
@@ -99,7 +99,7 @@ export function FunnelView({ funnel, className }: { funnel: Funnel; className?: 
                     habituellement — il en manque {leak.missing}.
                     {leak.costPerMonth !== null
                       ? ` Soit environ ${leak.costPerMonth}${leak.currency ? ` ${leak.currency}` : ""} par mois.`
-                      : " Je ne peux pas chiffrer cette perte sans ton panier moyen."}
+                      : " Cette perte ne peut pas être chiffrée sans votre panier moyen."}
                   </span>
                 </p>
               )}
