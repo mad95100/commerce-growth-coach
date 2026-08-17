@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
 import { getCockpit } from "@/lib/cockpit.functions";
 import { Button } from "@/components/ui/button";
+import { CockpitSkeleton } from "@/components/AppShell";
 import { Progress } from "@/components/ui/progress";
 import { ScoreRing } from "@/components/ScoreRing";
 import { BriefingCard } from "@/components/BriefingCard";
@@ -68,7 +69,10 @@ export function Cockpit({ storeId }: { storeId: string }) {
   });
 
   if (q.isLoading) {
-    return <div className="text-sm text-muted-foreground">Chargement de votre pilotage...</div>;
+    // Une ossature de la HAUTEUR du cockpit : la ligne de texte qu'elle
+    // remplace faisait descendre toute la grille des boutiques à l'arrivée des
+    // données, au moment précis où le marchand commençait à la lire.
+    return <CockpitSkeleton />;
   }
   if (!q.data) return null;
   const c = q.data;

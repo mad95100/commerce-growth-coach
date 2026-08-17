@@ -10,7 +10,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { compareTwoAudits, listComparableAudits } from "@/lib/comparison.functions";
-import { ErrorState } from "@/components/AppShell";
+import { ErrorState, ListSkeleton } from "@/components/AppShell";
 
 /**
  * CE QUI A CHANGÉ DEPUIS LE DERNIER AUDIT.
@@ -53,11 +53,7 @@ export function AuditComparison({ storeId }: { storeId: string }) {
   });
 
   if (auditsQ.isLoading) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Chargement de l'historique…
-      </div>
-    );
+    return <ListSkeleton rows={2} label="Chargement de vos audits à comparer" />;
   }
   if (auditsQ.isError) {
     return <ErrorState onRetry={() => void auditsQ.refetch()} />;

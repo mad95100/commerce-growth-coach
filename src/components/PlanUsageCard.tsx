@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getEntitlements } from "@/lib/actions.functions";
 import { PLAN_LABELS, QUOTA_LABELS, quotaLimit, type QuotaKey } from "@/lib/plans";
-import { ErrorState } from "@/components/AppShell";
+import { ErrorState, PlanSkeleton } from "@/components/AppShell";
 
 const SHOWN: QuotaKey[] = ["audits", "fixes"];
 
@@ -24,7 +24,10 @@ export function PlanUsageCard() {
   });
 
   if (q.isLoading) {
-    return <div className="text-sm text-muted-foreground">Chargement de votre plan…</div>;
+    // La carte s'insérait AU-DESSUS du formulaire des paramètres : la ligne de
+    // texte laissait tout le formulaire remonter, puis redescendre à l'arrivée
+    // du plan. L'ossature occupe la hauteur définitive.
+    return <PlanSkeleton />;
   }
   // L'ÉCHEC SE DIT. La carte se contentait de disparaître : `return null` sur
   // une lecture ratée laissait un blanc à l'endroit exact où le marchand vient

@@ -1,10 +1,10 @@
 import { formatMoney, normalizeCurrency } from "@/lib/currency";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { AppShell } from "@/components/AppShell";
+import { AppShell, EmptyState, ErrorState, PageSkeleton } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
 import { auditFailureText, canRetryNow } from "@/lib/audit-errors";
@@ -125,6 +125,7 @@ const BAND_STYLE: Record<PriorityBand, string> = {
 
 function AuditPage() {
   const { auditId } = Route.useParams();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const processFn = useServerFn(processAudit);
   const getJobFn = useServerFn(getAuditJob);
@@ -309,13 +310,33 @@ function AuditPage() {
   if (auditQ.isLoading)
     return (
       <AppShell>
-        <div>Chargement...</div>
+        <PageSkeleton />
+      </AppShell>
+    );
+  {
+    /* Même distinction que sur la page boutique : un rapport qu'on n'a pas pu
+       LIRE n'est pas un rapport qui n'EXISTE pas. Annoncer le second à la place
+       du premier fait croire au marchand qu'il a perdu son audit. */
+  }
+  if (auditQ.isError)
+    return (
+      <AppShell>
+        <ErrorState
+          title="Impossible de charger ce rapport"
+          description="La lecture a échoué. Votre audit n'est pas perdu — il reste enregistré."
+          onRetry={() => void auditQ.refetch()}
+        />
       </AppShell>
     );
   if (!auditQ.data)
     return (
       <AppShell>
-        <div>Audit introuvable</div>
+        <EmptyState
+          title="Ce rapport est introuvable"
+          description="L'audit a peut-être été supprimé avec sa boutique, ou le lien n'est plus valable."
+          actionLabel="Revenir au tableau de bord"
+          onAction={() => void navigate({ to: "/dashboard" })}
+        />
       </AppShell>
     );
   const audit = auditQ.data;

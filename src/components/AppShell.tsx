@@ -127,6 +127,159 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 /**
+ * L'ATTENTE, QUI DOIT OCCUPER LA PLACE DE CE QU'ELLE ANNONCE.
+ *
+ * CE QUI SE PASSAIT. Sept écrans affichaient l'attente par une ligne de texte
+ * nue — « Chargement de votre pilotage... », « Chargement de l'historique… »,
+ * « Chargement... ». Trois conséquences, toutes vérifiées à l'écran :
+ *
+ *   1. LE SAUT. Une ligne de 20 pixels est remplacée par un bloc de 600 : tout
+ *      ce qui suit descend d'un coup. Sur la page boutique, le marchand qui
+ *      commençait à lire ses connexions les voyait partir vers le bas.
+ *   2. LA TAILLE INCONNUE. Rien n'indique si ce qui arrive est une ligne ou une
+ *      page. L'attente paraît donc plus longue qu'elle ne l'est.
+ *   3. L'IMPRESSION D'INACHEVÉ. Trois points de suspension sur fond vide, c'est
+ *      ce qu'affiche une page à moitié construite. Pour un produit qui demande
+ *      un accès à la boutique du marchand, cela se paie en confiance.
+ *
+ * CE QUE CES COMPOSANTS FONT. Ils occupent la FORME de ce qui va venir. Le saut
+ * disparaît parce qu'il n'y a plus de changement de hauteur, et l'attente
+ * devient lisible : on voit qu'un tableau arrive, et combien de lignes.
+ *
+ * `aria-busy` et un texte lisible par les lecteurs d'écran accompagnent chaque
+ * ossature : une forme grise ne dit rien à qui ne la voit pas, et l'ancien texte
+ * nu, lui, était au moins annoncé.
+ */
+function Ossature({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded-md bg-foreground/[0.06] ${className}`} />;
+}
+
+/** Enveloppe commune : annonce l'attente une seule fois, pour tout le bloc. */
+function ZoneEnAttente({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div role="status" aria-busy="true" aria-live="polite">
+      <span className="sr-only">{label}</span>
+      <div aria-hidden="true">{children}</div>
+    </div>
+  );
+}
+
+/** Une carte de la même hauteur que celles de la grille des boutiques. */
+export function CardSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <ZoneEnAttente label="Chargement de vos boutiques">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} className="card-elevated rounded-2xl p-6">
+            <Ossature className="h-3 w-24" />
+            <Ossature className="mt-3 h-6 w-40" />
+            <Ossature className="mt-2 h-3 w-52" />
+            <Ossature className="mt-5 h-3 w-full" />
+            <Ossature className="mt-2 h-3 w-2/3" />
+            <div className="mt-6 flex items-center justify-between">
+              <Ossature className="h-4 w-28" />
+              <Ossature className="h-4 w-16" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </ZoneEnAttente>
+  );
+}
+
+/** Des lignes d'égale hauteur : historique, listes, tableaux. */
+export function ListSkeleton({
+  rows = 3,
+  label = "Chargement",
+}: {
+  rows?: number;
+  label?: string;
+}) {
+  return (
+    <ZoneEnAttente label={label}>
+      <div className="space-y-3">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="card-elevated flex items-center gap-4 rounded-xl p-4">
+            <Ossature className="h-10 w-10 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1">
+              <Ossature className="h-3 w-32" />
+              <Ossature className="mt-2 h-4 w-3/4" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </ZoneEnAttente>
+  );
+}
+
+/** Le pilotage : un bloc haut, dont l'absence déplaçait toute la page. */
+export function CockpitSkeleton() {
+  return (
+    <ZoneEnAttente label="Chargement de votre pilotage">
+      <div className="card-elevated rounded-2xl p-6">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+          <Ossature className="h-28 w-28 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1">
+            <Ossature className="h-3 w-28" />
+            <Ossature className="mt-3 h-7 w-4/5" />
+            <Ossature className="mt-3 h-4 w-2/3" />
+          </div>
+        </div>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border/60 p-4">
+              <Ossature className="h-3 w-20" />
+              <Ossature className="mt-2 h-6 w-24" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </ZoneEnAttente>
+  );
+}
+
+/** La carte de plan des paramètres, qui précède le formulaire et le déplaçait. */
+export function PlanSkeleton() {
+  return (
+    <ZoneEnAttente label="Chargement de votre plan">
+      <div className="card-elevated rounded-2xl p-6">
+        <div className="flex items-center justify-between gap-4">
+          <Ossature className="h-5 w-32" />
+          <Ossature className="h-6 w-20 rounded-full" />
+        </div>
+        <Ossature className="mt-4 h-2 w-full rounded-full" />
+        <Ossature className="mt-3 h-3 w-48" />
+      </div>
+    </ZoneEnAttente>
+  );
+}
+
+/** Attente à l'échelle d'une route entière, avant tout titre. */
+export function PageSkeleton() {
+  return (
+    <ZoneEnAttente label="Chargement de la page">
+      <Ossature className="h-3 w-24" />
+      <Ossature className="mt-3 h-9 w-72" />
+      <div className="mt-8">
+        <CockpitSkeletonInterne />
+      </div>
+    </ZoneEnAttente>
+  );
+}
+
+/** Même forme que `CockpitSkeleton`, sans sa propre annonce d'attente. */
+function CockpitSkeletonInterne() {
+  return (
+    <div className="card-elevated rounded-2xl p-6">
+      <Ossature className="h-5 w-48" />
+      <Ossature className="mt-4 h-4 w-full" />
+      <Ossature className="mt-2 h-4 w-5/6" />
+      <Ossature className="mt-2 h-4 w-2/3" />
+    </div>
+  );
+}
+
+/**
  * L'ÉCHEC DE CHARGEMENT, QUI N'EST PAS UN VIDE.
  *
  * POURQUOI CE COMPOSANT EXISTE SÉPARÉMENT. Le tableau de bord affichait

@@ -325,6 +325,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
   {
+    file: "ui/etats-de-chargement.test.ts",
+    minChecks: 30,
+    covers:
+      "L'attente occupe la place de ce qu'elle annonce. La branche protégée valide le jeton par le réseau dans `beforeLoad` sans composant d'attente : chaque ouverture de chaque page protégée commençait par un écran entièrement noir. Sept autres attentes étaient des lignes de texte nues, remplacées par des blocs de plusieurs centaines de pixels — la page sautait sous les yeux du marchand. Et « Boutique introuvable » s'affichait aussi bien sur un échec de lecture que sur une absence réelle. Chargement, échec et vide restent désormais trois états distincts, l'échec toujours testé avant le vide.",
+  },
+  {
     file: "ui/rapport-preuve.test.ts",
     minChecks: 16,
     covers:

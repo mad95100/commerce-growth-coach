@@ -3,7 +3,13 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { AppShell } from "@/components/AppShell";
+import {
+  AppShell,
+  EmptyState,
+  ErrorState,
+  ListSkeleton,
+  PageSkeleton,
+} from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
 import { ConnectionsPanel } from "@/components/ConnectionsPanel";
@@ -80,13 +86,37 @@ function StorePage() {
   if (storeQ.isLoading)
     return (
       <AppShell>
-        <div>Chargement...</div>
+        <PageSkeleton />
+      </AppShell>
+    );
+  /*
+    L'ÉCHEC ET L'INTROUVABLE NE SE RESSEMBLENT PAS.
+
+    La page affichait « Boutique introuvable » dans les DEUX cas : requête en
+    erreur et boutique réellement absente. Un marchand dont la connexion
+    hoquette lisait donc que sa boutique n'existait pas — la phrase la plus
+    inquiétante possible, et la seule qui ne lui laissait rien à faire. L'échec
+    se réessaie ; l'absence renvoie à la liste.
+  */
+  if (storeQ.isError)
+    return (
+      <AppShell>
+        <ErrorState
+          title="Impossible de charger cette boutique"
+          description="La lecture a échoué. Rien n'est perdu : votre boutique et vos audits sont intacts."
+          onRetry={() => void storeQ.refetch()}
+        />
       </AppShell>
     );
   if (!storeQ.data)
     return (
       <AppShell>
-        <div>Boutique introuvable</div>
+        <EmptyState
+          title="Cette boutique n'existe plus"
+          description="Elle a peut-être été supprimée, ou le lien que vous avez ouvert n'est plus valable."
+          actionLabel="Voir mes boutiques"
+          onAction={() => navigate({ to: "/dashboard" })}
+        />
       </AppShell>
     );
   const store = storeQ.data;
@@ -177,7 +207,7 @@ function StorePage() {
       <div className="mt-8">
         <h2 className="mb-4 font-display text-xl font-bold">Historique</h2>
         {auditsQ.isLoading ? (
-          <div className="text-sm text-muted-foreground">...</div>
+          <ListSkeleton rows={2} label="Chargement de l'historique de vos audits" />
         ) : !auditsQ.data || auditsQ.data.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
             Aucun audit pour l'instant. Lancez le premier ci-dessus.

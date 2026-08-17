@@ -2,7 +2,7 @@ import { formatMoney } from "@/lib/currency";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AppShell } from "@/components/AppShell";
+import { AppShell, ListSkeleton } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getStoreTracking, refreshTracking } from "@/lib/tracking.functions";
@@ -224,7 +224,7 @@ function TrackingPage() {
 
       <div className="mt-8 space-y-6">
         {trackingQ.isLoading ? (
-          <div className="text-sm text-muted-foreground">Chargement...</div>
+          <ListSkeleton rows={3} label="Chargement du suivi de vos corrections" />
         ) : outcomes.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
             Aucune correction suivie pour l'instant. Applique une correction depuis un rapport

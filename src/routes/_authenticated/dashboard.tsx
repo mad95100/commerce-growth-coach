@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { AppShell, EmptyState, ErrorState } from "@/components/AppShell";
+import { AppShell, CardSkeleton, EmptyState, ErrorState } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, Store as StoreIcon, TrendingUp } from "lucide-react";
 import { ScoreRing } from "@/components/ScoreRing";
@@ -109,7 +109,7 @@ function Dashboard() {
       )}
 
       {storesQ.isLoading ? (
-        <div className="text-sm text-muted-foreground">Chargement...</div>
+        <CardSkeleton />
       ) : storesQ.isError ? (
         // L'ÉCHEC AVANT LE VIDE. Testé en premier délibérément : sur erreur,
         // `data` est indéfini, et la branche suivante annoncerait « aucune
