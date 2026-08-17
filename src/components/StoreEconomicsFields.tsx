@@ -6,7 +6,7 @@ import {
   type StoreEconomicsForm,
   type StoreSituation,
 } from "@/lib/store-profile";
-import { currencyLabel } from "@/lib/currency";
+import { normalizeCurrency } from "@/lib/currency";
 
 /**
  * Champs du profil économique d'une boutique, partagés entre l'onboarding et
@@ -30,7 +30,30 @@ export function StoreEconomicsFields({
    */
   currency?: string | null;
 }) {
-  const unit = currencyLabel(currency ?? null);
+  /*
+    L'UNITÉ D'UN CHAMP N'EST PAS UN EN-TÊTE.
+
+    LE DÉFAUT, VISIBLE DÈS LE PREMIER ÉCRAN. Ces libellés interpolaient
+    `currencyLabel()`, qui rend « Devise non déterminée » quand la devise est
+    inconnue. Le marchand lisait donc, entre parenthèses, à l'endroit exact où
+    l'on attend « EUR » :
+
+        Objectif de CA (Devise non déterminée/mois)
+        Charges fixes (Devise non déterminée/mois)
+
+    Et c'est le cas ORDINAIRE, pas un cas limite : à l'inscription, la boutique
+    n'existe pas encore, donc aucune devise n'est connue. Tout nouveau marchand
+    rencontrait ces deux libellés sur le tout premier formulaire du produit — un
+    état interne échappé dans une parenthèse, qui se lit comme un défaut
+    d'affichage et donne le ton pour la suite.
+
+    `currencyLabel` reste juste là où elle sert : en EN-TÊTE, où « Devise non
+    déterminée » est une phrase qui s'assume. Dans une parenthèse d'unité, une
+    devise inconnue n'a rien à dire : on écrit « par mois », et le champ garde
+    son sens sans annoncer une panne qui n'en est pas une.
+  */
+  const code = normalizeCurrency(currency ?? null);
+  const parMois = code ? `${code}/mois` : "par mois";
   function upd<K extends keyof StoreEconomicsForm>(key: K, next: StoreEconomicsForm[K]) {
     onChange({ ...value, [key]: next });
   }
@@ -72,7 +95,7 @@ export function StoreEconomicsFields({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor={`${idPrefix}-revenue-goal`}>Objectif de CA ({unit}/mois)</Label>
+          <Label htmlFor={`${idPrefix}-revenue-goal`}>Objectif de CA ({parMois})</Label>
           <Input
             id={`${idPrefix}-revenue-goal`}
             type="number"
@@ -86,7 +109,7 @@ export function StoreEconomicsFields({
           />
         </div>
         <div>
-          <Label htmlFor={`${idPrefix}-fixed-costs`}>Charges fixes ({unit}/mois)</Label>
+          <Label htmlFor={`${idPrefix}-fixed-costs`}>Charges fixes ({parMois})</Label>
           <Input
             id={`${idPrefix}-fixed-costs`}
             type="number"

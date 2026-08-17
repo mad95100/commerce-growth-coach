@@ -325,6 +325,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
   {
+    file: "ui/page-boutique.test.ts",
+    minChecks: 18,
+    covers:
+      "La page boutique, dans l'ordre où le marchand s'en sert. « Lancer un audit » arrivait en septième position, derrière le formulaire de réglages qui ouvrait la page. Deux « Objectif » cohabitaient sur un seul écran — la vignette lisait le texte libre `goal`, le formulaire éditait le nombre `revenue_goal` — si bien qu'un objectif renseigné s'affichait « — » juste au-dessus. Le texte libre, lui, se saisissait à l'inscription et n'était plus jamais ni affiché ni modifiable, alors que le moteur d'audit continuait de s'en servir. Et « Objectif de CA (Devise non déterminée/mois) » accueillait tout nouveau marchand, la devise étant toujours inconnue avant que la boutique n'existe.",
+  },
+  {
     file: "ui/etats-de-chargement.test.ts",
     minChecks: 30,
     covers:

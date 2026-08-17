@@ -11,6 +11,7 @@ import {
   PageSkeleton,
 } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { ScoreRing } from "@/components/ScoreRing";
 import { ConnectionsPanel } from "@/components/ConnectionsPanel";
 import { AuditComparison } from "@/components/AuditComparison";
@@ -142,41 +143,41 @@ function StorePage() {
         </div>
       </div>
 
+      {/*
+        L'« OBJECTIF » DE CETTE VIGNETTE N'ÉTAIT PAS CELUI DU FORMULAIRE.
+
+        Elle affichait `store.goal` — un texte libre saisi UNE SEULE FOIS à
+        l'inscription, que rien ne permet plus de modifier ensuite. Le
+        formulaire de cette même page édite `revenue_goal`, un nombre. Un
+        marchand qui renseignait « Objectif de CA : 30 000 » voyait donc, juste
+        au-dessus, « Objectif — ». Deux champs, un seul mot, sur un seul écran.
+
+        C'est `revenue_goal` qui est le vrai objectif du produit : c'est lui que
+        le cockpit compare au chiffre d'affaires pour mesurer la progression.
+        La vignette lit donc la même valeur que le formulaire qui la modifie, et
+        le texte libre est rendu plus bas, sous son propre nom.
+      */}
       <div className="grid gap-4 md:grid-cols-3">
         <Stat label="CA mensuel" value={formatMoney(store.monthly_revenue, store.currency)} />
         <Stat label="Budget pub" value={formatMoney(store.monthly_ad_budget, store.currency)} />
-        <Stat label="Objectif" value={store.goal || "—"} />
+        <Stat label="Objectif de CA" value={formatMoney(store.revenue_goal, store.currency)} />
       </div>
 
-      <div className="mt-8">
-        <StoreEconomicsCard key={store.id} store={store} />
-      </div>
+      {/*
+        L'ORDRE DE LA PAGE SUIT CE QUE LE MARCHAND VIENT Y FAIRE.
 
-      <div className="mt-8 space-y-8">
-        <ConnectionsPanel storeId={store.id} storeUrl={store.url} storeCurrency={store.currency} />
+        CE QU'IL ÉTAIT. Le grand formulaire « Votre modèle économique » ouvrait
+        la page. « Lancer un nouvel audit » arrivait en SEPTIÈME position, après
+        les réglages, les sources, la comparaison et le suivi des gains. Un
+        marchand qui ouvrait sa boutique pour lancer un diagnostic — la raison
+        d'être du produit — tombait d'abord sur des champs à remplir, et devait
+        faire défiler la moitié de la page pour trouver le bouton.
 
-        {/* L'ÉVOLUTION, à côté des connexions. C'est la question que le
-            marchand se pose en revenant : « est-ce que ce que j'ai fait a
-            servi ? ». La placer après le dernier audit et avant les réglages
-            la met sur son chemin naturel. */}
-        <AuditComparison storeId={store.id} />
-      </div>
-
-      <div className="mt-8 card-elevated flex flex-wrap items-center justify-between gap-4 rounded-2xl p-6">
-        <div>
-          <h2 className="font-display text-lg font-bold">Suivi des gains (avant / après)</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Vérifiez si les corrections appliquées ont vraiment fait monter la conversion, le CTR et
-            le ROAS.
-          </p>
-        </div>
-        <Button asChild variant="outline">
-          <Link to="/tracking/$storeId" params={{ storeId: store.id }}>
-            Voir le suivi <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
-        </Button>
-      </div>
-
+        CE QU'IL EST. L'action d'abord, puis ce qu'elle a produit (l'historique,
+        l'évolution), puis ce qui l'améliore (les sources), puis les réglages
+        qu'on ne touche qu'une fois. Le formulaire n'a pas été retiré, il a été
+        remis à sa fréquence d'usage.
+      */}
       <div className="mt-8 card-elevated rounded-2xl p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -262,6 +263,35 @@ function StorePage() {
         )}
       </div>
 
+      {/* L'ÉVOLUTION juste après l'historique : « est-ce que ce que j'ai fait a
+          servi ? » est la question qu'on se pose en refermant un rapport. */}
+      <div className="mt-8 space-y-8">
+        <AuditComparison storeId={store.id} />
+
+        <div className="card-elevated flex flex-wrap items-center justify-between gap-4 rounded-2xl p-6">
+          <div>
+            <h2 className="font-display text-lg font-bold">Suivi des gains (avant / après)</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Vérifiez si les corrections appliquées ont vraiment fait monter la conversion, le CTR
+              et le ROAS.
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <Link to="/tracking/$storeId" params={{ storeId: store.id }}>
+              Voir le suivi <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+
+        {/* Les sources viennent après les résultats : c'est en voyant un
+            diagnostic pauvre qu'on comprend pourquoi les brancher. */}
+        <ConnectionsPanel storeId={store.id} storeUrl={store.url} storeCurrency={store.currency} />
+
+        <StoreGoalCard key={`goal-${store.id}`} storeId={store.id} goal={store.goal} />
+
+        <StoreEconomicsCard key={store.id} store={store} />
+      </div>
+
       <DangerZone storeId={store.id} storeName={store.name} />
     </AppShell>
   );
@@ -335,8 +365,17 @@ function DangerZone({ storeId, storeName }: { storeId: string; storeName: string
         à votre place.
       </p>
 
+      {/* LA SEULE ACTION IRRÉVERSIBLE DU PRODUIT PORTAIT LE MÊME HABILLAGE QUE
+          « Voir le suivi » ou « Nouvelle boutique » : un bouton `outline`,
+          indiscernable des huit autres de la page. Le cadre rouge de la section
+          disait le danger ; le bouton, lui, ne disait rien. C'est pourtant lui
+          qu'on clique. */}
       {!open ? (
-        <Button variant="outline" className="mt-4" onClick={() => setOpen(true)}>
+        <Button
+          variant="outline"
+          className="mt-4 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => setOpen(true)}
+        >
           Supprimer la boutique
         </Button>
       ) : (
@@ -378,6 +417,81 @@ function DangerZone({ storeId, storeName }: { storeId: string; storeName: string
 }
 
 /** Édition du profil économique d'une boutique déjà créée. */
+/**
+ * L'OBJECTIF EN TOUTES LETTRES, QUI SE SAISISSAIT UNE FOIS ET NE SE REVOYAIT
+ * JAMAIS.
+ *
+ * `stores.goal` est un texte libre — « atteindre 30 000 € par mois d'ici la fin
+ * de l'année sans augmenter le budget publicitaire ». Il est demandé au dernier
+ * champ de l'inscription, il est envoyé au moteur d'audit (`audit.functions.ts`
+ * le passe au contexte), et il n'apparaissait ENSUITE nulle part : aucun écran
+ * ne l'affichait, aucun formulaire ne permettait de le corriger.
+ *
+ * Trois conséquences. Un marchand qui l'avait laissé vide ne pouvait plus jamais
+ * le renseigner. Un marchand dont l'objectif avait changé — le cas normal après
+ * quelques mois — continuait d'être audité contre une intention périmée, sans
+ * pouvoir le savoir. Et personne ne pouvait vérifier ce que le moteur avait
+ * réellement reçu.
+ *
+ * Carte à part, et non un champ de plus dans « Votre modèle économique » : ce
+ * formulaire-là porte des NOMBRES qui servent au calcul de la marge, avec sa
+ * propre validation. Une intention en prose n'a ni la même nature ni le même
+ * contrôle de saisie.
+ */
+function StoreGoalCard({ storeId, goal }: { storeId: string; goal: string | null }) {
+  const qc = useQueryClient();
+  const [texte, setTexte] = useState(goal ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const initial = goal ?? "";
+  const modifié = texte.trim() !== initial.trim();
+
+  async function save() {
+    setSaving(true);
+    try {
+      // Vidé, le champ redevient `null` — pas la chaîne vide : le moteur
+      // distingue « pas d'objectif déclaré » d'un objectif qui serait blanc.
+      const valeur = texte.trim() === "" ? null : texte.trim();
+      const { error } = await supabase.from("stores").update({ goal: valeur }).eq("id", storeId);
+      if (error) throw error;
+      await qc.invalidateQueries({ queryKey: ["store", storeId] });
+      toast.success("Objectif enregistré.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card-elevated rounded-2xl p-6">
+      <h2 className="font-display text-lg font-bold">Votre objectif principal</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        En une phrase, ce que vous cherchez à obtenir. Nous nous en servons pour orienter le
+        diagnostic — un objectif de rentabilité et un objectif de volume ne donnent pas les mêmes
+        priorités.
+      </p>
+      <Textarea
+        className="mt-4"
+        rows={3}
+        value={texte}
+        onChange={(e) => setTexte(e.target.value)}
+        placeholder="Ex : atteindre 5 000 € de chiffre d'affaires par mois d'ici trois mois."
+        disabled={saving}
+      />
+      <Button onClick={save} disabled={saving || !modifié} variant="outline" className="mt-4">
+        {saving ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enregistrement...
+          </>
+        ) : (
+          "Enregistrer l'objectif"
+        )}
+      </Button>
+    </div>
+  );
+}
+
 function StoreEconomicsCard({ store }: { store: EconomicsStore }) {
   const qc = useQueryClient();
   const [form, setForm] = useState(() => storeEconomicsToForm(store));
