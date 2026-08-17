@@ -265,6 +265,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Ce que l'écran dit quand la lecture échoue. Le tableau de bord confondait « il n'y a rien » et « je n'ai pas réussi à lire » : sur échec de requête il annonçait « Aucune boutique » et proposait d'en recréer une — un marchand voyait sa boutique disparaître. L'échec est désormais testé avant le vide, porte son propre message et son propre geste, et la redirection automatique vers la création n'a lieu que sur un succès.",
   },
   {
+    file: "connectors/ad-accounts.test.ts",
+    minChecks: 28,
+    covers:
+      "Sur quel compte publicitaire porte le diagnostic. Le retour d'autorisation Meta retenait `accounts[0]` et l'utilisait pour tout le diagnostic, sans le dire et sans qu'aucun écran ne permette d'en changer — alors que la fonction serveur qui le permet existait, écrite et jamais appelée. Un marchand qui gère deux marques, ou dont l'agence figure en tête de liste, lisait un rapport cohérent, chiffré et faux de bout en bout. Le choix par défaut est désormais annoncé comme un défaut, le compte se change, un compte désactivé n'est plus retenu d'office, et une différence de devise entre le compte et la boutique interdit de rapprocher dépense et chiffre d'affaires plutôt que de produire un coût par commande qui n'existe pas.",
+  },
+  {
     file: "ui/voice.test.ts",
     minChecks: 2000,
     covers:

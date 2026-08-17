@@ -77,7 +77,19 @@ export const Route = createFileRoute("/api/public/oauth/meta/callback")({
               ).data
             : [];
 
-          const primary = accounts[0];
+          // PAS `accounts[0]`. Un compte désactivé placé en tête garantit un
+          // diagnostic vide et une impression de produit cassé. Le premier
+          // compte ACTIF est un meilleur défaut — et reste un défaut, que
+          // l'écran des sources annonce comme tel au marchand.
+          const { defaultAccount } = await import("@/lib/connectors/ad-accounts");
+          const primary = defaultAccount(
+            accounts.map((a) => ({
+              id: a.id,
+              name: a.name,
+              currency: a.currency,
+              status: (a as { account_status?: number }).account_status ?? null,
+            })),
+          );
 
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { error } = await supabaseAdmin.from("data_connections").upsert(

@@ -86,11 +86,8 @@ export const startShopifyConnect = createServerFn({ method: "POST" })
     return { authorizeUrl };
   });
 
-export const disconnectShopify = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((input: unknown) => z.object({ storeId: z.string().uuid() }).parse(input))
-  .handler(async ({ data, context }) => {
-    const { deleteConnection } = await import("@/lib/connectors/connection-writes.server");
-    await deleteConnection(context.supabase as never, data.storeId, "shopify");
-    return { ok: true };
-  });
+// `disconnectShopify` vivait ici : une seconde voie de déconnexion, plus
+// étroite que `disconnectProvider` et qu'aucun écran n'appelait. Deux chemins
+// pour un même geste finissent par diverger — l'un reçoit une correction, pas
+// l'autre. Le panneau des sources passe par `disconnectProvider`, qui traite
+// les quatre fournisseurs de la même façon.

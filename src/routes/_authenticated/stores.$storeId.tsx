@@ -123,7 +123,7 @@ function StorePage() {
       </div>
 
       <div className="mt-8 space-y-8">
-        <ConnectionsPanel storeId={store.id} storeUrl={store.url} />
+        <ConnectionsPanel storeId={store.id} storeUrl={store.url} storeCurrency={store.currency} />
 
         {/* L'ÉVOLUTION, à côté des connexions. C'est la question que le
             marchand se pose en revenant : « est-ce que ce que j'ai fait a
