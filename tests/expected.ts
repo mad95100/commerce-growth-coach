@@ -211,6 +211,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Chemin de la mesure et du verdict : file équitable même quand une boutique échoue à répétition, verdicts définitifs jamais recalculés sur une fenêtre qui ne recouvre plus la correction, outil attribué à partir des seules écritures abouties, et aucun verdict affiché sans sa période ni sa couverture.",
   },
   {
+    file: "audits/shopify-funnel.test.ts",
+    minChecks: 55,
+    covers:
+      "L'entonnoir réel lu chez Shopify par ShopifyQL, sans permission nouvelle : le connecteur déclarait le trafic hors de portée et réclamait au marchand un outil tiers pour une donnée que sa boutique possédait. Un compte à zéro est une mesure et se publie ; un taux sur trop peu de volume ne se publie pas, il se déclare manquant ; une lecture échouée ne devient jamais un zéro ; et la fuite est cherchée à la marche où le VOLUME perdu est le plus grand, jamais au travers d'une marche non mesurée — le raccourci qui impute au tunnel ce qui vient de la fiche produit.",
+  },
+  {
     file: "audits/rules.test.ts",
     minChecks: 100,
     covers:

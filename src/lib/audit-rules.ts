@@ -368,6 +368,105 @@ export const RULES: Rule[] = [
     },
   },
 
+  /**
+   * LA RÈGLE QUI LOCALISE LA FUITE.
+   *
+   * C'est celle qui sépare un audit d'un constat. « Ça ne convertit pas » ne
+   * dit rien : la correction n'est pas la même selon que le visiteur parte
+   * avant d'ajouter au panier (l'offre, la fiche, le prix), entre le panier et
+   * la caisse (les frais, la confiance), ou dans la caisse (le paiement, la
+   * livraison). Envoyer un marchand refaire son tunnel quand son problème est
+   * une fiche produit lui coûte des semaines.
+   *
+   * Elle ne se prononce QUE sur des marches réellement mesurées de part et
+   * d'autre : une marche à trou est sautée, jamais franchie.
+   */
+  {
+    id: "conversion.leak_located",
+    axis: "conversion",
+    requires: ["shopify.sessions_30d"],
+    evaluate: (ctx) => {
+      const sessions = num(ctx, "shopify.sessions_30d");
+      if (sessions === null || sessions < THRESHOLDS.MIN_SESSIONS_FOR_CONVERSION) return null;
+
+      const marches: Array<{
+        from: string;
+        to: string;
+        amontId: string;
+        avalId: string;
+        cause: string;
+        action: string;
+      }> = [
+        {
+          from: "l'arrivée sur le site",
+          to: "l'ajout au panier",
+          amontId: "shopify.sessions_30d",
+          avalId: "shopify.sessions_with_cart_30d",
+          cause:
+            "À cette marche, ce qui bloque est ce que le visiteur lit avant de décider : la promesse de la page, la fiche produit, le prix affiché, les photos. Le tunnel de commande n'est pas en cause — il n'a pas encore été atteint.",
+          action:
+            "Ouvrir la page produit la plus visitée sur un téléphone et vérifier, dans l'ordre : le prix est-il visible sans faire défiler, le bouton d'ajout au panier est-il atteignable sans défiler, et une phrase dit-elle à qui le produit s'adresse.",
+        },
+        {
+          from: "l'ajout au panier",
+          to: "l'entrée en caisse",
+          amontId: "shopify.sessions_with_cart_30d",
+          avalId: "shopify.sessions_reached_checkout_30d",
+          cause:
+            "Le visiteur a choisi son produit puis a renoncé avant de payer. À cette marche, la cause est presque toujours une information découverte trop tard — frais de livraison, délai, ou absence de réassurance sur le paiement.",
+          action:
+            "Afficher le montant des frais de livraison et le délai sur la page produit, avant le panier, plutôt qu'au moment du paiement.",
+        },
+        {
+          from: "l'entrée en caisse",
+          to: "le paiement",
+          amontId: "shopify.sessions_reached_checkout_30d",
+          avalId: "shopify.sessions_completed_checkout_30d",
+          cause:
+            "Le visiteur était dans la caisse, décidé, et n'a pas terminé. À cette marche, la cause est mécanique : moyen de paiement absent, champ qui refuse une saisie, ou frais qui apparaissent à la dernière étape.",
+          action:
+            "Passer une commande test réelle jusqu'au paiement, depuis un téléphone, et noter l'étape exacte où quelque chose surprend ou bloque.",
+        },
+      ];
+
+      let pire: {
+        m: (typeof marches)[number];
+        perdu: number;
+        taux: number;
+        amont: number;
+        aval: number;
+      } | null = null;
+
+      for (const m of marches) {
+        const amont = num(ctx, m.amontId);
+        const aval = num(ctx, m.avalId);
+        // Les deux bouts doivent être mesurés. Sinon on saute : chercher la
+        // fuite au travers d'un trou revient à l'imputer au hasard.
+        if (amont === null || aval === null || amont <= 0) continue;
+        const perdu = amont - aval;
+        if (perdu <= 0) continue;
+        const taux = perdu / amont;
+        if (!Number.isFinite(taux) || taux < 0 || taux > 1) continue;
+        // La plus grande perte ABSOLUE, pas le pire taux : perdre 80 % de dix
+        // personnes n'est pas un problème, perdre 40 % de mille en est un.
+        if (!pire || perdu > pire.perdu) pire = { m, perdu, taux, amont, aval };
+      }
+      if (!pire) return null;
+
+      const t = trace(ctx, [pire.m.amontId, pire.m.avalId, "shopify.sessions_30d"]);
+      return emit(RULES_BY_ID["conversion.leak_located"], {
+        title: `La fuite se situe entre ${pire.m.from} et ${pire.m.to}`,
+        statement: `${pire.perdu} sessions sur ${pire.amont} s'arrêtent entre ${pire.m.from} et ${pire.m.to}, soit ${Math.round(pire.taux * 100)} %. C'est la marche où le volume perdu est le plus important.`,
+        why: pire.m.cause,
+        level: "prouve",
+        ...t,
+        impact: 5,
+        effort: 2,
+        recommendation: pire.m.action,
+      });
+    },
+  },
+
   // --- Acquisition ---------------------------------------------------------
   {
     id: "acquisition.spend_without_purchase",

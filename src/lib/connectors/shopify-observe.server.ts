@@ -9,6 +9,12 @@ import {
   type RawProduct,
 } from "@/lib/connectors/shopify-observe";
 import { topLandingPaths } from "@/lib/connectors/order-attribution";
+import {
+  funnelObservations,
+  funnelQuery,
+  parseFunnel,
+  type FunnelRaw,
+} from "@/lib/connectors/shopify-analytics";
 import type { SourceReport } from "@/lib/observations";
 
 /**
@@ -29,6 +35,14 @@ export type ShopifyReports = {
    * la seule façon de constater qu'une campagne envoie du monde dans le vide.
    */
   landings: Array<{ path: string; orders: number }>;
+  /**
+   * L'entonnoir brut, conservé pour localiser la fuite.
+   *
+   * Il ne passe pas par les observations : localiser une fuite demande de
+   * comparer des marches entre elles, ce qu'une liste d'observations plates ne
+   * permet pas sans reconstruire l'ordre — et donc sans risquer de l'inventer.
+   */
+  funnel: FunnelRaw;
 };
 
 /** Shopify injoignable : les deux lectures le sont aussi, sans aucun zéro. */
@@ -37,6 +51,14 @@ function unreachable(error: string): ShopifyReports {
     shopify: shopifyUnreachable(error),
     organic: { source: "organic", observations: [], gaps: [], reachable: false, error },
     landings: [],
+    funnel: {
+      sessions: null,
+      cartAdditions: null,
+      reachedCheckout: null,
+      completedCheckout: null,
+      reachable: false,
+      error,
+    },
   };
 }
 
@@ -141,12 +163,101 @@ export async function fetchShopifyObservations(
         : products.length < MAX_PRODUCTS,
   };
 
+  // L'ENTONNOIR, PAR SHOPIFYQL. Sessions, ajouts au panier et passages en
+  // caisse vivent dans le jeu de données `sessions`, interrogeable depuis la
+  // même API GraphQL avec `read_analytics` — permission DÉJÀ demandée et déjà
+  // accordée. Le connecteur les déclarait hors de portée : c'était faux, et
+  // cela conduisait à réclamer au marchand un outil de mesure tiers pour une
+  // donnée que sa propre boutique possède.
+  //
+  // L'appel est isolé : son échec retire l'entonnoir du diagnostic, il ne
+  // retire pas le diagnostic.
+  const funnel = await fetchFunnel(base, headers, fetcher);
+  const funnelReport = funnelObservations(funnel);
+
+  const shopifyReport = shopifyObservations(raw);
+
   // DEUX rapports, pas un. Les commandes disent l'état de la boutique ET
   // l'origine du trafic qui l'a fait vivre : ce sont deux sources différentes
   // pour le moteur, même si un seul appel réseau les a produites.
   return {
-    shopify: shopifyObservations(raw),
+    shopify: {
+      ...shopifyReport,
+      observations: [...shopifyReport.observations, ...funnelReport.observations],
+      // Un trou comblé cesse d'être un trou : les manques déclarés par le
+      // connecteur de base sont retirés dès que l'entonnoir les couvre.
+      gaps: [
+        ...shopifyReport.gaps.filter((g) => !funnelReport.observations.some((o) => o.id === g.id)),
+        ...funnelReport.gaps,
+      ],
+    },
     organic: organicReport(raw),
     landings: topLandingPaths(raw.orders),
+    funnel,
   };
+}
+
+/**
+ * Interroge ShopifyQL.
+ *
+ * `shopifyqlQuery` vit dans l'API GraphQL, pas dans REST : c'est un POST unique
+ * dont la réponse est un tableau de colonnes et de lignes. Ne lève jamais —
+ * une permission refusée rend un entonnoir injoignable, que la couche pure sait
+ * traduire en donnée manquante nommée.
+ */
+async function fetchFunnel(
+  base: string,
+  headers: Record<string, string>,
+  fetcher: Fetcher,
+): Promise<FunnelRaw> {
+  const requete = `query($q: String!) {
+    shopifyqlQuery(query: $q) {
+      __typename
+      ... on TableResponse {
+        tableData { columns { name dataType } rowData }
+      }
+      parseErrors { message }
+    }
+  }`;
+  try {
+    const res = await fetcher(`${base}/graphql.json`, {
+      headers,
+      method: "POST",
+      body: JSON.stringify({ query: requete, variables: { q: funnelQuery() } }),
+    } as never);
+    if (!res.ok) {
+      return {
+        sessions: null,
+        cartAdditions: null,
+        reachedCheckout: null,
+        completedCheckout: null,
+        reachable: false,
+        error: `HTTP ${res.status}`,
+      };
+    }
+    const json = (await res.json()) as {
+      data?: { shopifyqlQuery?: unknown };
+      errors?: Array<{ message?: string }>;
+    };
+    if (json.errors?.length) {
+      return {
+        sessions: null,
+        cartAdditions: null,
+        reachedCheckout: null,
+        completedCheckout: null,
+        reachable: false,
+        error: json.errors[0]?.message ?? "Erreur GraphQL",
+      };
+    }
+    return parseFunnel(json.data?.shopifyqlQuery);
+  } catch (e) {
+    return {
+      sessions: null,
+      cartAdditions: null,
+      reachedCheckout: null,
+      completedCheckout: null,
+      reachable: false,
+      error: e instanceof Error ? e.message : "Appel ShopifyQL impossible.",
+    };
+  }
 }
