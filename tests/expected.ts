@@ -277,6 +277,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Sur quel compte publicitaire porte le diagnostic. Le retour d'autorisation Meta retenait `accounts[0]` et l'utilisait pour tout le diagnostic, sans le dire et sans qu'aucun écran ne permette d'en changer — alors que la fonction serveur qui le permet existait, écrite et jamais appelée. Un marchand qui gère deux marques, ou dont l'agence figure en tête de liste, lisait un rapport cohérent, chiffré et faux de bout en bout. Le choix par défaut est désormais annoncé comme un défaut, le compte se change, un compte désactivé n'est plus retenu d'office, et une différence de devise entre le compte et la boutique interdit de rapprocher dépense et chiffre d'affaires plutôt que de produire un coût par commande qui n'existe pas.",
   },
   {
+    file: "security/oauth-state.test.ts",
+    minChecks: 18,
+    covers:
+      "L'état OAuth, seule chose qui empêche d'attacher un compte publicitaire à la boutique d'autrui. Le retour d'autorisation est une route PUBLIQUE, appelée sans session à nous : le paramètre `state` lui dit pour quelle boutique elle travaille, et sa signature est tout ce qui empêche de le fabriquer. Sans elle, un état forgé avec l'identifiant de la boutique d'un autre y rattache le compte de l'attaquant — puis un diagnostic parle de campagnes que le marchand n'a jamais lancées. Le code était déjà correct quand cette suite a été écrite ; il n'était couvert par rien. Une primitive de sécurité juste mais non testée n'est juste que pour l'instant.",
+  },
+  {
     file: "ui/promesses.test.ts",
     minChecks: 20,
     covers:
