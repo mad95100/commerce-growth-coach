@@ -211,6 +211,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Chemin de la mesure et du verdict : file équitable même quand une boutique échoue à répétition, verdicts définitifs jamais recalculés sur une fenêtre qui ne recouvre plus la correction, outil attribué à partir des seules écritures abouties, et aucun verdict affiché sans sa période ni sa couverture.",
   },
   {
+    file: "audits/root-cause.test.ts",
+    minChecks: 130,
+    covers:
+      "Une cause, une action — et le produit qui parle au marchand. Les règles voient des fiches sans description, l'expérience voit une page sans promesse, le client cible voit un prix sans argument : trois constats justes, un seul problème. Les livrer séparément produit un rapport qu'on abandonne à la troisième ligne. Une cause ne se forme jamais sur un symptôme isolé, ses preuves sont exactement l'union de celles de ses symptômes, son niveau de certitude est celui du MOINS certain d'entre eux — sinon un « à vérifier » sortirait promu par le simple fait d'être accompagné — et aucun symptôme n'est rattaché deux fois. Couvre aussi la traduction en langage marchand : quatorze mots du moteur sont interdits un par un dans chaque explication, et une donnée absente dit toujours ce qui manque, pourquoi, quoi faire et ce que cela ouvrira.",
+  },
+  {
     file: "audits/storefront-experience.test.ts",
     minChecks: 110,
     covers:

@@ -17,6 +17,7 @@ import {
   experienceToPromptBlock,
   extractExperience,
 } from "@/lib/storefront-experience";
+import { causesToPromptBlock, groupByCause, type Symptom } from "@/lib/root-cause";
 import { assessDiagnostics, diagnosticsToPromptBlock } from "@/lib/diagnostics";
 import { crossSignals, crossSignalsToPromptBlock } from "@/lib/cross-source";
 import { anchorGainsOnLeak, buildFunnel, funnelToPromptBlock } from "@/lib/funnel";
@@ -250,6 +251,43 @@ export async function executeAuditWork(input: {
   // t-elle ? » et « que dit-elle ? ». La seconde n'a jamais été posée jusqu'ici.
   const experience = homeHtml ? experienceFindings(extractExperience(homeHtml), audience) : [];
 
+  // LES TROIS FENÊTRES SE REJOIGNENT ICI. Les règles voient des fiches sans
+  // description, la lecture d'expérience voit une page sans promesse, le
+  // croisement avec le client cible voit un prix sans argument : trois constats
+  // justes, un seul problème. Les livrer séparément produirait un rapport de
+  // consultant — long, exhaustif, et abandonné à la troisième ligne.
+  const symptomes: Symptom[] = [
+    ...ruleReport.findings.map((f) => ({
+      id: f.ruleId,
+      title: f.title,
+      evidence: f.evidence,
+      level: f.level,
+      impact: f.impact,
+      effort: f.effort,
+    })),
+    ...experience.map((f) => ({
+      id: f.id,
+      title: f.observation,
+      evidence: f.evidence,
+      // La lecture d'expérience n'a que deux niveaux ; ce sont exactement deux
+      // valeurs de l'échelle du moteur, sans conversion arbitraire.
+      level: f.level as Symptom["level"],
+      impact: f.impactScore,
+      effort: f.effort,
+    })),
+    ...incoherences.map((i) => ({
+      id: i.id,
+      title: i.observation,
+      evidence: i.evidence,
+      // Une incohérence croise un public DÉDUIT avec une observation : elle ne
+      // peut donc pas prétendre au niveau le plus haut.
+      level: "fortement_suggere" as Symptom["level"],
+      impact: i.impactScore,
+      effort: i.effort,
+    })),
+  ];
+  const { causes, isolated } = groupByCause(symptomes);
+
   const userPrompt = `Voici les infos de la boutique à auditer :
 
 - Nom : ${store.name}
@@ -277,6 +315,8 @@ ${rulesToPromptBlock(ruleReport)}
 ${audienceToPromptBlock(audience, incoherences)}
 
 ${experienceToPromptBlock(experience, Boolean(homeHtml))}
+
+${causesToPromptBlock(causes, isolated)}
 
 ${funnelToPromptBlock(funnel)}
 
