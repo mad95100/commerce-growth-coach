@@ -9,7 +9,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import type { ReactNode } from "react";
 
@@ -18,6 +18,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
+  // La session est déjà en mémoire côté client : cette lecture ne déclenche pas
+  // d'appel réseau, et son échec n'a aucune conséquence — le cadre s'affiche
+  // sans l'adresse plutôt que de faire tomber toutes les pages avec lui.
+  const sessionQ = useQuery({
+    queryKey: ["session-email"],
+    queryFn: async () => (await supabase.auth.getSession()).data.session?.user.email ?? null,
+    staleTime: 5 * 60 * 1000,
+  });
+  const email = sessionQ.data ?? null;
+
   async function signOut() {
     await queryClient.cancelQueries();
     queryClient.clear();
@@ -25,12 +35,25 @@ export function AppShell({ children }: { children: ReactNode }) {
     navigate({ to: "/auth", replace: true });
   }
 
-  // `shortLabel` sert la barre basse : sous un pouce, « Tableau de bord » sur
-  // trois lignes est moins lisible qu'un mot.
+  /*
+    UN SEUL MOT PAR DESTINATION.
+
+    LE DÉFAUT. La barre latérale disait « Tableau de bord », « Mes boutiques »,
+    « Paramètres » ; la barre basse disait « Pilotage », « Boutiques »,
+    « Réglages ». Six mots pour trois endroits. Un marchand qui passe du
+    téléphone à l'ordinateur — le cas ordinaire : on consulte sur l'un, on
+    corrige sur l'autre — devait apprendre deux vocabulaires pour la même
+    application, et ne pouvait pas être sûr que « Pilotage » et « Tableau de
+    bord » menaient au même endroit.
+
+    Les libellés sont désormais identiques. « Boutiques » perd son « Mes » sur
+    la barre basse, où la place manque réellement — c'est un raccourcissement du
+    même mot, pas un autre mot.
+  */
   const navItems = [
-    { to: "/dashboard", label: "Tableau de bord", shortLabel: "Pilotage", icon: LayoutDashboard },
+    { to: "/dashboard", label: "Tableau de bord", shortLabel: "Tableau", icon: LayoutDashboard },
     { to: "/stores", label: "Mes boutiques", shortLabel: "Boutiques", icon: Store },
-    { to: "/settings", label: "Paramètres", shortLabel: "Réglages", icon: Settings },
+    { to: "/settings", label: "Paramètres", shortLabel: "Paramètres", icon: Settings },
   ];
 
   return (
@@ -63,7 +86,25 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+        {/*
+          QUI EST CONNECTÉ. Aucun écran ne le disait. Le produit gère plusieurs
+          boutiques et se destine à des gens qui ont souvent deux adresses — une
+          personnelle, une professionnelle : rien ne permettait de savoir dans
+          quel compte on se trouvait, ni pourquoi la boutique attendue n'y était
+          pas. L'adresse est tronquée par le milieu plutôt que coupée, pour que
+          le domaine reste lisible : c'est lui qui distingue deux comptes.
+        */}
         <div className="border-t border-border/50 p-4">
+          {email && (
+            <div className="mb-2 px-3">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                Connecté en tant que
+              </div>
+              <div className="truncate text-sm" title={email}>
+                {email}
+              </div>
+            </div>
+          )}
           <Button variant="ghost" size="sm" onClick={signOut} className="w-full justify-start">
             <LogOut className="mr-2 h-4 w-4" />
             Se déconnecter

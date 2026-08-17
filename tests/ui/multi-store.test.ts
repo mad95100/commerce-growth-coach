@@ -42,9 +42,38 @@ export default defineSuite("Interface — plusieurs boutiques", (t) => {
     /storesQ\.data\.length > 1 &&/.test(dashboard),
     true,
   );
+  /*
+    LA BOUTIQUE ACTIVE EST SIGNALÉE — ET L'ATTRIBUT A CHANGÉ AVEC LE COMPOSANT.
+
+    Ce contrôle exigeait `aria-current`. Le sélecteur était alors une rangée de
+    noms nus : seul l'élément actif portait un fond, les autres étaient du texte
+    gris sans bordure. Rien n'annonçait qu'ils étaient cliquables, et sur
+    téléphone le second passait à la ligne comme une phrase égarée.
+
+    Le sélecteur est devenu un groupe d'onglets déclaré (`role="tablist"` /
+    `role="tab"`). Dans ce rôle, l'attribut juste est `aria-selected` :
+    `aria-current` sert à désigner l'élément courant d'une NAVIGATION, pas
+    l'onglet retenu d'un groupe. Un lecteur d'écran annonce « sélectionné » sur
+    le premier, et rien d'utile sur le second.
+
+    L'intention protégée est la même — on doit voir laquelle est affichée — et
+    elle est vérifiée ici sur l'attribut que le rôle impose, plus la marque
+    visuelle qui sert tous les autres.
+  */
   t.check(
-    "la boutique active est signalée",
-    /aria-current=\{s\.id === activeStore\.id/.test(dashboard),
+    "le sélecteur est déclaré comme un groupe d'onglets",
+    /role="tablist"/.test(dashboard) && /role="tab"/.test(dashboard),
+    true,
+  );
+  t.check("la boutique active est signalée", /aria-selected=\{actif\}/.test(dashboard), true);
+  t.check(
+    "…et se distingue aussi visuellement",
+    /actif\s*\?\s*"[^"]*bg-primary\/10[^"]*"/.test(dashboard),
+    true,
+  );
+  t.check(
+    "les boutiques non retenues restent visiblement cliquables",
+    /:\s*"border-border text-muted-foreground/.test(dashboard),
     true,
   );
 

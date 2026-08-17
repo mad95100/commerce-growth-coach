@@ -60,12 +60,28 @@ function Dashboard() {
 
   return (
     <AppShell>
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-3xl font-bold">Salut 👋</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Voici l'état de vos boutiques.</p>
+      {/*
+        LE TITRE DIT OÙ L'ON EST, PAS BONJOUR.
+
+        « Salut 👋 » occupait le titre de niveau 1 de la page la plus consultée
+        du produit. Un emoji en guise de titre, et pas un mot sur ce que l'écran
+        contient : ni le nom de la boutique regardée, ni la date de ce qui est
+        montré. C'est la première chose que voit un marchand qui vient vérifier
+        ses chiffres, et cela ne l'informe de rien.
+
+        `flex-wrap` et `items-start` : sur téléphone, le titre et le bouton se
+        chevauchaient, le second poussant le premier sur deux lignes.
+      */}
+      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl font-bold">Tableau de bord</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {activeStore.name
+              ? `Ce que nous voyons aujourd'hui sur ${activeStore.name}.`
+              : "L'état de vos boutiques."}
+          </p>
         </div>
-        <Link to="/onboarding">
+        <Link to="/onboarding" className="shrink-0">
           <Button variant="outline">
             <StoreIcon className="mr-2 h-4 w-4" /> Nouvelle boutique
           </Button>
@@ -84,24 +100,50 @@ function Dashboard() {
       */}
       {storesQ.data && storesQ.data.length > 0 && (
         <div className="mb-10">
+          {/*
+            LE SÉLECTEUR DE BOUTIQUE, RENDU VISIBLE COMME UN CHOIX.
+
+            CE QU'IL ÉTAIT. « Boutique : » suivi de noms nus. Seul l'élément
+            ACTIF portait un fond ; les autres étaient du texte gris, sans
+            bordure ni relief. Rien n'annonçait qu'ils étaient cliquables — un
+            marchand à deux boutiques ne pouvait pas deviner qu'il pouvait
+            changer de vue, et lisait donc les chiffres de la première en
+            croyant qu'il n'y avait rien d'autre.
+
+            Sur téléphone, c'était pire : la deuxième boutique passait à la
+            ligne, alignée nulle part, et se lisait comme une phrase égarée.
+
+            CE QU'IL EST. Un groupe d'onglets déclaré comme tel, dans un cadre
+            qui montre où le choix commence et où il finit. Les options
+            inactives portent une bordure : elles se voient et s'atteignent au
+            pouce. Le groupe défile horizontalement plutôt que de se replier,
+            pour qu'une boutique de plus ne casse pas la mise en page.
+          */}
           {storesQ.data.length > 1 && (
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-muted-foreground">Boutique :</span>
-              {storesQ.data.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => void navigate({ to: "/dashboard", search: { store: s.id } })}
-                  aria-current={s.id === activeStore.id ? "true" : undefined}
-                  className={`rounded-full px-3 py-1 text-sm transition-colors ${
-                    s.id === activeStore.id
-                      ? "bg-primary/10 font-medium text-primary"
-                      : "text-muted-foreground hover:bg-accent/10 hover:text-foreground"
-                  }`}
-                >
-                  {s.name}
-                </button>
-              ))}
+            <div
+              role="tablist"
+              aria-label="Choisir la boutique à afficher"
+              className="mb-5 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+            >
+              {storesQ.data.map((s) => {
+                const actif = s.id === activeStore.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={actif}
+                    onClick={() => void navigate({ to: "/dashboard", search: { store: s.id } })}
+                    className={`shrink-0 rounded-full border px-4 py-1.5 text-sm transition-colors ${
+                      actif
+                        ? "border-primary/40 bg-primary/10 font-medium text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                );
+              })}
             </div>
           )}
           <Cockpit storeId={activeStore.id} />
