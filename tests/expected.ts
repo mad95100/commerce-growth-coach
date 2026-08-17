@@ -277,6 +277,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Sur quel compte publicitaire porte le diagnostic. Le retour d'autorisation Meta retenait `accounts[0]` et l'utilisait pour tout le diagnostic, sans le dire et sans qu'aucun écran ne permette d'en changer — alors que la fonction serveur qui le permet existait, écrite et jamais appelée. Un marchand qui gère deux marques, ou dont l'agence figure en tête de liste, lisait un rapport cohérent, chiffré et faux de bout en bout. Le choix par défaut est désormais annoncé comme un défaut, le compte se change, un compte désactivé n'est plus retenu d'office, et une différence de devise entre le compte et la boutique interdit de rapprocher dépense et chiffre d'affaires plutôt que de produire un coût par commande qui n'existe pas.",
   },
   {
+    file: "ui/promesses.test.ts",
+    minChecks: 20,
+    covers:
+      "Ce que le produit promet, le produit le fait. Une phrase d'interface est un engagement et le code ne sait pas qu'il en a pris un : le texte reste, la fonction change, et plus rien ne les compare — personne ne s'en aperçoit avant un marchand, au moment précis où il vérifie parce qu'il a déjà un doute. Après une panne venue de chez nous, l'écran promettait « votre passage ne vous a pas été décompté » alors que le quota était prélevé au lancement et jamais rendu. « Nous vous prévenons si la situation ne se rétablit pas » laissait croire à un avertissement, alors que le produit n'a ni courriel ni notification. Chaque contrôle vérifie un LIEN — une phrase et le mécanisme qui doit la rendre vraie : aucune promesse de nous manifester tant que le canal n'existe pas, la restitution du quota déclenchée à l'abandon et une seule fois, chaque outil annoncé annulable pourvu de sa procédure, et l'aperçu séparé du chemin qui écrit.",
+  },
+  {
     file: "ui/voice.test.ts",
     minChecks: 2000,
     covers:

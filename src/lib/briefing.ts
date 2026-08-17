@@ -286,8 +286,14 @@ function regressionBriefing(alert: RollbackAlert, plan: NextMovePlan): Briefing 
       writes: false,
     },
     expected: "Retour à l'état d'avant la correction.",
+    // OÙ L'ALERTE APPARAÎT, PUISQU'ELLE N'ARRIVE NULLE PART AILLEURS. La phrase
+    // disait « nous vous prévenons », ce qui laisse entendre qu'on vient
+    // chercher le marchand. Le produit n'envoie ni courriel ni notification :
+    // l'alerte s'affiche dans l'application, et un marchand qui ne l'ouvre pas
+    // n'est prévenu de rien. Promettre plus que ce qu'on fait sur un sujet de
+    // dégradation est le meilleur moyen de n'être plus cru sur le reste.
     verification:
-      "Nous remesurons automatiquement, et nous vous prévenons si la situation ne se rétablit pas.",
+      "Nous remesurons automatiquement. Si la situation ne se rétablit pas, l'alerte s'affiche en haut de votre tableau de bord à votre prochaine visite.",
     nextDecision: plan.now
       ? `Ensuite, on reprend par « ${plan.now.title} ».`
       : "Ensuite, on relance un diagnostic.",
