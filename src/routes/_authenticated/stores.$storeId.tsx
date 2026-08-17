@@ -191,7 +191,15 @@ function StorePage() {
                 params={{ auditId: a.id }}
                 className="card-elevated flex items-center gap-4 rounded-xl p-4 transition-colors hover:border-primary/40"
               >
-                {a.status === "completed" && a.score != null ? (
+                {/*
+                  LA VIGNETTE SUIT LE STATUT, PAS LA NOTE. Elle se décidait sur
+                  `score != null`, si bien qu'un audit RÉUSSI mais non notable
+                  — trop peu d'axes mesurés pour qu'une note veuille dire
+                  quelque chose — tombait dans la branche d'échec : croix rouge
+                  et « Audit échoué ». Le marchand voyait un échec là où
+                  l'analyse avait abouti, et ses constats l'attendaient.
+                */}
+                {a.status === "completed" ? (
                   <ScoreRing score={a.score} size={56} />
                 ) : a.status === "running" ? (
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
@@ -209,7 +217,12 @@ function StorePage() {
                     {new Date(a.created_at).toLocaleString("fr-FR")}
                   </div>
                   <div className="mt-0.5 truncate font-medium">
-                    {a.verdict || (a.status === "running" ? "En cours..." : "Audit échoué")}
+                    {a.verdict ||
+                      (a.status === "running"
+                        ? "En cours..."
+                        : a.status === "completed"
+                          ? "Analyse terminée"
+                          : "Cet audit n'a pas abouti")}
                   </div>
                 </div>
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />

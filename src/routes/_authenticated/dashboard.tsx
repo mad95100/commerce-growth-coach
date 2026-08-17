@@ -153,7 +153,10 @@ function Dashboard() {
                       <div className="mt-1 truncate text-xs text-muted-foreground">{store.url}</div>
                     )}
                   </div>
-                  {latest?.score != null && <ScoreRing score={latest.score} size={64} />}
+                  {/* Une boutique déjà auditée garde son anneau même sans
+                      note : le faire disparaître laisserait croire qu'aucun
+                      audit n'a eu lieu. */}
+                  {latest && <ScoreRing score={latest.score} size={64} />}
                 </div>
                 {latest ? (
                   <p className="mt-4 line-clamp-2 text-sm text-muted-foreground">

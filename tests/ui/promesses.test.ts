@@ -173,6 +173,22 @@ export default defineSuite("Produit — les promesses faites au marchand sont te
     /const color = !noté/.test(sansCommentaires(anneau)),
     true,
   );
+  // ET LA MÊME ERREUR AILLEURS. La vignette d'historique se décidait sur
+  // `score != null` : un audit RÉUSSI mais non notable tombait dans la branche
+  // d'échec — croix rouge et « Audit échoué » — alors que ses constats
+  // l'attendaient. Une note absente n'est ni un zéro, ni une panne.
+  const boutique = lire("src/routes/_authenticated/stores.$storeId.tsx");
+  t.check(
+    "la vignette d'historique suit le statut, pas la note",
+    /\{a\.status === "completed" \? \(\s*<ScoreRing/.test(boutique),
+    true,
+  );
+  t.check(
+    "un audit abouti n'est plus annoncé échoué",
+    /a\.status === "completed"\s*\?\s*"Analyse terminée"/.test(boutique),
+    true,
+  );
+
   const rapport = lire("src/routes/_authenticated/audits.$auditId.tsx");
   t.check(
     "le rapport ne remplace plus l'absence par un zéro",
