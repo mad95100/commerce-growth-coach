@@ -1,5 +1,13 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Store, Settings, LogOut, Rocket, Plus } from "lucide-react";
+import {
+  LayoutDashboard,
+  Store,
+  Settings,
+  LogOut,
+  Rocket,
+  Plus,
+  AlertTriangle,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -75,6 +83,45 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
       </div>
+    </div>
+  );
+}
+
+/**
+ * L'ÉCHEC DE CHARGEMENT, QUI N'EST PAS UN VIDE.
+ *
+ * POURQUOI CE COMPOSANT EXISTE SÉPARÉMENT. Le tableau de bord affichait
+ * « Aucune boutique pour l'instant » dès que la requête ne rendait pas de
+ * données — y compris quand elle avait ÉCHOUÉ. Un marchand dont la connexion
+ * hoquette voyait donc sa boutique disparaître et s'entendait proposer d'en
+ * créer une nouvelle. Rien n'était perdu, mais il n'avait aucun moyen de le
+ * savoir, et le geste proposé était le pire possible.
+ *
+ * Une absence de données et un échec de lecture ne se ressemblent pas et ne
+ * doivent jamais s'afficher pareil : le premier appelle une création, le second
+ * un nouvel essai.
+ */
+export function ErrorState({
+  title = "Impossible de charger ces données",
+  description = "La connexion au serveur a échoué. Tes données ne sont pas perdues — réessaie dans un instant.",
+  onRetry,
+}: {
+  title?: string;
+  description?: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="card-elevated flex flex-col items-center rounded-2xl p-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+        <AlertTriangle className="h-6 w-6" />
+      </div>
+      <h3 className="mt-4 font-display text-xl font-bold">{title}</h3>
+      <p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p>
+      {onRetry && (
+        <Button onClick={onRetry} variant="outline" className="mt-6">
+          Réessayer
+        </Button>
+      )}
     </div>
   );
 }

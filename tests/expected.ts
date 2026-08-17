@@ -211,6 +211,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Chemin de la mesure et du verdict : file équitable même quand une boutique échoue à répétition, verdicts définitifs jamais recalculés sur une fenêtre qui ne recouvre plus la correction, outil attribué à partir des seules écritures abouties, et aucun verdict affiché sans sa période ni sa couverture.",
   },
   {
+    file: "ui/states.test.ts",
+    minChecks: 18,
+    covers:
+      "Ce que l'écran dit quand la lecture échoue. Le tableau de bord confondait « il n'y a rien » et « je n'ai pas réussi à lire » : sur échec de requête il annonçait « Aucune boutique » et proposait d'en recréer une — un marchand voyait sa boutique disparaître. L'échec est désormais testé avant le vide, porte son propre message et son propre geste, et la redirection automatique vers la création n'a lieu que sur un succès.",
+  },
+  {
     file: "audits/shopify-funnel.test.ts",
     minChecks: 55,
     covers:

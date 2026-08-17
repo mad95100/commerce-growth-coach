@@ -2,7 +2,7 @@ import { formatMoney } from "@/lib/currency";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { AppShell, EmptyState } from "@/components/AppShell";
+import { AppShell, EmptyState, ErrorState } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, Store as StoreIcon, TrendingUp } from "lucide-react";
 import { ScoreRing } from "@/components/ScoreRing";
@@ -34,10 +34,13 @@ function Dashboard() {
   });
 
   useEffect(() => {
-    if (storesQ.data && storesQ.data.length === 0) {
+    // Uniquement sur un succès qui rend zéro boutique. Sur erreur, `data` est
+    // indéfini et la condition est fausse — mais on l'écrit explicitement pour
+    // que personne ne « simplifie » un jour en `!storesQ.data`.
+    if (storesQ.isSuccess && storesQ.data.length === 0) {
       navigate({ to: "/onboarding" });
     }
-  }, [storesQ.data, navigate]);
+  }, [storesQ.isSuccess, storesQ.data, navigate]);
 
   return (
     <AppShell>
@@ -61,6 +64,11 @@ function Dashboard() {
 
       {storesQ.isLoading ? (
         <div className="text-sm text-muted-foreground">Chargement...</div>
+      ) : storesQ.isError ? (
+        // L'ÉCHEC AVANT LE VIDE. Testé en premier délibérément : sur erreur,
+        // `data` est indéfini, et la branche suivante annoncerait « aucune
+        // boutique » à un marchand qui en a.
+        <ErrorState onRetry={() => void storesQ.refetch()} />
       ) : !storesQ.data || storesQ.data.length === 0 ? (
         <EmptyState
           title="Aucune boutique pour l'instant"
