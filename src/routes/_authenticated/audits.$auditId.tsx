@@ -47,6 +47,7 @@ import {
   GitBranch,
   HelpCircle,
   History,
+  Search,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -66,6 +67,15 @@ type Finding = {
   estimated_gain_max: number | null;
   action_steps: unknown;
   auto_correction: unknown;
+  /**
+   * SUR QUOI LE CONSTAT REPOSE, ET CE QU'IL A FALLU SUPPOSER.
+   *
+   * Colonne non nulle, renseignée par le moteur pour CHAQUE constat
+   * (`audit-runner.server.ts` : `based_on` et `assumptions` sont tous deux
+   * exigés du modèle). Elle restait pourtant invisible : le marchand lisait un
+   * titre, une gravité et un montant, sans jamais voir ce qui les fondait.
+   */
+  evidence: unknown;
   timeframe: string;
   status: string;
   sort_order: number;
@@ -84,6 +94,26 @@ type Finding = {
   history_action: string | null;
   history_note: string | null;
 };
+
+/**
+ * LA PREUVE, LUE SANS RIEN INVENTER.
+ *
+ * `evidence` est une colonne JSON : sa forme est un contrat avec le moteur, pas
+ * une garantie du typage. Les audits antérieurs à son introduction portent un
+ * objet vide, et un audit repris d'une version future pourrait porter autre
+ * chose. On lit donc ce qui est présent et lisible, et on ne rend rien sinon —
+ * plutôt que d'afficher « undefined » sous le mot « Preuve », ce qui coûterait
+ * plus de confiance que l'absence.
+ */
+function lirePreuve(brut: unknown): { basedOn: string | null; assumptions: string | null } | null {
+  if (!brut || typeof brut !== "object" || Array.isArray(brut)) return null;
+  const o = brut as Record<string, unknown>;
+  const texte = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const basedOn = texte(o.based_on);
+  const assumptions = texte(o.assumptions);
+  if (!basedOn && !assumptions) return null;
+  return { basedOn, assumptions };
+}
 
 /** Habillage de chaque bande de priorité. Le rouge se mérite. */
 const BAND_STYLE: Record<PriorityBand, string> = {
@@ -296,6 +326,8 @@ function AuditPage() {
   const storeCurrency = normalizeCurrency(
     (audit?.stores as { currency?: string | null } | undefined)?.currency,
   );
+  /** Nul quand la jointure ne rend pas la boutique. Lu comme tel, jamais casté. */
+  const storeName = (audit?.stores as { name?: string | null } | undefined)?.name?.trim() || null;
 
   const totalGainMin = findings.reduce((s, f) => s + (Number(f.estimated_gain_min) || 0), 0);
   const totalGainMax = findings.reduce((s, f) => s + (Number(f.estimated_gain_max) || 0), 0);
@@ -314,9 +346,21 @@ function AuditPage() {
 
   return (
     <AppShell>
+      {/*
+        LE RETOUR SE FAIT SUR `audit.store_id`, PAS SUR LA JOINTURE.
+
+        `stores(...)` est une ressource EMBARQUÉE : PostgREST la rend `null`
+        dès que la ligne liée n'est pas visible — RLS, boutique supprimée entre
+        le chargement du rapport et son affichage. Le cast n'était gardé par
+        rien : la page entière tombait alors sur la frontière d'erreur, et le
+        marchand perdait son rapport pour une donnée qu'il ne regardait même
+        pas. `store_id` est porté par la ligne d'audit elle-même, toujours
+        présent, et c'est déjà lui qu'utilisent les deux autres liens de cette
+        page.
+      */}
       <Link
         to="/stores/$storeId"
-        params={{ storeId: (audit.stores as { id: string }).id }}
+        params={{ storeId: audit.store_id }}
         className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-3 w-3" /> Retour à la boutique
@@ -371,8 +415,11 @@ function AuditPage() {
             <div className="flex flex-col items-center gap-6 md:flex-row md:text-left">
               <ScoreRing score={audit.score} size={140} />
               <div className="flex-1">
+                {/* Le nom de la boutique est un ORNEMENT de ce titre : quand la
+                    jointure ne le rend pas, on affiche « Score global » seul
+                    plutôt que de faire tomber le rapport avec lui. */}
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Score global — {(audit.stores as { name: string }).name}
+                  {storeName ? `Score global — ${storeName}` : "Score global"}
                 </div>
                 <h1 className="mt-1 font-display text-3xl font-bold">{audit.verdict}</h1>
                 <p className="mt-3 text-muted-foreground">{audit.summary}</p>
@@ -642,6 +689,7 @@ function FindingCard({
   const steps = Array.isArray(finding.action_steps)
     ? (finding.action_steps as Array<{ text: string }>)
     : [];
+  const preuve = lirePreuve(finding.evidence);
   const done = finding.status === "done";
   const applied =
     finding.applied_at && finding.applied_result && typeof finding.applied_result === "object"
@@ -743,6 +791,36 @@ function FindingCard({
             <div className="mt-3">
               <div className="text-xs uppercase text-muted-foreground">Pourquoi</div>
               <p className="mt-1 text-sm">{finding.root_cause}</p>
+            </div>
+          )}
+          {/*
+            LA PREUVE, ENTRE LE PROBLÈME ET SON IMPACT.
+
+            CE QUI MANQUAIT. Le moteur exige `based_on` et `assumptions` pour
+            chaque constat, les enregistre, et la page ne les affichait nulle
+            part. Le marchand lisait donc « Critique · Les frais de livraison
+            n'apparaissent qu'au paiement · +900 € à 1700 €/mois » sans une
+            ligne sur ce qui fondait ce diagnostic ni ce montant. Il ne lui
+            restait qu'à croire — ou à ne pas croire, ce qui est le cas le plus
+            fréquent quand on demande d'agir sur sa propre boutique.
+
+            LES SUPPOSITIONS SONT MONTRÉES AUSSI, ET AU MÊME ENDROIT. Les
+            séparer laisserait la preuve paraître plus solide qu'elle ne l'est.
+            C'est la même règle que partout ailleurs dans le produit : ce qui
+            n'est pas mesuré est dit non mesuré.
+          */}
+          {!compact && preuve && (
+            <div className="mt-3 rounded-lg border border-border/60 bg-background/40 p-3">
+              <div className="flex items-center gap-1 text-xs uppercase text-muted-foreground">
+                <Search className="h-3 w-3" /> Sur quoi nous nous appuyons
+              </div>
+              {preuve.basedOn && <p className="mt-1 text-sm">{preuve.basedOn}</p>}
+              {preuve.assumptions && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Ce que nous supposons : </span>
+                  {preuve.assumptions}
+                </p>
+              )}
             </div>
           )}
           {!compact && finding.impact_description && (

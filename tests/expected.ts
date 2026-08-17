@@ -325,6 +325,18 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
   {
+    file: "ui/rapport-preuve.test.ts",
+    minChecks: 16,
+    covers:
+      "La preuve, à l'écran. `audit_findings.evidence` — `based_on` et `assumptions`, tous deux exigés du modèle et enregistrés pour chaque constat — n'était affichée nulle part : le marchand lisait une gravité, un titre et un montant, et devait modifier sa boutique là-dessus. Toute la rigueur du moteur ne servait à rien tant qu'elle restait invisible. Le contrôle vérifie que la chaîne Observation → Problème → Preuve → Impact → Recommandation reste entière ET dans cet ordre à l'écran, et qu'une preuve absente ne produit ni bloc vide ni « undefined ».",
+  },
+  {
+    file: "ui/rapport-robustesse.test.ts",
+    minChecks: 9,
+    covers:
+      "Le rapport ne tombe pas pour une donnée d'ornement. Deux casts non gardés sur la ressource embarquée `stores(...)` — que PostgREST rend `null` sous RLS ou après suppression — faisaient partir la page entière sur la frontière d'erreur : le marchand perdait son rapport à cause du nom de boutique affiché au-dessus du titre. Le lien de retour passe par `audit.store_id`, déjà utilisé ailleurs sur la même page, et le nom manquant replie le titre au lieu de le casser.",
+  },
+  {
     file: "actions/execution.test.ts",
     minChecks: 60,
     covers:
