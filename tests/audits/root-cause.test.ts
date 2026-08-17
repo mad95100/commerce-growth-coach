@@ -13,7 +13,9 @@ import {
   explain,
   explanationToText,
   fallbackExplanation,
+  isExplained,
 } from "@/lib/plain-language";
+import { OBSERVATION_SOURCES } from "@/lib/observations";
 
 /**
  * UNE CAUSE, UNE ACTION — ET LE PRODUIT QUI PARLE AU MARCHAND.
@@ -221,17 +223,58 @@ export default defineSuite("Audit — causes racines et langage marchand", (t) =
     repli.what,
   );
 
-  // Les explications doivent couvrir les trous que le moteur produit vraiment.
-  const trousReels = [
-    "shopify.sessions_30d",
-    "shopify.product_views_30d",
-    "shopify.conversion_rate",
-    "organic.order_origin",
-    "storefront.reachable",
+  // --- 9 bis. La couverture est RELEVÉE, pas recopiée ---------------------
+  // Une liste écrite à la main ne protège de rien : elle vieillit dès qu'une
+  // source ajoute un trou, et l'oubli passe inaperçu jusqu'à ce qu'un marchand
+  // lise « Non exposé par l'API Admin » sur son écran. On relève donc les
+  // identifiants RÉELLEMENT produits par les sources, dans leur code, et on
+  // exige que chacun ait sa phrase.
+  const racine = new URL("../../", import.meta.url).pathname;
+  const fichiersSources = [
+    "src/lib/connectors/shopify-observe.ts",
+    "src/lib/connectors/shopify-analytics.ts",
+    "src/lib/connectors/meta-observe.ts",
+    "src/lib/connectors/google-observe.ts",
+    "src/lib/connectors/order-attribution.ts",
+    "src/lib/connectors/storefront.ts",
+    "src/lib/connectors/storefront.server.ts",
+    "src/lib/storefront-experience.ts",
   ];
-  for (const id of trousReels) {
-    t.check(`${id} a son explication écrite`, id in EXPLANATIONS, true);
+  // Un trou s'écrit toujours `{ id, label, source?, reason, wouldEnable }` :
+  // l'identifiant est donc le dernier `id:` littéral avant `wouldEnable`.
+  const trousReels = new Set<string>();
+  for (const chemin of fichiersSources) {
+    const src = readFileSync(`${racine}${chemin}`, "utf8");
+    let curseur = 0;
+    for (;;) {
+      const fin = src.indexOf("wouldEnable", curseur);
+      if (fin === -1) break;
+      const avant = src.slice(0, fin);
+      const ids = [...avant.matchAll(/id:\s*"([a-z_]+\.[a-z0-9_]+)"/g)];
+      if (ids.length > 0) trousReels.add(ids[ids.length - 1]![1]!);
+      curseur = fin + 1;
+    }
   }
+  // GARDE-FOU DU RELEVÉ LUI-MÊME. Si la forme du code change et que le relevé
+  // ne trouve plus rien, il déclarerait la couverture parfaite sans avoir rien
+  // vérifié — un test vert qui ne teste plus est pire qu'un test absent.
+  t.check("le relevé trouve bien les trous des sources", trousReels.size >= 20, true);
+  for (const id of [...trousReels].sort()) {
+    t.check(`${id} a son explication écrite`, isExplained(id), true);
+  }
+
+  // Une source entièrement injoignable produit son propre trou, `<source>.
+  // unreachable`, dont le motif de repli — « Source injoignable — aucune donnée
+  // de ce canal » — est le plus opaque de tous. Chaque source doit avoir le sien.
+  for (const source of OBSERVATION_SOURCES) {
+    t.check(`${source} injoignable est expliqué`, isExplained(`${source}.unreachable`), true);
+  }
+
+  // --- 9 ter. L'écran affiche la phrase écrite, pas celle du code ---------
+  const cockpit = readFileSync(`${racine}src/components/Cockpit.tsx`, "utf8");
+  t.check("l'écran traduit le trou", /explain\(gap\.id, gap\.label\)/.test(cockpit), true);
+  t.check("le motif technique n'est plus affiché", /\{gap\.reason\}/.test(cockpit), false);
+  t.check("l'écran dit quoi faire", /Ce qu'il faut faire/.test(cockpit), true);
 
   // --- 10. Le module est branché dans le chemin d'audit -------------------
   const runner = readFileSync(

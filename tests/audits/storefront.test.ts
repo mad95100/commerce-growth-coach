@@ -844,8 +844,14 @@ export default defineSuite("Site public — faits techniques et frontière", asy
   // =========================================================================
   const cockpit = read("src/components/Cockpit.tsx");
   t.check("le cockpit affiche les données manquantes", cockpit.includes("c.dataGaps.map"), true);
-  t.check("avec leur raison", cockpit.includes("gap.reason"), true);
-  t.check("et ce qu'elles permettraient", cockpit.includes("gap.wouldEnable"), true);
+  // AVEC LA PHRASE ÉCRITE POUR LE MARCHAND, PAS CELLE DU CODE. Les motifs
+  // rédigés dans les sources s'adressent au moteur — « Non exposé par l'API
+  // Admin » — et arrivaient tels quels sous les yeux de l'utilisateur. Ils
+  // décrivaient une panne sans jamais dire quoi faire.
+  t.check("traduites pour le marchand", cockpit.includes("explain(gap.id, gap.label)"), true);
+  t.check("le motif interne ne s'affiche plus", cockpit.includes("{gap.reason}"), false);
+  t.check("chacune dit quoi faire", cockpit.includes("Ce qu'il faut faire"), true);
+  t.check("et ce qu'elle ouvrira", cockpit.includes("Ce que cela ouvrira"), true);
   t.check(
     "les manques traversent la fonction serveur",
     read("src/lib/cockpit.functions.ts").includes("dataGaps: gaps"),

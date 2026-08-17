@@ -194,7 +194,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/storefront.test.ts",
-    minChecks: 195,
+    minChecks: 205,
     covers:
       "Le site public tel que le visiteur le reçoit — l'angle mort du moteur, qui diagnostiquait la conversion sans avoir jamais ouvert la page. Un problème technique y reste un FAIT technique : il ne devient une explication de perte que croisé avec Shopify, Meta ou Google, preuve nommée des deux côtés, et un site lent sur une boutique qui convertit bien produit un signal qui interdit d'y voir une cause. Core Web Vitals, rendu mobile et tunnel de commande sont déclarés hors de portée plutôt qu'approchés.",
   },
@@ -224,9 +224,9 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/root-cause.test.ts",
-    minChecks: 130,
+    minChecks: 700,
     covers:
-      "Une cause, une action — et le produit qui parle au marchand. Les règles voient des fiches sans description, l'expérience voit une page sans promesse, le client cible voit un prix sans argument : trois constats justes, un seul problème. Les livrer séparément produit un rapport qu'on abandonne à la troisième ligne. Une cause ne se forme jamais sur un symptôme isolé, ses preuves sont exactement l'union de celles de ses symptômes, son niveau de certitude est celui du MOINS certain d'entre eux — sinon un « à vérifier » sortirait promu par le simple fait d'être accompagné — et aucun symptôme n'est rattaché deux fois. Couvre aussi la traduction en langage marchand : quatorze mots du moteur sont interdits un par un dans chaque explication, et une donnée absente dit toujours ce qui manque, pourquoi, quoi faire et ce que cela ouvrira.",
+      "Une cause, une action — et le produit qui parle au marchand. Les règles voient des fiches sans description, l'expérience voit une page sans promesse, le client cible voit un prix sans argument : trois constats justes, un seul problème. Les livrer séparément produit un rapport qu'on abandonne à la troisième ligne. Une cause ne se forme jamais sur un symptôme isolé, ses preuves sont exactement l'union de celles de ses symptômes, son niveau de certitude est celui du MOINS certain d'entre eux — sinon un « à vérifier » sortirait promu par le simple fait d'être accompagné — et aucun symptôme n'est rattaché deux fois. Couvre aussi la traduction en langage marchand : quatorze mots du moteur sont interdits un par un dans chaque explication, et une donnée absente dit toujours ce qui manque, pourquoi, quoi faire et ce que cela ouvrira. La couverture n'est plus recopiée à la main mais RELEVÉE dans le code des sources — une liste écrite vieillit dès qu'une source ajoute un trou, et l'oubli se lit alors sur l'écran d'un marchand sous la forme « Non exposé par l'API Admin ».",
   },
   {
     file: "audits/storefront-experience.test.ts",

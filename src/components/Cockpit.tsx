@@ -9,6 +9,7 @@ import { ScoreRing } from "@/components/ScoreRing";
 import { BriefingCard } from "@/components/BriefingCard";
 import { FunnelView } from "@/components/FunnelView";
 import { WORK_STATE_LABELS, type WorkState } from "@/lib/briefing";
+import { explain } from "@/lib/plain-language";
 import {
   CATEGORY_LABELS,
   CONFIDENCE_LABELS,
@@ -217,26 +218,41 @@ export function Cockpit({ storeId }: { storeId: string }) {
 
       {/* CE QUE JE N'AI PAS PU MESURER.
           Sans cette liste, un rapport se lit comme une couverture complète, et
-          un sujet absent passe pour un sujet sain. Les Core Web Vitals, le
-          rendu mobile réel et le tunnel de commande figurent ici en clair :
-          ils ne sont pas mesurables depuis un serveur, et les approcher
-          produirait exactement les chiffres inventés qu'on s'interdit. */}
+          un sujet absent passe pour un sujet sain. Les mesures de vitesse
+          ressentie, le rendu mobile réel et le tunnel de commande figurent ici
+          en clair : ils ne sont pas mesurables depuis un serveur, et les
+          approcher produirait exactement les chiffres inventés qu'on s'interdit.
+
+          CE QUI S'AFFICHE N'EST PLUS LE TEXTE DU CODE. Les sources écrivent
+          leur motif pour le moteur — « L'API Admin de Shopify n'expose pas le
+          trafic : il vit dans l'API Analytics » — et ce motif arrivait tel quel
+          sous les yeux du marchand. Il y lisait une panne dont il ne pouvait
+          rien faire, et surtout : AUCUNE de ces lignes ne disait quoi faire.
+          C'est le troisième élément qui change tout — sans lui, une donnée
+          absente est une plainte ; avec lui, c'est une prochaine étape. */}
       {c.dataGaps.length > 0 && (
         <details className="rounded-2xl border border-border/60 bg-card/50 p-6">
           <summary className="cursor-pointer text-xs uppercase tracking-wider text-muted-foreground">
             <HelpCircle className="mr-2 inline h-4 w-4" />
             Ce que je n'ai pas pu mesurer ({c.dataGaps.length})
           </summary>
-          <ul className="mt-4 space-y-3">
-            {c.dataGaps.map((gap) => (
-              <li key={gap.id} className="border-l-2 border-border pl-4">
-                <p className="text-sm font-medium">{gap.label}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{gap.reason}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Ce que cela permettrait : {gap.wouldEnable}
-                </p>
-              </li>
-            ))}
+          <ul className="mt-4 space-y-4">
+            {c.dataGaps.map((gap) => {
+              const e = explain(gap.id, gap.label);
+              return (
+                <li key={gap.id} className="border-l-2 border-border pl-4">
+                  <p className="text-sm font-medium">{e.what}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{e.why}</p>
+                  <p className="mt-2 text-sm">
+                    <span className="font-medium">Ce qu'il faut faire :</span>{" "}
+                    <span className="text-muted-foreground">{e.how}</span>
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Ce que cela ouvrira : {e.unlocks}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         </details>
       )}
