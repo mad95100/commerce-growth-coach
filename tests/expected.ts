@@ -325,6 +325,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
   {
+    file: "ui/page-accueil.test.ts",
+    minChecks: 20,
+    covers:
+      "La vitrine parle comme le produit. La page d'accueil vendait « Cash récupéré », « Pas de blabla », « Chaque jour sans audit = de l'argent qui part » ; l'application, elle, dit « Nous n'avons pas cette donnée » et « ce n'est pas un potentiel nul, c'est un potentiel non mesuré ». Deux personnalités pour un seul produit — et le visiteur recruté par la première lit la seconde comme un recul, alors que la prudence EST le produit. Pire : la carte de démonstration affichait « Vous laissez ~2 400 €/mois » sans dire que le chiffre était inventé, sur la page d'un outil dont l'argument est de n'avancer aucun chiffre injustifiable. Chaque promesse de la vitrine est désormais reliée au code qui la tient.",
+  },
+  {
     file: "ui/page-boutique.test.ts",
     minChecks: 18,
     covers:
