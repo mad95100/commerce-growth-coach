@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
+import { auditFailureText, canRetryNow } from "@/lib/audit-errors";
 import { updateFindingStatus, generateFix, processAudit, getAuditJob } from "@/lib/audit.functions";
 import {
   proposeFix,
@@ -328,15 +329,38 @@ function AuditPage() {
           </p>
           {jobQ.data?.lastError && jobQ.data.state === "queued" && (
             <p className="mt-3 max-w-md text-xs text-muted-foreground">
-              Une première tentative a échoué ({jobQ.data.lastError}). L'audit est repris
-              automatiquement.
+              Une première tentative n'a pas abouti. Nous réessayons automatiquement, sans que cela
+              vous coûte un audit.
             </p>
           )}
         </div>
       ) : audit.status === "failed" ? (
+        /*
+          LE MESSAGE TECHNIQUE N'EST PLUS AFFICHÉ. Il disait, mot pour mot :
+          « AI Gateway 404: models/gemini-2.5-pro is no longer available to new
+          users. Please update your code to use a newer model. » Le marchand y
+          lisait qu'on lui demandait de programmer, pour une panne qui venait de
+          NOTRE configuration. Il reste en base et dans les journaux, où il sert
+          à qui peut agir dessus.
+        */
         <div className="card-elevated rounded-2xl p-8">
-          <h1 className="font-display text-xl font-bold text-destructive">Audit échoué</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{audit.error_message}</p>
+          <h1 className="font-display text-xl font-bold">Cet audit n'a pas abouti</h1>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            {auditFailureText(audit.error_message)}
+          </p>
+          {canRetryNow(audit.error_message) ? (
+            <Link to="/stores/$storeId" params={{ storeId: audit.store_id }}>
+              <Button className="mt-6">Relancer un audit</Button>
+            </Link>
+          ) : (
+            /* Proposer « Relancer » sur une panne qui exige une reconnexion
+               enverrait le marchand échouer une seconde fois. */
+            <Link to="/stores/$storeId" params={{ storeId: audit.store_id }}>
+              <Button variant="outline" className="mt-6">
+                Aller aux réglages de la boutique
+              </Button>
+            </Link>
+          )}
         </div>
       ) : (
         <>
