@@ -71,7 +71,7 @@ export function FunnelView({ funnel, className }: { funnel: Funnel; className?: 
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Je n'ai pas cette donnée. Je n'ai donc pas cherché de fuite autour de cette étape
-                  : je ne veux pas t'attribuer une perte dont je ne sais rien.
+                  : je ne veux pas vous attribuer une perte dont je ne sais rien.
                 </p>
               </div>
             );

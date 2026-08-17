@@ -151,6 +151,16 @@ export default defineSuite("Interface — une seule voix", (t) => {
       const trouvé = new RegExp(`(?:^|[.!?:»"'\`(>{])\\s*${verbe}(?![\\p{L}])`, "mu").test(contenu);
       t.check(`${chemin} n'ouvre pas une phrase par « ${verbe} »`, trouvé, false);
     }
+    // LE PRONOM ÉLIDÉ. « t'attribuer », « qui t'appartient » : le pronom
+    // disparaît derrière son apostrophe et échappait aux deux contrôles
+    // ci-dessus. Deux phrases sont passées en production ainsi. Le « t' » n'a
+    // pas d'autre emploi en français que la deuxième personne du singulier,
+    // donc aucune ambiguïté à craindre ici.
+    t.check(
+      `${chemin} n'emploie pas « t' »`,
+      /(^|[^\p{L}])t['’][aeiouéèêàhy]/iu.test(contenu),
+      false,
+    );
   }
 
   // Les écrans les plus lus disent bien « vous » — un fichier peut passer le

@@ -231,7 +231,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
         label: "Guider la correction",
         why:
           move.reason ??
-          "Cette correction n'est pas automatisable : elle demande une décision qui t'appartient.",
+          "Cette correction n'est pas automatisable : elle demande une décision qui vous appartient.",
         steps,
         writes: false,
       };
