@@ -241,6 +241,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le client cible, DÉDUIT de la boutique et jamais demandé au marchand — celui qui débute ne sait pas ce qu'est un avatar, celui qui croit le savoir décrit celui qu'il aimerait avoir. Sans signal, aucun portrait : il n'existe pas de client par défaut. La confiance est calculée depuis le nombre de signaux et plafonnée tant qu'aucune vente ne la corrobore, parce qu'une vitrine dit ce qu'on veut vendre et les commandes ce qu'on vous achète. Aucun trait démographique n'est inventé — ni âge, ni sexe, ni catégorie — et une donnée inconnue ne produit jamais d'incohérence. Le même fait n'a pas la même gravité selon le public : l'absence d'avis alerte sur du premium, pas sur de l'entrée de gamme.",
   },
   {
+    file: "ui/multi-store.test.ts",
+    minChecks: 24,
+    covers:
+      "Plusieurs boutiques sur un même compte. Le cockpit affichait TOUJOURS la première, sans dire laquelle : un marchand qui en gère deux lisait des chiffres sans savoir à quoi ils se rapportaient, et n'avait aucun moyen d'en changer. Le choix vit désormais dans l'adresse — un état local se perdrait au rechargement — et un identifiant de signet périmé retombe sur une boutique réelle. Couvre aussi la suppression, qui n'existait pas : une boutique ajoutée par erreur restait indéfiniment, comptée dans les quotas et reprise par le cron. Elle emporte onze tables en cascade, d'où le nom à retaper — qui protège du clic distrait, pas d'un attaquant.",
+  },
+  {
     file: "ui/auth.test.ts",
     minChecks: 55,
     covers:

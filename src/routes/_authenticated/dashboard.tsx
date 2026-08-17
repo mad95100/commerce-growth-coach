@@ -1,5 +1,6 @@
 import { formatMoney } from "@/lib/currency";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell, EmptyState, ErrorState } from "@/components/AppShell";
@@ -10,6 +11,9 @@ import { Cockpit } from "@/components/Cockpit";
 import { useEffect } from "react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
+  // La boutique regardée vit dans l'adresse : le marchand peut la mettre en
+  // signet, et un rechargement ne le renvoie pas ailleurs.
+  validateSearch: z.object({ store: z.string().uuid().optional() }),
   head: () => ({
     meta: [
       { title: "Tableau de bord — EcomPilot AI" },
@@ -32,6 +36,18 @@ function Dashboard() {
       return data;
     },
   });
+
+  /**
+   * La boutique regardée.
+   *
+   * L'identifiant de l'adresse ne vient pas de nous : il est vérifié contre la
+   * liste réellement chargée. Un identifiant inconnu — signet périmé, boutique
+   * supprimée — retombe donc sur la première plutôt que d'afficher un cockpit
+   * vide sans explication.
+   */
+  const search = Route.useSearch();
+  const activeStore = storesQ.data?.find((s) => s.id === search.store) ??
+    storesQ.data?.[0] ?? { id: "", name: "" };
 
   useEffect(() => {
     // Uniquement sur un succès qui rend zéro boutique. Sur erreur, `data` est
@@ -56,9 +72,39 @@ function Dashboard() {
         </Link>
       </div>
 
+      {/*
+        LE COCKPIT MONTRAIT TOUJOURS LA PREMIÈRE BOUTIQUE, sans dire laquelle.
+        Avec plusieurs boutiques, le marchand lisait donc des chiffres sans
+        savoir à quoi ils se rapportaient — et n'avait aucun moyen d'en changer.
+        Le pire des deux mondes : ni une vue d'ensemble, ni une vue choisie.
+
+        Le choix est conservé dans l'adresse, pas dans un état local : le
+        marchand peut ainsi mettre en signet la boutique qu'il regarde, et un
+        rechargement ne le renvoie pas ailleurs.
+      */}
       {storesQ.data && storesQ.data.length > 0 && (
         <div className="mb-10">
-          <Cockpit storeId={storesQ.data[0]!.id} />
+          {storesQ.data.length > 1 && (
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground">Boutique :</span>
+              {storesQ.data.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => void navigate({ to: "/dashboard", search: { store: s.id } })}
+                  aria-current={s.id === activeStore.id ? "true" : undefined}
+                  className={`rounded-full px-3 py-1 text-sm transition-colors ${
+                    s.id === activeStore.id
+                      ? "bg-primary/10 font-medium text-primary"
+                      : "text-muted-foreground hover:bg-accent/10 hover:text-foreground"
+                  }`}
+                >
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <Cockpit storeId={activeStore.id} />
         </div>
       )}
 

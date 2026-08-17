@@ -15,6 +15,7 @@ import {
   type StoreSituation,
 } from "@/lib/store-profile";
 import { runAudit } from "@/lib/audit.functions";
+import { deleteStore } from "@/lib/stores.functions";
 import { toast } from "sonner";
 import { useState } from "react";
 import {
@@ -121,7 +122,7 @@ function StorePage() {
         <StoreEconomicsCard key={store.id} store={store} />
       </div>
 
-      <div className="mt-8">
+      <div className="mt-8 space-y-8">
         <ConnectionsPanel storeId={store.id} storeUrl={store.url} />
 
         {/* L'ÉVOLUTION, à côté des connexions. C'est la question que le
@@ -217,6 +218,8 @@ function StorePage() {
           </div>
         )}
       </div>
+
+      <DangerZone storeId={store.id} storeName={store.name} />
     </AppShell>
   );
 }
@@ -230,6 +233,106 @@ type EconomicsStore = {
   avg_product_cost_ratio: number | null;
   fixed_costs_monthly: number | null;
 };
+
+/**
+ * SUPPRIMER LA BOUTIQUE. La seule action irréversible du produit.
+ *
+ * POURQUOI ELLE MANQUAIT, ET CE QUE CELA COÛTAIT. Rien ne permettait de retirer
+ * une boutique : ajoutée par erreur ou devenue inutile, elle restait
+ * indéfiniment, occupait la liste, comptait dans les quotas et continuait
+ * d'être reprise par le traitement périodique. Le seul recours était de nous
+ * écrire.
+ *
+ * POURQUOI RETAPER LE NOM. La suppression emporte tout l'historique — audits,
+ * constats, mesures, connexions — par cascade en base. Une confirmation à un
+ * clic serait déclenchée par accident un jour ou l'autre, et il n'y aurait rien
+ * à restaurer. Retaper le nom ne protège pas d'un attaquant, qui le connaît :
+ * cela protège du geste distrait, qui est le risque réel.
+ */
+function DangerZone({ storeId, storeName }: { storeId: string; storeName: string }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const remove = useServerFn(deleteStore);
+  const [open, setOpen] = useState(false);
+  const [saisie, setSaisie] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const correspond = saisie.trim().toLowerCase() === storeName.trim().toLowerCase();
+
+  async function handleDelete() {
+    setBusy(true);
+    try {
+      const res = await remove({ data: { storeId, confirmation: saisie } });
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      // Les listes en cache contiennent encore la boutique effacée : les vider
+      // évite qu'elle réapparaisse une seconde sur le tableau de bord.
+      await queryClient.invalidateQueries();
+      toast.success("Boutique supprimée.");
+      navigate({ to: "/dashboard" });
+    } catch {
+      toast.error("La suppression n'a pas abouti. Réessayez dans un instant.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-8 rounded-2xl border border-destructive/30 p-6">
+      <h2 className="font-display text-lg font-bold">Supprimer cette boutique</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Tout l'historique de cette boutique sera effacé : audits, recommandations, mesures et
+        connexions. Cette action est définitive et nous ne pourrons rien restaurer.
+      </p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        La suppression retire notre accès à vos données. Pour retirer aussi l'application depuis
+        votre administration Shopify, faites-le de votre côté : nous ne pouvons pas la désinstaller
+        à votre place.
+      </p>
+
+      {!open ? (
+        <Button variant="outline" className="mt-4" onClick={() => setOpen(true)}>
+          Supprimer la boutique
+        </Button>
+      ) : (
+        <div className="mt-4 space-y-3">
+          <label htmlFor="confirm-suppression" className="block text-sm">
+            Pour confirmer, saisissez le nom de la boutique : <strong>{storeName}</strong>
+          </label>
+          <input
+            id="confirm-suppression"
+            value={saisie}
+            onChange={(e) => setSaisie(e.target.value)}
+            placeholder={storeName}
+            autoComplete="off"
+            className="w-full max-w-sm rounded-lg border border-border/50 bg-background px-3 py-2 text-sm"
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="destructive"
+              disabled={!correspond || busy}
+              onClick={() => void handleDelete()}
+            >
+              {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Supprimer définitivement
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setOpen(false);
+                setSaisie("");
+              }}
+            >
+              Annuler
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Édition du profil économique d'une boutique déjà créée. */
 function StoreEconomicsCard({ store }: { store: EconomicsStore }) {
