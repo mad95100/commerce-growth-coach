@@ -22,7 +22,14 @@ export const startGoogleAdsConnect = createServerFn({ method: "POST" })
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
-      throw new Error("GOOGLE_CLIENT_ID non configuré. Ajoutez les clés Google dans les secrets.");
+      // Voir `meta.functions.ts` : la variable manquante va au journal, la
+      // phrase dit au marchand que la cause est chez nous et qu'il n'a rien à
+      // faire. Lui demander d'ajouter un secret auquel il n'a pas accès le
+      // laisse chercher une panne qui n'est pas la sienne.
+      console.error("[Google OAuth] GOOGLE_CLIENT_ID absent des secrets du worker.");
+      throw new Error(
+        "La connexion Google Ads n'est pas encore ouverte sur ce produit. Rien à faire de votre côté : il nous reste à la brancher. Vos autres connexions et votre diagnostic ne sont pas affectés.",
+      );
     }
 
     const { signOAuthState } = await import("@/lib/crypto.server");

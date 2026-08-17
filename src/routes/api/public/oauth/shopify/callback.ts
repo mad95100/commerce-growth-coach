@@ -36,10 +36,18 @@ export const Route = createFileRoute("/api/public/oauth/shopify/callback")({
           const clientId = process.env.SHOPIFY_CLIENT_ID;
           const clientSecret = process.env.SHOPIFY_CLIENT_SECRET;
           if (!clientId || !clientSecret) {
+            // Le nom de la variable va au journal — c'est là qu'on le cherche.
+            // La page, elle, est lue par le marchand : lui nommer un secret de
+            // serveur ne lui apprend rien qu'il puisse utiliser, et le laisse
+            // croire qu'il a mal fait quelque chose au moment précis où il vient
+            // de nous confier l'accès à sa boutique.
+            console.error(
+              "[Shopify OAuth] SHOPIFY_CLIENT_ID ou SHOPIFY_CLIENT_SECRET absent des secrets du worker.",
+            );
             return htmlResponse(
               errorBody(
-                "Configuration serveur incomplète",
-                "SHOPIFY_CLIENT_ID ou SHOPIFY_CLIENT_SECRET manque côté serveur.",
+                "Connexion Shopify indisponible",
+                "Le raccordement à Shopify n'est pas complet de notre côté : nous ne pouvons pas terminer l'autorisation pour l'instant. Rien n'a été enregistré et votre boutique n'a pas été modifiée. Réessayez plus tard — la correction ne dépend que de nous.",
               ),
               500,
             );

@@ -181,6 +181,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Historique des migrations : versions uniques et ordonnées, durcissement RLS rejouable sans dommage, et déploiement qui annonce ce qu'il applique. Un décalage d'une seconde avait fait rejouer la migration initiale.",
   },
   {
+    file: "ui/messages-au-marchand.test.ts",
+    minChecks: 25,
+    covers:
+      "Aucun message atteignant le marchand ne le renvoie à un secret de serveur : les pages d'erreur OAuth lui demandaient de vérifier SHOPIFY_CLIENT_SECRET, et le bouton de connexion Meta d'ajouter META_CLIENT_ID « dans les secrets » — une action impossible, au moment où il vient de confier l'accès à sa boutique. Le nom est déplacé au journal, pas supprimé.",
+  },
+  {
     file: "billing/affichage-quota.test.ts",
     minChecks: 20,
     covers:

@@ -24,7 +24,16 @@ export const startMetaConnect = createServerFn({ method: "POST" })
 
     const clientId = process.env.META_CLIENT_ID;
     if (!clientId) {
-      throw new Error("META_CLIENT_ID non configuré. Ajoutez les clés Meta dans les secrets.");
+      // LA VARIABLE MANQUANTE VA AU JOURNAL, PAS AU MARCHAND. Ce message
+      // remonte tel quel dans une notification de l'interface : il lui
+      // demandait d'ajouter `META_CLIENT_ID` « dans les secrets », c'est-à-dire
+      // d'aller faire une chose à laquelle il n'a aucun accès. Il cherche,
+      // s'accuse, et finit par croire que son compte publicitaire est en cause.
+      // La cause est chez nous, et la phrase doit le dire.
+      console.error("[Meta OAuth] META_CLIENT_ID absent des secrets du worker.");
+      throw new Error(
+        "La connexion Meta n'est pas encore ouverte sur ce produit. Rien à faire de votre côté : il nous reste à la brancher. Vos autres connexions et votre diagnostic ne sont pas affectés.",
+      );
     }
 
     const { signOAuthState } = await import("@/lib/crypto.server");
