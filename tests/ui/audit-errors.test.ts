@@ -6,6 +6,7 @@ import {
   classifyAuditFailure,
   explainAuditFailure,
 } from "@/lib/audit-errors";
+import { readAudience, readCauses } from "@/lib/audit-narrative";
 
 /**
  * CE QUE LE MARCHAND LIT QUAND SON AUDIT ÉCHOUE.
@@ -121,7 +122,89 @@ export default defineSuite("Interface — échecs d'audit expliqués", (t) => {
     true,
   );
 
-  // --- 5. Le message technique reste enregistré ---------------------------
+  // --- 5. Le raisonnement du moteur est VISIBLE ---------------------------
+  // Le portrait du client cible et les causes racines étaient calculés à chaque
+  // audit, transmis au modèle, puis perdus. Ils influençaient le texte sans
+  // jamais être montrés : le marchand lisait les conclusions sans voir le
+  // raisonnement qui les produit — la différence exacte entre un consultant et
+  // un générateur de conseils.
+  t.check("le rapport affiche le raisonnement", /<AuditNarrative/.test(page), true);
+  t.check("il lit le portrait conservé", /readAudience\(audit\.audience\)/.test(page), true);
+  t.check("il lit les causes conservées", /readCauses\(audit\.root_causes\)/.test(page), true);
+
+  const narratif = read("src/components/AuditNarrative.tsx");
+  // LE POURCENTAGE DE CONFIANCE EST À CÔTÉ DU TITRE. Un lecteur qui ne le
+  // verrait pas lirait une déduction comme un fait, et déciderait dessus.
+  t.check(
+    "le portrait est annoncé comme une hypothèse",
+    /hypothèse — \{audience\.confidence\} % de confiance/.test(narratif),
+    true,
+  );
+  t.check(
+    "un signal d'achat se distingue d'un signal d'affichage",
+    /s\.proven \? "vos ventes" : "votre site"/.test(narratif),
+    true,
+  );
+  t.check(
+    "ce qui manque pour affiner est dit",
+    /Ce qui affinerait ce portrait/.test(narratif),
+    true,
+  );
+  // Les causes doivent expliquer POURQUOI elles sont regroupées, sinon elles
+  // ressemblent à une liste de plus.
+  t.check(
+    "le regroupement est justifié au marchand",
+    /viennent du même problème/.test(narratif),
+    true,
+  );
+  // Un audit sans ces données ne doit rien afficher plutôt qu'un cadre vide.
+  t.check(
+    "rien n'est affiché sans données",
+    /if \(!audience && causes\.length === 0\) return null;/.test(narratif),
+    true,
+  );
+  // Une valeur illisible en base ne fait pas tomber la page. Vérifié en
+  // APPELANT la relecture, pas en cherchant sa garde dans le source : c'est le
+  // comportement qui protège la page, pas la présence d'une ligne.
+  t.check("un portrait absent rend null", readAudience(null), null);
+  t.check("un portrait qui n'est pas un objet rend null", readAudience("premium"), null);
+  t.check("un portrait sans énoncé rend null", readAudience({ confidence: 70 }), null);
+  // SANS POURCENTAGE, PAS DE PORTRAIT : l'écran affiche la confiance à côté du
+  // titre. Un portrait sans elle s'afficherait comme un fait établi.
+  t.check("un portrait sans confiance rend null", readAudience({ segment: "Des skieurs" }), null);
+  const relu = readAudience({ segment: "Des skieurs", confidence: 40 });
+  t.check("un portrait minimal est relu", relu?.segment, "Des skieurs");
+  t.check("sa confiance est conservée", relu?.confidence, 40);
+  t.check("ses listes manquantes deviennent vides", relu?.signals.length, 0);
+  t.check("une gamme illisible ne devient pas un texte", relu?.tier, null);
+  // Les causes : ce qui n'a pas de titre ne s'affiche pas, mais ne fait pas
+  // disparaître les autres.
+  t.check("des causes absentes rendent une liste vide", readCauses(undefined).length, 0);
+  t.check(
+    "une cause sans titre est écartée sans perdre les autres",
+    readCauses([{ id: "a" }, { id: "b", title: "Confiance insuffisante" }]).length,
+    1,
+  );
+  // Aucun mot du moteur à l'écran. On juge le TEXTE AFFICHÉ, pas les
+  // commentaires : ceux-ci expliquent le raisonnement à qui lit le code, et
+  // c'est précisément là que le vocabulaire interne a sa place. Sans ce
+  // retrait, la suite interdirait de documenter le module qu'elle protège.
+  const affiche = narratif.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+  for (const mot of ["cause racine", "symptôme", "avatar", "observation", "scoring"]) {
+    t.check(`le rapport n'emploie pas « ${mot} »`, affiche.toLowerCase().includes(mot), false);
+  }
+
+  // Le moteur écrit bien ce que l'écran relit.
+  const runner = read("src/lib/audit-runner.server.ts");
+  t.check("le portrait est enregistré avec l'audit", /audience: audience/.test(runner), true);
+  const migration = read("supabase/migrations/20260817120000_audit_audience.sql");
+  t.check(
+    "la colonne du portrait est créée",
+    /ADD COLUMN IF NOT EXISTS audience jsonb/.test(migration),
+    true,
+  );
+
+  // --- 6. Le message technique reste enregistré ---------------------------
   // Il ne doit pas être perdu : il sert à qui peut agir dessus.
   const jobs = read("src/lib/audit-jobs.server.ts");
   t.check("l'erreur technique est toujours stockée", /error_message: message/.test(jobs), true);

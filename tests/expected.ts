@@ -242,7 +242,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "ui/audit-errors.test.ts",
-    minChecks: 130,
+    minChecks: 145,
     covers:
       "Ce que le marchand lit quand son audit échoue. Le message technique s'affichait tel quel — « AI Gateway 404: models/gemini-2.5-pro is no longer available. Please update your code » — et le marchand y lisait qu'on lui demandait de programmer, pour une panne venant de NOTRE configuration. Neuf familles sont traduites, chacune répondant aux deux seules questions qui comptent : est-ce que cela vient de moi ou d'eux, et qu'est-ce que je fais maintenant. Aucun code d'erreur ni mot anglais ne passe, le bouton proposé dépend de la panne — « Relancer » sur un jeton expiré enverrait échouer une seconde fois — et le message technique reste en base pour qui peut agir dessus.",
   },

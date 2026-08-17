@@ -572,6 +572,25 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
   // `measured` est la valeur décisive : sans elle, un axe perdu de vue entre
   // deux passages se lirait comme une dégradation.
   const enrichissement = {
+    // Le portrait du client cible, conservé plutôt que perdu après le prompt :
+    // c'est le raisonnement le plus distinctif du produit, et le marchand ne le
+    // voyait jamais.
+    audience: audience
+      ? {
+          segment: audience.segment,
+          tier: audience.tier,
+          confidence: audience.confidence,
+          priceSensitivity: audience.priceSensitivity,
+          signals: audience.signals.map((s) => ({
+            evidence: s.evidence,
+            reading: s.reading,
+            proven: s.proven,
+          })),
+          motivations: audience.motivations,
+          objections: audience.objections,
+          missing: audience.missing,
+        }
+      : null,
     root_causes: causes.map((c) => ({
       id: c.id,
       title: c.title,
