@@ -241,6 +241,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le client cible, DÉDUIT de la boutique et jamais demandé au marchand — celui qui débute ne sait pas ce qu'est un avatar, celui qui croit le savoir décrit celui qu'il aimerait avoir. Sans signal, aucun portrait : il n'existe pas de client par défaut. La confiance est calculée depuis le nombre de signaux et plafonnée tant qu'aucune vente ne la corrobore, parce qu'une vitrine dit ce qu'on veut vendre et les commandes ce qu'on vous achète. Aucun trait démographique n'est inventé — ni âge, ni sexe, ni catégorie — et une donnée inconnue ne produit jamais d'incohérence. Le même fait n'a pas la même gravité selon le public : l'absence d'avis alerte sur du premium, pas sur de l'entrée de gamme.",
   },
   {
+    file: "ui/auth.test.ts",
+    minChecks: 55,
+    covers:
+      "Le premier écran, celui qu'on ne voit qu'une fois. L'inscription annonçait « Compte créé ! » puis envoyait sur une page protégée — y compris quand Supabase exige une confirmation par e-mail et ne rend aucune session : la page renvoyait vers la connexion, qui refusait le compte tout juste créé, et l'utilisateur bouclait avec un message de succès en mémoire. La session est désormais LUE avant toute navigation. Vérifie aussi que les erreurs anglaises de Supabase sont traduites avec le geste suivant, qu'un mot de passe faux ne révèle jamais si le compte existe, que la récupération de mot de passe existe — sans elle un utilisateur était enfermé dehors définitivement — et que le mot de passe peut être vérifié à l'œil.",
+  },
+  {
     file: "ui/states.test.ts",
     minChecks: 24,
     covers:
