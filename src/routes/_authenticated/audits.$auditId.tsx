@@ -369,13 +369,28 @@ function AuditPage() {
           {/* Hero */}
           <div className="card-elevated rounded-2xl p-8">
             <div className="flex flex-col items-center gap-6 md:flex-row md:text-left">
-              <ScoreRing score={audit.score ?? 0} size={140} />
+              <ScoreRing score={audit.score} size={140} />
               <div className="flex-1">
                 <div className="text-xs uppercase tracking-wider text-muted-foreground">
                   Score global — {(audit.stores as { name: string }).name}
                 </div>
                 <h1 className="mt-1 font-display text-3xl font-bold">{audit.verdict}</h1>
                 <p className="mt-3 text-muted-foreground">{audit.summary}</p>
+                {/*
+                  POURQUOI IL N'Y A PAS DE NOTE, DIT À CÔTÉ DE L'ANNEAU VIDE.
+                  Une note absente sans explication se lit comme une panne, et
+                  le marchand conclut que l'audit a raté. La phrase transforme
+                  un manque en information : ce n'est pas nous qui n'avons pas
+                  su, c'est la boutique qui n'a pas encore de quoi être notée.
+                */}
+                {audit.score === null && (
+                  <p className="mt-3 rounded-lg bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground">
+                    Trop peu de points ont pu être mesurés sur cette boutique pour qu'une note
+                    d'ensemble veuille dire quelque chose. Une note calculée sur trois sujets sur
+                    dix parlerait surtout de ce que nous avons réussi à regarder. Les constats
+                    ci-dessous, eux, sont établis et restent valables.
+                  </p>
+                )}
                 {totalGainMax > 0 && (
                   <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-2 text-sm text-success">
                     <Zap className="h-4 w-4" />

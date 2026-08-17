@@ -157,6 +157,35 @@ export default defineSuite("Produit — les promesses faites au marchand sont te
   t.check("et dit quoi faire à la place", /à la main dans votre compte/.test(nonAnnulable), true);
 
   // =========================================================================
+  // 3 bis. UNE ABSENCE DE NOTE N'EST PAS UN ZÉRO
+  // =========================================================================
+  // La page passait `audit.score ?? 0` : une boutique dont trop peu d'axes
+  // avaient pu être mesurés s'affichait 0/100 EN ROUGE — le verdict le plus dur
+  // du produit, rendu sur un sujet dont nous n'avions rien dit. C'est la
+  // symétrie exacte de « Conversion 100/100 » : là on flattait le vide, ici on
+  // le condamnait. Les deux viennent du même geste : remplacer une absence par
+  // un nombre.
+  const anneau = lire("src/components/ScoreRing.tsx");
+  t.check("l'anneau accepte l'absence de note", /score: number \| null/.test(anneau), true);
+  t.check("il l'affiche comme telle", /non noté/.test(anneau), true);
+  t.check(
+    "et sans couleur de jugement",
+    /const color = !noté/.test(sansCommentaires(anneau)),
+    true,
+  );
+  const rapport = lire("src/routes/_authenticated/audits.$auditId.tsx");
+  t.check(
+    "le rapport ne remplace plus l'absence par un zéro",
+    /audit\.score \?\? 0/.test(rapport),
+    false,
+  );
+  t.check(
+    "et il dit pourquoi il n'y a pas de note",
+    /Trop peu de points ont pu être mesurés/.test(rapport),
+    true,
+  );
+
+  // =========================================================================
   // 4. « Rien n'a encore été modifié » — l'aperçu ne passe pas par l'écriture
   // =========================================================================
   // L'aperçu affiche cette phrase sous le bouton. Elle n'est vraie que si la
