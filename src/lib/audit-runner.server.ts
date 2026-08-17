@@ -6,6 +6,12 @@ import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
 import { analyse as analyseRules, rulesToPromptBlock } from "@/lib/audit-rules";
+import {
+  audienceInputFrom,
+  audienceToPromptBlock,
+  deduceAudience,
+  findIncoherences,
+} from "@/lib/audience";
 import { assessDiagnostics, diagnosticsToPromptBlock } from "@/lib/diagnostics";
 import { crossSignals, crossSignalsToPromptBlock } from "@/lib/cross-source";
 import { anchorGainsOnLeak, buildFunnel, funnelToPromptBlock } from "@/lib/funnel";
@@ -75,6 +81,8 @@ export async function executeAuditWork(input: {
   const reports: SourceReport[] = [];
   /** Adresses où des commandes ont réellement atterri, à vérifier sur le site. */
   let landings: Array<{ path: string; orders: number }> = [];
+  /** Titres et descriptions, pour lire le vocabulaire adressé au client. */
+  let productTexts: string[] = [];
   try {
     const { loadChannelCredentials } = await import("@/lib/tracking.server");
     const creds = await loadChannelCredentials(supabase, store.id);
@@ -89,6 +97,7 @@ export async function executeAuditWork(input: {
       );
       reports.push(shopifyReports.shopify, shopifyReports.organic);
       landings = shopifyReports.landings;
+      productTexts = shopifyReports.productTexts;
     }
     if (creds.meta) {
       const { fetchMetaObservations } = await import("@/lib/connectors/meta-observe.server");
@@ -212,6 +221,15 @@ export async function executeAuditWork(input: {
     currency: storeCurrency,
   });
 
+  // LE CLIENT CIBLE, DÉDUIT — JAMAIS DEMANDÉ. Le marchand qui débute ne sait
+  // pas ce qu'est un avatar client, et celui qui croit le savoir décrit celui
+  // qu'il aimerait avoir. Sa boutique, elle, dit déjà à qui elle s'adresse :
+  // prix, vocabulaire, preuves présentes ou absentes. On le lit plutôt que de
+  // le réclamer, et on transmet le portrait avec son degré de certitude.
+  const audienceInput = audienceInputFrom(allObservations(reports), productTexts, storeCurrency);
+  const audience = deduceAudience(audienceInput);
+  const incoherences = audience ? findIncoherences(audience, audienceInput) : [];
+
   const userPrompt = `Voici les infos de la boutique à auditer :
 
 - Nom : ${store.name}
@@ -235,6 +253,8 @@ ${observationsToPromptBlock(reports)}
 ${diagnosticsToPromptBlock(availability, allGaps(reports))}
 
 ${rulesToPromptBlock(ruleReport)}
+
+${audienceToPromptBlock(audience, incoherences)}
 
 ${funnelToPromptBlock(funnel)}
 

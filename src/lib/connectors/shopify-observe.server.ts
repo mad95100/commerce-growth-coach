@@ -43,6 +43,15 @@ export type ShopifyReports = {
    * permet pas sans reconstruire l'ordre — et donc sans risquer de l'inventer.
    */
   funnel: FunnelRaw;
+  /**
+   * Titres et descriptions des produits, en texte brut.
+   *
+   * Ils ne sont pas une observation — un texte ne se mesure pas. Ils servent à
+   * lire le VOCABULAIRE que la boutique adresse à son visiteur, seul signal de
+   * positionnement qui ne se déduise pas des prix. Le HTML est retiré : ce qui
+   * compte est ce que le visiteur lit, pas la façon dont c'est balisé.
+   */
+  productTexts: string[];
 };
 
 /** Shopify injoignable : les deux lectures le sont aussi, sans aucun zéro. */
@@ -51,6 +60,7 @@ function unreachable(error: string): ShopifyReports {
     shopify: shopifyUnreachable(error),
     organic: { source: "organic", observations: [], gaps: [], reachable: false, error },
     landings: [],
+    productTexts: [],
     funnel: {
       sessions: null,
       cartAdditions: null,
@@ -194,6 +204,9 @@ export async function fetchShopifyObservations(
     organic: organicReport(raw),
     landings: topLandingPaths(raw.orders),
     funnel,
+    productTexts: products.flatMap((p) =>
+      [p.title ?? "", stripHtml(p.body_html ?? "")].filter((x) => x.trim().length > 0),
+    ),
   };
 }
 
@@ -260,4 +273,19 @@ async function fetchFunnel(
       error: e instanceof Error ? e.message : "Appel ShopifyQL impossible.",
     };
   }
+}
+
+/**
+ * Retire le balisage d'une description Shopify.
+ *
+ * L'éditeur Shopify produit du HTML même pour un texte simple. Compter
+ * « strong » ou « div » comme du vocabulaire de la boutique fausserait la
+ * lecture du positionnement.
+ */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
