@@ -211,6 +211,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Chemin de la mesure et du verdict : file équitable même quand une boutique échoue à répétition, verdicts définitifs jamais recalculés sur une fenêtre qui ne recouvre plus la correction, outil attribué à partir des seules écritures abouties, et aucun verdict affiché sans sa période ni sa couverture.",
   },
   {
+    file: "audits/comparison.test.ts",
+    minChecks: 85,
+    covers:
+      "Deux audits comparés, et le piège que personne n'évite : comparer deux scores suppose qu'ils mesurent la même chose. Entre deux passages une source se déconnecte, une permission expire — le score chute de vingt points sans qu'aucune boutique n'ait bougé. Un point non mesuré des DEUX côtés n'est donc jamais comparé, et le score global se tait sous le seuil de couverture plutôt que d'annoncer une dégradation imaginaire. Les causes racines se comparent au même titre que les chiffres et passent devant : une cause disparue correspond à un travail que le marchand se rappelle avoir fait, sept points de score ne correspondent à rien. Aucune félicitation quand rien n'a bougé, et aucun mot du moteur dans le récit.",
+  },
+  {
     file: "audits/root-cause.test.ts",
     minChecks: 130,
     covers:
