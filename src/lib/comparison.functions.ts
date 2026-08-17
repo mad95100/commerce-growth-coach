@@ -44,16 +44,22 @@ function readAxes(raw: unknown): AuditSnapshot["axes"] {
   const connus = new Set<string>(AUDIT_AXES);
   return raw
     .filter(
-      (a): a is { axis: string; score: number; measured: boolean } =>
+      (a): a is { axis: string; score: number | null; measured: boolean } =>
         Boolean(a) &&
         typeof a === "object" &&
         typeof (a as { axis?: unknown }).axis === "string" &&
         connus.has((a as { axis: string }).axis) &&
-        typeof (a as { score?: unknown }).score === "number",
+        // UN AXE SANS NOTE RESTE UN AXE. Exiger un nombre le ferait disparaître
+        // de la comparaison, donc du dénominateur qui décide si les scores sont
+        // comparables — et la couverture paraîtrait meilleure qu'elle ne l'est.
+        // C'est exactement la « dégradation imaginaire » que ce module existe
+        // pour empêcher, prise par l'autre bout.
+        (typeof (a as { score?: unknown }).score === "number" ||
+          (a as { score?: unknown }).score === null),
     )
     .map((a) => ({
       axis: a.axis as AuditAxis,
-      score: a.score,
+      score: typeof a.score === "number" ? a.score : null,
       // ABSENCE = NON MESURÉ. Un axe dont on ignore s'il était mesuré ne doit
       // jamais être compté comme mesuré : ce serait exactement l'erreur qui
       // produit des dégradations imaginaires.

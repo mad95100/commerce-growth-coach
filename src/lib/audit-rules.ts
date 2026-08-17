@@ -931,10 +931,21 @@ export type ScoreDeduction = {
 export type AxisScore = {
   axis: AuditAxis;
   label: string;
-  score: number;
+  /**
+   * `null` QUAND L'AXE N'EST PAS MESURÉ, et c'est le type qui l'impose.
+   *
+   * Le champ portait auparavant `100` sur un axe dont on ne savait rien — la
+   * note qu'obtient mécaniquement un sujet sur lequel aucune règle n'a pu se
+   * prononcer. Tous les lecteurs d'alors vérifiaient bien `measured` avant de
+   * l'afficher, mais rien ne les y obligeait : « Conversion 100/100 » sur une
+   * boutique sans un seul visiteur est né exactement de cet oubli, et le
+   * prochain lecteur écrit ne l'aurait pas su. Un score absent se lit
+   * désormais comme absent, et le compilateur refuse de l'afficher tel quel.
+   */
+  score: number | null;
   /** Chaque point perdu, rattaché à sa règle. Un score se décompose ou n'est rien. */
   deductions: ScoreDeduction[];
-  /** Aucune observation sur cet axe : le score de 100 ne veut alors rien dire. */
+  /** Aucune observation sur cet axe : il n'y a alors rien à noter. */
   measured: boolean;
 };
 
@@ -973,7 +984,7 @@ export function scoreAxes(findings: RuleFinding[], observations: Observation[]):
     return {
       axis,
       label: AXIS_LABELS[axis],
-      score: Math.max(0, 100 - lost),
+      score: measured ? Math.max(0, 100 - lost) : null,
       deductions,
       measured,
     };
@@ -1015,10 +1026,30 @@ export function axisOfObservation(id: string): AuditAxis | null {
  * Inclure les axes non mesurés à 100 gonflerait la note d'une boutique dont on
  * ne sait rien — exactement l'inverse de ce qu'un diagnostic doit faire.
  */
+export const MIN_MEASURED_AXES_SHARE = 0.5;
+
 export function globalScore(axes: AxisScore[]): number | null {
-  const measured = axes.filter((a) => a.measured);
-  if (measured.length === 0) return null;
-  return Math.round(measured.reduce((sum, a) => sum + a.score, 0) / measured.length);
+  // On filtre sur le SCORE, pas sur `measured` : c'est la seule forme que le
+  // compilateur sait vérifier, et elle rend impossible d'additionner un axe
+  // sans note même si les deux champs venaient un jour à diverger.
+  const notes = axes.map((a) => a.score).filter((s): s is number => s !== null);
+  if (notes.length === 0) return null;
+
+  // UNE NOTE SUR TROIS AXES N'EST PAS UNE NOTE DE BOUTIQUE.
+  //
+  // Le cas qui a imposé ce seuil : une boutique de vingt-quatre produits, tous
+  // décrits et illustrés, trois pages de politique, aucune page cassée — et
+  // zéro vente, zéro visiteur mesuré. Les trois axes visibles étaient
+  // irréprochables, la moyenne sortait à 100, et le marchand lisait 100/100
+  // sur une boutique qui ne vend rien. Chaque étape était juste ; le verdict
+  // était absurde.
+  //
+  // En dessous de la moitié des axes, la moyenne dit surtout ce que nous avons
+  // réussi à regarder. Mieux vaut alors ne pas donner de note : l'absence
+  // s'explique, un 100 imaginaire ne se rattrape pas.
+  if (notes.length / axes.length < MIN_MEASURED_AXES_SHARE) return null;
+
+  return Math.round(notes.reduce((sum, n) => sum + n, 0) / notes.length);
 }
 
 // ---------------------------------------------------------------------------
@@ -1169,7 +1200,7 @@ export function rulesToPromptBlock(report: RuleReport): string {
       a.deductions.length === 0
         ? "aucune retenue"
         : a.deductions.map((d) => `${d.title} −${d.points}`).join(", ");
-    lignes.push(`- ${a.label} : ${a.score}/100 (${detail})`);
+    lignes.push(`- ${a.label} : ${a.score ?? "non noté"}/100 (${detail})`);
   }
   lignes.push(
     `Score global : ${report.score === null ? "non calculable, aucun axe mesuré" : `${report.score}/100`}`,

@@ -41,8 +41,11 @@ export type AuditSnapshot = {
   createdAt: string;
   /** Score global. `null` quand aucun axe n'était mesuré. */
   score: number | null;
-  /** Score par axe, avec l'information de mesure — c'est elle qui compte. */
-  axes: Array<{ axis: AuditAxis; score: number; measured: boolean }>;
+  /**
+   * Score par axe. `null` quand l'axe n'était pas mesuré — un axe sans note
+   * n'en porte plus une fausse, et deux `null` ne se soustraient pas.
+   */
+  axes: Array<{ axis: AuditAxis; score: number | null; measured: boolean }>;
   /** Constats, identifiés par une clé stable à travers les audits. */
   findings: Array<{ key: string; title: string; severity: string; impact: number }>;
   /** Causes racines établies lors de cet audit. */
@@ -123,13 +126,18 @@ export function compareAudits(before: AuditSnapshot, after: AuditSnapshot): Audi
   const axes: AxisChange[] = tousAxes.map((axis) => {
     const a = axesAvant.get(axis);
     const b = axesApres.get(axis);
-    const comparable = Boolean(a?.measured && b?.measured);
+    // MESURÉ ET NOTÉ. Les deux conditions, pas une : un axe marqué mesuré mais
+    // sans note ne se soustrait pas, et c'est le compilateur qui l'impose
+    // maintenant que le score peut être absent.
+    const avantNote = a?.measured && a.score !== null ? a.score : null;
+    const apresNote = b?.measured && b.score !== null ? b.score : null;
+    const comparable = avantNote !== null && apresNote !== null;
     return {
       axis,
       label: AXIS_LABELS[axis] ?? axis,
-      before: a?.measured ? a.score : null,
-      after: b?.measured ? b.score : null,
-      delta: comparable ? b!.score - a!.score : null,
+      before: avantNote,
+      after: apresNote,
+      delta: comparable ? apresNote - avantNote : null,
       comparable,
       reason: comparable
         ? null

@@ -13,6 +13,7 @@ import {
   buildActionPlan,
   capLevel,
   globalScore,
+  MIN_MEASURED_AXES_SHARE,
   prioritise,
   runRules,
   rulesToPromptBlock,
@@ -246,6 +247,15 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
   const axes = scoreAxes(rapportVide.findings, boutiqueVide.observations);
   t.check("les dix axes sont notés", axes.length, AUDIT_AXES.length);
   for (const a of axes) {
+    // UN AXE NON MESURÉ N'A PLUS DE NOTE DU TOUT, et c'est le type qui
+    // l'impose : le champ valait 100 — la note qu'obtient mécaniquement un
+    // sujet sur lequel aucune règle n'a pu se prononcer — et il suffisait
+    // d'oublier de consulter `measured` pour afficher une excellence
+    // imaginaire.
+    if (a.score === null) {
+      t.check(`${a.axis} : sans note, il est déclaré non mesuré`, a.measured, false);
+      continue;
+    }
     t.check(`${a.axis} : score borné`, a.score >= 0 && a.score <= 100, true);
     const perdu = a.deductions.reduce((s, d) => s + d.points, 0);
     t.check(`${a.axis} : chaque point perdu est justifié`, a.score, Math.max(0, 100 - perdu));
@@ -256,11 +266,34 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
     axes.find((a) => a.axis === "retention")?.measured,
     false,
   );
-  // Le score global ignore les axes non mesurés : sinon une boutique inconnue
-  // obtiendrait une excellente note.
+  // LE SCORE GLOBAL DEMANDE UNE COUVERTURE, pas seulement un axe mesuré.
+  //
+  // Le cas qui a imposé ce seuil vient des boutiques témoins : vingt-quatre
+  // produits tous décrits et illustrés, trois pages de politique, aucune page
+  // cassée — et zéro vente, zéro visiteur mesuré. Les trois axes visibles
+  // étaient irréprochables, la moyenne sortait à 100, et le marchand lisait
+  // 100/100 sur une boutique qui ne vend rien. Chaque étape était juste ; le
+  // verdict était absurde.
+  const mesures = axes.filter((a) => a.score !== null).length;
   const scoreTout = globalScore(axes);
-  t.check("le score global existe dès qu'un axe est mesuré", typeof scoreTout, "number");
+  t.check(
+    "sous la moitié des axes mesurés, aucune note globale",
+    scoreTout,
+    mesures / axes.length < MIN_MEASURED_AXES_SHARE
+      ? null
+      : Math.round(axes.reduce((sum, a) => sum + (a.score ?? 0), 0) / Math.max(1, mesures)),
+  );
   t.check("aucun axe mesuré => aucun score", globalScore(scoreAxes([], [])), null);
+  // Une couverture suffisante rend bien une note : le seuil ne doit pas rendre
+  // le score inatteignable en pratique.
+  const large = AUDIT_AXES.map((axis, i) => ({
+    axis,
+    label: axis,
+    score: i % 2 === 0 ? 70 : null,
+    deductions: [],
+    measured: i % 2 === 0,
+  }));
+  t.check("la moitié des axes suffit à noter", globalScore(large), 70);
 
   // L'AXE AVEUGLÉ N'EST PAS NOTÉ. Sans trafic mesuré, une note de conversion
   // serait une note sur rien — et elle remonterait dans le score global,
@@ -287,7 +320,14 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
   // Un constat « donnée insuffisante » ne retire aucun point sur son axe.
   t.check("le poids d'une donnée insuffisante est nul", EVIDENCE_WEIGHT.donnee_insuffisante, 0);
   const axeData = axes.find((a) => a.axis === "data");
-  t.check("un trou de données ne fait pas chuter son propre axe", axeData?.score, 100);
+  // Le constat retire zéro point : l'axe ne porte AUCUNE retenue. On le
+  // vérifie sur les retenues plutôt que sur la note, qui vaut désormais `null`
+  // tant qu'aucune donnée n'a été relevée sur cet axe.
+  t.check(
+    "un trou de données ne fait pas chuter son propre axe",
+    (axeData?.deductions ?? []).reduce((s, d) => s + d.points, 0),
+    0,
+  );
 
   // --- 8. Priorisation ------------------------------------------------------
   const priorites = prioritise(rapportVide.findings);
