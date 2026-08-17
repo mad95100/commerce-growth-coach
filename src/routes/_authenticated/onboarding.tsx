@@ -51,7 +51,7 @@ function Onboarding() {
         .insert({
           owner_id: userData.user.id,
           name: form.name,
-          url: form.url || null,
+          url: form.url.trim() || null,
           niche: form.niche || null,
           monthly_ad_budget: form.monthly_ad_budget ? Number(form.monthly_ad_budget) : null,
           monthly_revenue: form.monthly_revenue ? Number(form.monthly_revenue) : null,
@@ -95,16 +95,29 @@ function Onboarding() {
             />
           </div>
           <div>
-            <Label htmlFor="url">URL de ta boutique</Label>
+            <Label htmlFor="url">Adresse de votre boutique</Label>
             <Input
               id="url"
               value={form.url}
               onChange={(e) => upd("url", e.target.value)}
               placeholder="https://maboutique.com"
               type="url"
+              inputMode="url"
+              required
             />
+            {/*
+              CE CHAMP ÉTAIT « OPTIONNEL — MAIS RECOMMANDÉ ». C'était faux, et
+              coûteux : sans adresse, EcomPilot ne peut pas ouvrir la page que
+              le visiteur reçoit. Il perd donc l'analyse de la page d'accueil,
+              des fiches produit, du parcours d'achat, de la confiance — et une
+              partie de la déduction du client cible, qui se lit en partie sur
+              le site. Le marchand cochait « optionnel » sans savoir qu'il
+              renonçait à un tiers de son audit.
+            */}
             <p className="mt-1 text-xs text-muted-foreground">
-              Optionnel — mais recommandé pour un audit plus précis.
+              Sans elle, nous ne pouvons pas ouvrir votre boutique comme le fait un visiteur : ni
+              votre page d'accueil, ni vos fiches produit, ni votre parcours d'achat ne seront
+              analysés.
             </p>
           </div>
           <div>
@@ -169,7 +182,7 @@ function Onboarding() {
           <Button
             type="submit"
             className="w-full bg-gradient-primary text-primary-foreground"
-            disabled={loading || !form.name}
+            disabled={loading || !form.name || !form.url}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Enregistrer ma boutique

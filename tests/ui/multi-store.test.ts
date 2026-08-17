@@ -76,7 +76,34 @@ export default defineSuite("Interface — plusieurs boutiques", (t) => {
     true,
   );
 
-  // --- 2. La suppression existe, avec ses garde-fous ----------------------
+  // --- 2. L'adresse de la boutique n'est plus « optionnelle » -------------
+  // ELLE ÉTAIT ANNONCÉE « optionnel — mais recommandé », ce qui était faux :
+  // sans adresse, EcomPilot ne peut pas ouvrir la page que le visiteur reçoit.
+  // Il perd l'analyse de la page d'accueil, des fiches produit, du parcours
+  // d'achat, de la confiance, et une partie de la déduction du client cible.
+  // Le marchand renonçait à un tiers de son audit sans le savoir.
+  const onboarding = read("src/routes/_authenticated/onboarding.tsx");
+  t.check("l'adresse n'est plus annoncée comme optionnelle", /Optionnel/.test(onboarding), false);
+  t.check("le champ est requis", /id="url"[\s\S]{0,320}required/.test(onboarding), true);
+  t.check(
+    "l'enregistrement est bloqué sans adresse",
+    /disabled=\{loading \|\| !form\.name \|\| !form\.url\}/.test(onboarding),
+    true,
+  );
+  // Le marchand doit savoir ce qu'il perdrait, pas seulement qu'on l'exige.
+  t.check(
+    "l'écran dit ce que l'adresse permet d'analyser",
+    /ni vos fiches produit, ni votre parcours d'achat/.test(onboarding),
+    true,
+  );
+  // Une adresse faite d'espaces ne vaut pas une adresse.
+  t.check(
+    "les espaces ne comptent pas pour une adresse",
+    /form\.url\.trim\(\) \|\| null/.test(onboarding),
+    true,
+  );
+
+  // --- 3. La suppression existe, avec ses garde-fous ----------------------
   const fn = read("src/lib/stores.functions.ts");
   t.check("une fonction de suppression existe", /export const deleteStore/.test(fn), true);
   t.check("elle exige une session", /\.middleware\(\[requireSupabaseAuth\]\)/.test(fn), true);

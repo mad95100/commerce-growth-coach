@@ -248,7 +248,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "ui/multi-store.test.ts",
-    minChecks: 24,
+    minChecks: 29,
     covers:
       "Plusieurs boutiques sur un même compte. Le cockpit affichait TOUJOURS la première, sans dire laquelle : un marchand qui en gère deux lisait des chiffres sans savoir à quoi ils se rapportaient, et n'avait aucun moyen d'en changer. Le choix vit désormais dans l'adresse — un état local se perdrait au rechargement — et un identifiant de signet périmé retombe sur une boutique réelle. Couvre aussi la suppression, qui n'existait pas : une boutique ajoutée par erreur restait indéfiniment, comptée dans les quotas et reprise par le cron. Elle emporte onze tables en cascade, d'où le nom à retaper — qui protège du clic distrait, pas d'un attaquant.",
   },
