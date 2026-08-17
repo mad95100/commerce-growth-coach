@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
 import { ConnectionsPanel } from "@/components/ConnectionsPanel";
+import { AuditComparison } from "@/components/AuditComparison";
 import { StoreEconomicsFields } from "@/components/StoreEconomicsFields";
 import {
   parseStoreEconomics,
@@ -122,6 +123,12 @@ function StorePage() {
 
       <div className="mt-8">
         <ConnectionsPanel storeId={store.id} storeUrl={store.url} />
+
+        {/* L'ÉVOLUTION, à côté des connexions. C'est la question que le
+            marchand se pose en revenant : « est-ce que ce que j'ai fait a
+            servi ? ». La placer après le dernier audit et avant les réglages
+            la met sur son chemin naturel. */}
+        <AuditComparison storeId={store.id} />
       </div>
 
       <div className="mt-8 card-elevated flex flex-wrap items-center justify-between gap-4 rounded-2xl p-6">

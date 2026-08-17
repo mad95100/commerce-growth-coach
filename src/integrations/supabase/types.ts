@@ -281,6 +281,8 @@ export type Database = {
           completed_at: string | null
           cross_signals: Json | null
           data_gaps: Json | null
+          root_causes: Json | null
+          axis_scores: Json | null
           funnel: Json | null
           created_at: string
           created_by: string
@@ -302,6 +304,8 @@ export type Database = {
           completed_at?: string | null
           cross_signals?: Json | null
           data_gaps?: Json | null
+          root_causes?: Json | null
+          axis_scores?: Json | null
           funnel?: Json | null
           created_at?: string
           created_by: string
@@ -323,6 +327,8 @@ export type Database = {
           completed_at?: string | null
           cross_signals?: Json | null
           data_gaps?: Json | null
+          root_causes?: Json | null
+          axis_scores?: Json | null
           funnel?: Json | null
           created_at?: string
           created_by?: string

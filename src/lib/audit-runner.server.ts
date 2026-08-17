@@ -556,6 +556,21 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
       funnel,
       cross_signals: crossed,
       data_gaps: allGaps(reports),
+      // CONSERVÉS POUR LA COMPARAISON. Sans eux, deux audits ne se comparent
+      // que par leur score global — le seul chiffre qui n'apprend rien au
+      // marchand. `measured` est la valeur décisive : sans elle, un axe perdu
+      // de vue entre deux passages se lirait comme une dégradation.
+      root_causes: causes.map((c) => ({
+        id: c.id,
+        title: c.title,
+        level: c.level,
+        priority: c.priority,
+      })),
+      axis_scores: ruleReport.axes.map((a) => ({
+        axis: a.axis,
+        score: a.score,
+        measured: a.measured,
+      })),
       completed_at: new Date().toISOString(),
     })
     .eq("id", auditId);

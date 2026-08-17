@@ -211,6 +211,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Chemin de la mesure et du verdict : file équitable même quand une boutique échoue à répétition, verdicts définitifs jamais recalculés sur une fenêtre qui ne recouvre plus la correction, outil attribué à partir des seules écritures abouties, et aucun verdict affiché sans sa période ni sa couverture.",
   },
   {
+    file: "security/comparison-access.test.ts",
+    minChecks: 26,
+    covers:
+      "La comparaison d'audits ne devient pas une fuite. Trois identifiants viennent du navigateur — une boutique, deux audits — et c'est la forme d'appel qui fuit : il est tentant de ne vérifier que « ces audits existent-ils ». L'appartenance de la boutique est donc vérifiée AVANT toute lecture d'audit, et les audits sont bornés à cette boutique. Le rôle de service contournant RLS, cette vérification ne peut pas être déléguée à la base. Vérifie aussi que la chaîne est entière de bout en bout : le moteur écrit les colonnes que la comparaison relit, la migration les crée, l'écran est monté, et le score ne s'affiche jamais quand le moteur a refusé de le calculer.",
+  },
+  {
     file: "audits/comparison.test.ts",
     minChecks: 85,
     covers:
