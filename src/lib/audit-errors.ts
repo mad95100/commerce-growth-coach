@@ -159,3 +159,26 @@ export function canRetryNow(raw: string | null | undefined): boolean {
   const kind = classifyAuditFailure(raw ?? "");
   return kind !== "shopify_expire" && kind !== "quota";
 }
+
+/**
+ * L'audit raté doit-il être rendu au marchand ?
+ *
+ * POURQUOI CETTE FONCTION EXISTE. Le message d'échec ci-dessus PROMET, en
+ * toutes lettres : « votre passage ne vous a pas été décompté ». Le quota est
+ * pourtant prélevé au lancement, et rien ne le rendait quand l'analyse
+ * échouait. La phrase était donc fausse, et fausse au pire endroit — un
+ * marchand qui vérifie son compteur après une panne venue de chez nous y
+ * découvre qu'il a payé notre erreur, après qu'on lui a dit le contraire.
+ *
+ * LA RÈGLE SUIT « À QUI INCOMBE LA SUITE », déjà établie plus haut. Une panne
+ * de notre côté ou de celui d'un fournisseur est rendue. Ce qui demande une
+ * action du marchand — un accès Shopify à reconnecter — ne l'est pas : l'audit
+ * a bien été tenté avec ce qu'il nous avait donné, et rendre le passage
+ * l'inciterait à relancer une analyse qui échouera de la même façon.
+ *
+ * Le cas du quota atteint ne passe jamais ici : il est refusé avant que le
+ * moindre décompte n'ait lieu.
+ */
+export function shouldRefundAudit(raw: string | null | undefined): boolean {
+  return explainAuditFailure(raw).whose !== "vous";
+}

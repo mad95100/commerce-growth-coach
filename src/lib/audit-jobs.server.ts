@@ -10,6 +10,7 @@ import {
   withJob,
   type AuditJob,
 } from "@/lib/audit-jobs";
+import { shouldRefundAudit } from "@/lib/audit-errors";
 
 /**
  * Transitions du travail d'audit, écrites en base.
@@ -174,7 +175,8 @@ export async function failAuditAttempt(
     .maybeSingle();
 
   const snapshot = (data as { input_snapshot: unknown } | null)?.input_snapshot;
-  const next = failedAttempt(readJob(snapshot), message);
+  const avant = readJob(snapshot);
+  const next = failedAttempt(avant, message);
 
   await supabase
     .from("audits")
@@ -185,4 +187,46 @@ export async function failAuditAttempt(
       updated_at: new Date().toISOString(),
     })
     .eq("id", auditId);
+
+  // RENDRE LE PASSAGE, PARCE QU'ON L'A PROMIS. Le message affiché au marchand
+  // dit « votre passage ne vous a pas été décompté ». Le quota était pourtant
+  // prélevé au lancement et rien ne le rendait : la phrase était fausse, et
+  // fausse au pire endroit — celui où le marchand vient vérifier après une
+  // panne venue de chez nous.
+  //
+  // UNE SEULE FOIS, ET SEULEMENT À L'ABANDON. Les tentatives intermédiaires
+  // laissent l'audit en file : il n'est pas perdu, il n'y a rien à rendre. Et
+  // la transition vers `failed` est conditionnée à l'état PRÉCÉDENT, sinon un
+  // rejeu du même échec créditerait le compteur une seconde fois.
+  if (avant.state !== "failed" && next.state === "failed" && shouldRefundAudit(message)) {
+    await rendreLePassage(auditId);
+  }
+}
+
+/**
+ * Recrédite l'audit au propriétaire de la boutique.
+ *
+ * Passe par le client d'administration : la restitution touche la table des
+ * consommations, que le marchand n'a pas à pouvoir écrire lui-même. Un échec
+ * de restitution n'est jamais propagé — le marchand voit déjà l'erreur
+ * d'origine, une seconde ne l'aiderait pas, et `refundQuota` ne descend jamais
+ * sous zéro.
+ */
+async function rendreLePassage(auditId: string): Promise<void> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("audits")
+      .select("store_id, stores(owner_id)")
+      .eq("id", auditId)
+      .maybeSingle();
+
+    const owner = (data as { stores?: { owner_id?: string } | null } | null)?.stores?.owner_id;
+    if (!owner) return;
+
+    const { refundQuota } = await import("@/lib/billing.server");
+    await refundQuota(supabaseAdmin, owner, "audits");
+  } catch {
+    /* la restitution est un dû, jamais une garantie technique */
+  }
 }

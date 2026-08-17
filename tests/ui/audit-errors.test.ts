@@ -5,6 +5,7 @@ import {
   canRetryNow,
   classifyAuditFailure,
   explainAuditFailure,
+  shouldRefundAudit,
 } from "@/lib/audit-errors";
 import { readAudience, readCauses } from "@/lib/audit-narrative";
 
@@ -201,6 +202,44 @@ export default defineSuite("Interface — échecs d'audit expliqués", (t) => {
   t.check(
     "la colonne du portrait est créée",
     /ADD COLUMN IF NOT EXISTS audience jsonb/.test(migration),
+    true,
+  );
+
+  // --- 5 bis. LA PROMESSE FAITE AU MARCHAND EST TENUE ---------------------
+  // Le message affiché après une panne venue de chez nous dit, en toutes
+  // lettres : « votre passage ne vous a pas été décompté ». Le quota est
+  // pourtant prélevé au lancement de l'audit. Tant que rien ne le rendait, la
+  // phrase était fausse — et fausse au pire endroit, celui où le marchand vient
+  // vérifier son compteur après une panne dont il n'est pas responsable.
+  t.check("une panne de notre côté rend le passage", shouldRefundAudit(reel), true);
+  t.check("une surcharge du fournisseur aussi", shouldRefundAudit("AI Gateway 429"), true);
+  t.check("une réponse illisible aussi", shouldRefundAudit("Réponse IA invalide (length)."), true);
+  // Ce qui demande une action du marchand n'est pas rendu : l'audit a bien été
+  // tenté avec ce qu'il nous avait donné, et le rendre l'inciterait à relancer
+  // une analyse qui échouera de la même façon.
+  t.check(
+    "un accès à reconnecter n'est pas rendu",
+    shouldRefundAudit("Jeton Shopify illisible."),
+    false,
+  );
+  // La règle suit exactement « à qui incombe la suite », déjà affichée au
+  // marchand : deux réponses différentes à la même question seraient pires que
+  // pas de réponse du tout.
+  for (const [brut] of cas) {
+    t.check(
+      `${classifyAuditFailure(brut)} : restitution et responsabilité concordent`,
+      shouldRefundAudit(brut),
+      explainAuditFailure(brut).whose !== "vous",
+    );
+  }
+
+  // Et le code tient la promesse au bon moment : à l'abandon, une seule fois.
+  const jobsServer = read("src/lib/audit-jobs.server.ts");
+  t.check(
+    "la restitution est déclenchée à l'échec définitif",
+    /avant\.state !== "failed" && next\.state === "failed" && shouldRefundAudit\(message\)/.test(
+      jobsServer,
+    ),
     true,
   );
 
