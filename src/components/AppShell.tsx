@@ -25,10 +25,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     navigate({ to: "/auth", replace: true });
   }
 
+  // `shortLabel` sert la barre basse : sous un pouce, « Tableau de bord » sur
+  // trois lignes est moins lisible qu'un mot.
   const navItems = [
-    { to: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
-    { to: "/stores", label: "Mes boutiques", icon: Store },
-    { to: "/settings", label: "Paramètres", icon: Settings },
+    { to: "/dashboard", label: "Tableau de bord", shortLabel: "Pilotage", icon: LayoutDashboard },
+    { to: "/stores", label: "Mes boutiques", shortLabel: "Boutiques", icon: Store },
+    { to: "/settings", label: "Paramètres", shortLabel: "Réglages", icon: Settings },
   ];
 
   return (
@@ -81,7 +83,44 @@ export function AppShell({ children }: { children: ReactNode }) {
             <LogOut className="h-4 w-4" />
           </Button>
         </header>
-        <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+        <main className="mx-auto max-w-6xl px-6 py-8 pb-24 md:pb-8">{children}</main>
+
+        {/*
+          NAVIGATION MOBILE.
+
+          POURQUOI ELLE MANQUAIT, ET CE QUE CELA COÛTAIT. La barre latérale est
+          masquée en dessous de `md`, et l'en-tête mobile ne portait que le logo
+          et la déconnexion. Sur un téléphone, l'application n'offrait donc
+          AUCUN chemin vers les boutiques ni les paramètres : un marchand y
+          était enfermé sur le tableau de bord, sans autre issue que de se
+          déconnecter. Les tests passaient — il n'y avait rien à casser.
+
+          Barre basse plutôt que menu déroulant : elle ne demande aucun geste
+          d'ouverture, ne dépend d'aucun état, et reste atteignable au pouce.
+          Le contenu reçoit une marge basse correspondante pour que la dernière
+          ligne d'une page ne finisse jamais dessous.
+        */}
+        <nav
+          aria-label="Navigation principale"
+          className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border/50 bg-background/95 backdrop-blur md:hidden"
+        >
+          {navItems.map((item) => {
+            const active = pathname.startsWith(item.to);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                aria-current={active ? "page" : undefined}
+                className={`flex flex-1 flex-col items-center gap-1 px-2 py-2 text-[11px] font-medium transition-colors ${
+                  active ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <item.icon className="h-5 w-5" />
+                {item.shortLabel}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
     </div>
   );

@@ -91,6 +91,37 @@ export default defineSuite("Interface — vide, chargement et échec", (t) => {
     t.check(`${nom} a un état d'échec`, /isError|ErrorState|\.error\b/.test(src), true);
   }
 
+  // --- Le téléphone n'est pas une impasse ----------------------------------
+  // POURQUOI CE CONTRÔLE EXISTE. La barre latérale est masquée en dessous de
+  // `md`, et l'en-tête mobile ne portait que le logo et la déconnexion :
+  // l'application n'offrait AUCUN chemin vers les boutiques ni les paramètres
+  // sur un téléphone. Un marchand y était enfermé sur le tableau de bord, sans
+  // autre issue que de se déconnecter. Aucun test ne pouvait le voir — il n'y
+  // avait rien de cassé, seulement quelque chose d'absent.
+  t.check(
+    "la barre latérale est bien masquée sur petit écran",
+    /hidden[^"]*md:flex/.test(shell),
+    true,
+  );
+  t.check(
+    "une navigation existe pour les petits écrans",
+    /md:hidden[\s\S]{0,400}navItems\.map/.test(shell),
+    true,
+  );
+  t.check(
+    "elle mène aux mêmes destinations que la barre latérale",
+    (shell.match(/navItems\.map/g) ?? []).length >= 2,
+    true,
+  );
+  // Une barre fixée en bas recouvre la fin du contenu si rien ne l'en empêche.
+  t.check("le contenu réserve la place de la barre basse", /pb-24 md:pb-8/.test(shell), true);
+  t.check(
+    "la navigation mobile est annoncée aux lecteurs d'écran",
+    /aria-label="Navigation principale"/.test(shell),
+    true,
+  );
+  t.check("la page courante est signalée", /aria-current=\{active \? "page"/.test(shell), true);
+
   // --- L'application entière a un filet ------------------------------------
   const root = read("src/routes/__root.tsx");
   t.check("une frontière d'erreur globale est posée", /errorComponent:/.test(root), true);
