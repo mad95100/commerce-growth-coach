@@ -181,6 +181,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Historique des migrations : versions uniques et ordonnées, durcissement RLS rejouable sans dommage, et déploiement qui annonce ce qu'il applique. Un décalage d'une seconde avait fait rejouer la migration initiale.",
   },
   {
+    file: "infra/schema-coherence.test.ts",
+    minChecks: 180,
+    covers:
+      "Concordance entre `types.ts` et le SQL : chaque colonne que le code croit pouvoir écrire a bien une migration qui la crée. Le déploiement ne compare que des noms de migrations ; un type engendré depuis une base de développement entrait sans son SQL, et l'écriture n'échouait qu'en production, sur l'audit déjà payé.",
+  },
+  {
     file: "infra/deploy-config.test.ts",
     minChecks: 85,
     covers:
