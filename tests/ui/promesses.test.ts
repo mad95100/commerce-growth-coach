@@ -237,6 +237,39 @@ export default defineSuite("Produit — les promesses faites au marchand sont te
     true,
   );
 
+  // ET LA TROISIÈME FORME, LA PLUS DÉCOURAGEANTE. `computePotential` somme des
+  // gains avec `?? 0` : un diagnostic dont AUCUN constat n'était chiffrable
+  // renvoie 0, un nombre et non une absence. Le centre de pilotage n'avait que
+  // deux branches — un montant, ou « lancez un diagnostic » — et ce cas tombait
+  // dans la première : « Potentiel identifié : 0 € à 0 € par mois ». Le rapport
+  // d'audit, lui, masque déjà son bloc de gain quand rien n'est chiffré. Les
+  // deux écrans du même audit se contredisaient, et c'est le plus visible des
+  // deux qui avait tort.
+  t.check(
+    "un potentiel non chiffré n'est pas annoncé nul",
+    /c\.potentialMax === 0/.test(cockpitUi),
+    true,
+  );
+  t.check(
+    "et la phrase dit lequel des deux c'est",
+    /Ce n'est pas un potentiel nul, c'est un potentiel non mesuré/.test(cockpitUi),
+    true,
+  );
+  // L'ABSENCE D'AUDIT GARDE SA PROPRE PHRASE : la confondre avec « rien à
+  // gagner » serait le défaut symétrique, et inviter à lancer un diagnostic
+  // déjà lancé n'aiderait personne.
+  t.check(
+    "l'absence de diagnostic reste distincte",
+    /c\.potentialMin == null \|\| c\.potentialMax == null/.test(cockpitUi),
+    true,
+  );
+  // Le rapport, lui, ne doit pas cesser de masquer son bloc.
+  t.check(
+    "le rapport n'affiche un gain que s'il en a un",
+    /totalGainMax > 0 &&/.test(sansCommentaires(rapport)),
+    true,
+  );
+
   // =========================================================================
   // 4. « Rien n'a encore été modifié » — l'aperçu ne passe pas par l'écriture
   // =========================================================================

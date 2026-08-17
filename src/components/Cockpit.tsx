@@ -96,10 +96,21 @@ export function Cockpit({ storeId }: { storeId: string }) {
             <div className="text-xs uppercase tracking-wider text-muted-foreground">
               Score e-commerce
             </div>
+            {/* TROIS CAS, PAS DEUX. La phrase n'en distinguait que deux, et le
+                troisième tombait du mauvais côté : `computePotential` somme des
+                gains avec `?? 0`, si bien qu'un diagnostic dont AUCUN constat
+                n'était chiffrable renvoie 0 — un nombre, pas une absence. Le
+                marchand lisait donc « Potentiel identifié : 0 € à 0 € par
+                mois » : le verdict le plus décourageant du produit, rendu sur
+                des montants que nous n'avions pas su établir. Le rapport
+                d'audit, lui, masque déjà son bloc de gain dans ce cas ; les
+                deux écrans se contredisaient. */}
             <p className="mt-1 max-w-md text-sm text-muted-foreground">
-              {c.potentialMin != null && c.potentialMax != null
-                ? `Potentiel identifié : ${formatMoney(c.potentialMin, c.currency)} à ${formatMoney(c.potentialMax, c.currency)} par mois.`
-                : "Lancez un diagnostic pour connaître votre potentiel."}
+              {c.potentialMin == null || c.potentialMax == null
+                ? "Lancez un diagnostic pour connaître votre potentiel."
+                : c.potentialMax === 0
+                  ? "Aucun gain n'a pu être chiffré à ce stade : les constats du diagnostic n'étaient pas rattachables à un montant. Ce n'est pas un potentiel nul, c'est un potentiel non mesuré."
+                  : `Potentiel identifié : ${formatMoney(c.potentialMin, c.currency)} à ${formatMoney(c.potentialMax, c.currency)} par mois.`}
             </p>
           </div>
           {c.score != null && <ScoreRing score={c.score} size={80} />}
