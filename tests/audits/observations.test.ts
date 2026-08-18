@@ -489,9 +489,36 @@ export default defineSuite("Sources — observations et diagnosticabilité", (t)
   t.check("l'audit collecte les observations", runner.includes("fetchShopifyObservations"), true);
   t.check("les injecte comme des faits", runner.includes("observationsToPromptBlock"), true);
   t.check("et cadre ce qui est diagnosticable", runner.includes("diagnosticsToPromptBlock"), true);
+  /*
+    UNE COLLECTE EN ÉCHEC NE FAIT PAS ÉCHOUER L'AUDIT — ET LAISSE UNE TRACE.
+
+    Ce contrôle cherchait la trace d'un `catch` unique autour des trois sources.
+    Cette forme portait deux défauts. Un seul `catch` : Shopify qui expire, et
+    Meta comme Google n'étaient même pas TENTÉS, la première exception sortant du
+    bloc. Et l'échec n'allait qu'au journal : le marchand recevait un diagnostic
+    bâti sur ses seuls chiffres saisis, sans jamais apprendre que sa boutique
+    n'avait pas pu être lue — ou, si l'audit échouait ensuite chez le fournisseur
+    d'analyse, s'entendait dire « fournisseur saturé » pendant que la vraie
+    première cause restait invisible.
+
+    Chaque source est désormais tentée séparément, et son échec produit un
+    rapport `reachable: false` que `allGaps` transforme en manque nommé.
+  */
+  for (const source of ["Shopify", "Meta", "Google"]) {
+    t.check(
+      `une collecte ${source} en échec est rattrapée séparément`,
+      new RegExp(`collecte ${source} impossible`).test(runner),
+      true,
+    );
+  }
   t.check(
-    "une collecte en échec ne fait pas échouer l'audit",
-    /collecte des observations impossible/.test(runner),
+    "…et l'échec devient un rapport injoignable, pas un silence",
+    (runner.match(/reachable: false/g) ?? []).length >= 4,
+    true,
+  );
+  t.check(
+    "le manque est alors nommé par la mécanique existante",
+    /gaps: allGaps\(reports\)/.test(runner) && /data_gaps: allGaps\(reports\)/.test(runner),
     true,
   );
 

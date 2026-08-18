@@ -89,10 +89,52 @@ export async function executeAuditWork(input: {
   let landings: Array<{ path: string; orders: number }> = [];
   /** Titres et descriptions, pour lire le vocabulaire adressé au client. */
   let productTexts: string[] = [];
+  /*
+    UNE COLLECTE EN ÉCHEC DOIT LAISSER UNE TRACE QUE LE MARCHAND PEUT LIRE.
+
+    DEUX DÉFAUTS TENAIENT DANS L'ANCIEN `try` UNIQUE.
+
+    1. UN SEUL `catch` POUR LES TROIS SOURCES. Shopify qui expire, et Meta comme
+       Google n'étaient même pas TENTÉS : la première exception sortait du bloc.
+       Une régie injoignable emportait les deux autres, et l'audit partait
+       aveugle sur tout, pas seulement sur la source en panne.
+
+    2. L'ÉCHEC N'ALLAIT QU'AU JOURNAL. `console.error`, et rien d'autre. Le
+       commentaire affirmait que l'audit « repart sur les seules données
+       déclarées, EN LE DISANT » — il ne le disait nulle part. Deux conséquences,
+       toutes deux observées :
+
+       · l'audit RÉUSSIT : le marchand reçoit un diagnostic bâti sur ses seuls
+         chiffres saisis à la main, en croyant qu'il porte sur sa boutique
+         réelle. La dégradation est silencieuse, et c'est la pire — il agit sur
+         des conclusions dont il ignore le fondement ;
+
+       · l'audit ÉCHOUE ensuite chez le fournisseur d'analyse : on lui annonce
+         « notre fournisseur était saturé », et le premier échec — son jeton
+         Shopify révoqué, par exemple — n'est mentionné nulle part. L'erreur
+         d'origine est masquée par la dernière.
+
+    CE QUI CHANGE. Chaque source est tentée SÉPARÉMENT, et un échec produit un
+    rapport `reachable: false` au lieu de disparaître. La mécanique qui existait
+    déjà s'en charge ensuite : `allGaps` en fait un manque nommé, qui part dans
+    le prompt comme une interdiction de conclure, s'enregistre dans
+    `data_gaps`, et s'affiche au marchand sous « Ce que nous n'avons pas pu
+    mesurer ». Aucune colonne ni aucun écran nouveau — seulement une mécanique
+    enfin alimentée.
+  */
+  const { loadChannelCredentials } = await import("@/lib/tracking.server");
+  let creds: Awaited<ReturnType<typeof loadChannelCredentials>> = {};
   try {
-    const { loadChannelCredentials } = await import("@/lib/tracking.server");
-    const creds = await loadChannelCredentials(supabase, store.id);
-    if (creds.shopify) {
+    creds = await loadChannelCredentials(supabase, store.id);
+  } catch (err) {
+    console.error("[audit] lecture des connexions impossible :", err);
+  }
+
+  /** Le message technique, pour le journal. Jamais montré tel quel. */
+  const raison = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+  if (creds.shopify) {
+    try {
       const { fetchShopifyObservations } = await import("@/lib/connectors/shopify-observe.server");
       // Deux sources d'un seul appel : l'état de la boutique, et l'origine des
       // commandes — la seule mesure d'acquisition qui ne vienne pas des régies
@@ -104,24 +146,50 @@ export async function executeAuditWork(input: {
       reports.push(shopifyReports.shopify, shopifyReports.organic);
       landings = shopifyReports.landings;
       productTexts = shopifyReports.productTexts;
+    } catch (err) {
+      console.error("[audit] collecte Shopify impossible :", err);
+      reports.push(
+        { source: "shopify", observations: [], gaps: [], reachable: false, error: raison(err) },
+        { source: "organic", observations: [], gaps: [], reachable: false, error: raison(err) },
+      );
     }
-    if (creds.meta) {
+  }
+
+  if (creds.meta) {
+    try {
       const { fetchMetaObservations } = await import("@/lib/connectors/meta-observe.server");
       reports.push(await fetchMetaObservations(creds.meta.accountId, creds.meta.encryptedToken));
+    } catch (err) {
+      console.error("[audit] collecte Meta impossible :", err);
+      reports.push({
+        source: "meta",
+        observations: [],
+        gaps: [],
+        reachable: false,
+        error: raison(err),
+      });
     }
-    // Google appartient au chemin de diagnostic, pas aux statistiques : sans
-    // lui, une boutique dont Meta va mal et Google va bien reçoit « ton
-    // acquisition ne fonctionne pas » — faux, et coûteux.
-    if (creds.google) {
+  }
+
+  // Google appartient au chemin de diagnostic, pas aux statistiques : sans
+  // lui, une boutique dont Meta va mal et Google va bien reçoit « ton
+  // acquisition ne fonctionne pas » — faux, et coûteux.
+  if (creds.google) {
+    try {
       const { fetchGoogleObservations } = await import("@/lib/connectors/google-observe.server");
       reports.push(
         await fetchGoogleObservations(creds.google.customerId, creds.google.encryptedRefreshToken),
       );
+    } catch (err) {
+      console.error("[audit] collecte Google impossible :", err);
+      reports.push({
+        source: "google",
+        observations: [],
+        gaps: [],
+        reachable: false,
+        error: raison(err),
+      });
     }
-  } catch (err) {
-    // Une collecte en échec ne doit pas faire échouer l'audit : il repart
-    // alors sur les seules données déclarées, en le disant.
-    console.error("[audit] collecte des observations impossible :", err);
   }
 
   // LE SITE PUBLIC. L'angle mort le plus coûteux : le moteur diagnostiquait la
