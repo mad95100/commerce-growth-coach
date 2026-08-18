@@ -30,3 +30,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Captures produites par les sondes navigateur (tests/navigateur/shoot.mjs).
+tests/navigateur/captures/
