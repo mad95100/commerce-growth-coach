@@ -120,6 +120,35 @@ export type ObservationGap = {
   wouldEnable: string;
 };
 
+/**
+ * POURQUOI UNE SOURCE N'A PAS RÉPONDU.
+ *
+ * `error` porte la phrase technique, et la règle est bonne : elle n'est jamais
+ * montrée au marchand. Mais tant qu'elle était la SEULE trace de la cause,
+ * toutes les causes finissaient identiques — `allGaps` écrivait « Source
+ * injoignable — aucune donnée de ce canal » pour chacune d'elles.
+ *
+ * Or elles ne demandent pas la même chose. Une autorisation révoquée se
+ * répare en trente secondes, PAR LE MARCHAND, et lui seul peut le faire. Une
+ * panne du fournisseur ne se répare pas du tout : il faut attendre. Les
+ * confondre, c'est faire patienter quelqu'un devant une porte dont il a la
+ * clé — et c'est précisément la boucle qui a été signalée : la boutique
+ * apparaît reliée, le diagnostic ne trouve rien, et rien ne dit qu'il faut
+ * rebrancher.
+ *
+ * Ce champ est donc un vocabulaire FERMÉ : il ne transporte aucun texte de
+ * fournisseur, seulement de quoi choisir la bonne phrase.
+ */
+export type SourceFailureCause =
+  /** 401/403, ou jeton indéchiffrable : l'accès est à refaire. Actionnable. */
+  | "autorisation_invalide"
+  /** 429 : nous avons trop demandé, ou la boutique est déjà sollicitée. */
+  | "quota_depasse"
+  /** 5xx : la panne est chez le fournisseur. Rien à faire, sinon reprendre. */
+  | "fournisseur_en_panne"
+  /** Réseau, délai dépassé, réponse illisible. Cause réellement inconnue. */
+  | "injoignable";
+
 /** Tout ce qu'une source a produit en un passage. */
 export type SourceReport = {
   source: ObservationSource;
@@ -129,6 +158,25 @@ export type SourceReport = {
   reachable: boolean;
   /** Message d'erreur technique, jamais montré au marchand tel quel. */
   error?: string | null;
+  /** Cause classée de l'échec. Absente, elle vaut `injoignable`. */
+  cause?: SourceFailureCause | null;
+};
+
+/**
+ * Ce que le marchand lit quand une source n'a rien donné.
+ *
+ * Chaque phrase dit deux choses et pas une : ce qui s'est passé, et à qui
+ * revient la suite. C'est la seconde qui manquait.
+ */
+const RAISON_PAR_CAUSE: Record<SourceFailureCause, (nom: string) => string> = {
+  autorisation_invalide: (nom) =>
+    `Notre accès à ${nom} n'est plus valide : l'autorisation a été retirée, a expiré, ou n'a jamais été complète. Rebranchez ${nom} depuis votre boutique — c'est la seule chose à faire, et elle prend moins d'une minute.`,
+  quota_depasse: (nom) =>
+    `${nom} a limité le nombre de requêtes que nous pouvions faire au moment de l'analyse. Rien n'est cassé et il n'y a rien à rebrancher : relancez l'audit un peu plus tard.`,
+  fournisseur_en_panne: (nom) =>
+    `${nom} n'a pas pu répondre : la panne est de leur côté, pas du vôtre, et votre connexion reste valable. Relancez l'audit quand leur service sera rétabli.`,
+  injoignable: (nom) =>
+    `${nom} n'a pas répondu et nous n'avons pas su pourquoi. Votre connexion n'est pas remise en cause. Relancez l'audit ; si le silence persiste, la trace est de notre côté.`,
 };
 
 const UNIT_SUFFIX: Record<ObservationUnit, string> = {
@@ -210,7 +258,12 @@ export function allGaps(reports: SourceReport[]): ObservationGap[] {
             id: `${r.source}.unreachable`,
             label: SOURCE_LABELS[r.source],
             source: r.source,
-            reason: "Source injoignable — aucune donnée de ce canal.",
+            // LA CAUSE ÉTAIT CALCULÉE, PUIS JETÉE ICI. Le connecteur savait
+            // distinguer une autorisation révoquée d'une panne de fournisseur ;
+            // cette ligne écrivait la même phrase pour les deux, et c'est la
+            // seule que le marchand lise. Il n'apprenait donc jamais qu'il
+            // devait rebrancher — sur l'écran fait pour le lui dire.
+            reason: RAISON_PAR_CAUSE[r.cause ?? "injoignable"](SOURCE_LABELS[r.source]),
             wouldEnable: `Tout le diagnostic ${SOURCE_LABELS[r.source]}.`,
           },
         ],

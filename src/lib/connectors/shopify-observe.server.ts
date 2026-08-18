@@ -15,7 +15,7 @@ import {
   parseFunnel,
   type FunnelRaw,
 } from "@/lib/connectors/shopify-analytics";
-import type { SourceReport } from "@/lib/observations";
+import type { SourceFailureCause, SourceReport } from "@/lib/observations";
 
 /**
  * Un appel, deux sources.
@@ -55,10 +55,10 @@ export type ShopifyReports = {
 };
 
 /** Shopify injoignable : les deux lectures le sont aussi, sans aucun zéro. */
-function unreachable(error: string): ShopifyReports {
+function unreachable(error: string, cause: SourceFailureCause = "injoignable"): ShopifyReports {
   return {
-    shopify: shopifyUnreachable(error),
-    organic: { source: "organic", observations: [], gaps: [], reachable: false, error },
+    shopify: { ...shopifyUnreachable(error), cause },
+    organic: { source: "organic", observations: [], gaps: [], reachable: false, error, cause },
     landings: [],
     productTexts: [],
     funnel: {
@@ -95,6 +95,22 @@ const MAX_ORDERS = 250;
 type Fetcher = (url: string, init: { headers: Record<string, string> }) => Promise<Response>;
 
 /**
+ * Ce qu'un statut HTTP dit de la SUITE, et donc à qui elle revient.
+ *
+ * 401 et 403 sont les seuls que le marchand puisse réparer, et ils sont aussi
+ * les plus faciles à confondre avec une panne : la boutique répond, elle refuse
+ * simplement de nous parler. 404 les rejoint — une boutique dont l'app a été
+ * désinstallée ne renvoie pas 401, elle disparaît.
+ */
+function causeDuStatut(statut: number | null): SourceFailureCause {
+  if (statut === null) return "injoignable";
+  if (statut === 401 || statut === 403 || statut === 404) return "autorisation_invalide";
+  if (statut === 429) return "quota_depasse";
+  if (statut >= 500) return "fournisseur_en_panne";
+  return "injoignable";
+}
+
+/**
  * Collecte les observations Shopify d'une boutique.
  *
  * Ne lève jamais : une source injoignable produit un rapport `reachable:false`,
@@ -114,18 +130,38 @@ export async function fetchShopifyObservations(
     };
   } catch {
     // Jeton illisible : la clé de chiffrement a changé, ou la connexion est à
-    // refaire. Rien à diagnostiquer, et surtout rien à inventer.
-    return unreachable("Jeton Shopify illisible.");
+    // refaire. Rien à diagnostiquer, et surtout rien à inventer. Dans les deux
+    // cas la sortie est la même pour le marchand — rebrancher.
+    return unreachable("Jeton Shopify illisible.", "autorisation_invalide");
   }
 
   const base = `https://${shop}/admin/api/${SHOPIFY_API_VERSION}`;
   const since = new Date(Date.now() - SHOPIFY_WINDOW_DAYS * 86_400_000).toISOString();
 
+  /*
+    LE STATUT REFUSÉ ÉTAIT PERDU, ET AVEC LUI LA SEULE CHOSE UTILE.
+
+    `get` rendait `null` pour tout — 401, 429, 503, coupure réseau. Le premier
+    appel échouait donc toujours sur la même phrase, « La boutique n'a pas
+    répondu », qui se lit comme un incident passager. Une AUTORISATION RÉVOQUÉE
+    prenait cette forme-là : le marchand attendait, relançait, réattendait, et
+    rien ne lui disait jamais que la seule issue était de rebrancher — alors
+    qu'il pouvait le faire en trente secondes.
+
+    On retient donc le statut du premier refus rencontré. Il ne change rien à
+    la tolérance des ressources secondaires : leur échec ne concerne toujours
+    qu'elles.
+  */
+  let refus: number | null = null;
+
   /** Une ressource. Son échec ne concerne qu'elle. */
   const get = async <T>(path: string): Promise<T | null> => {
     try {
       const res = await fetcher(`${base}/${path}`, { headers });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        if (refus === null) refus = res.status;
+        return null;
+      }
       return (await res.json()) as T;
     } catch {
       return null;
@@ -136,7 +172,10 @@ export async function fetchShopifyObservations(
   // les montants sont libellés, et un montant sans devise n'est pas un montant.
   const shopJson = await get<{ shop?: { currency?: string | null } }>("shop.json");
   if (!shopJson?.shop) {
-    return unreachable("La boutique n'a pas répondu.");
+    return unreachable(
+      refus === null ? "La boutique n'a pas répondu." : `Shopify a refusé la lecture (${refus}).`,
+      causeDuStatut(refus),
+    );
   }
 
   const [countJson, productsJson, ordersJson, checkoutsJson] = await Promise.all([
