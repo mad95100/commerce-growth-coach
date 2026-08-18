@@ -411,9 +411,13 @@ export default defineSuite("Google Ads — observations et attribution", (t) => 
     runner.indexOf("fetchGoogleObservations") < runner.indexOf("crossSignals("),
     true,
   );
+  // L'APPEL AU MODÈLE NE S'ÉCRIT NI `aiChatCompletion({` NI `aiChatCompletion(`.
+  // construit par une fonction pour que le modèle principal et le modèle de
+  // secours partagent EXACTEMENT la même demande. On repère donc l'appel, pas
+  // sa ponctuation — sinon ce contrôle rend -1 et passe pour vrai à l'envers.
   t.check(
     "et le croisement précède la demande au modèle",
-    runner.indexOf("crossSignals(") < runner.indexOf("aiChatCompletion({"),
+    runner.indexOf("crossSignals(") < runner.lastIndexOf("aiChatCompletion"),
     true,
   );
 

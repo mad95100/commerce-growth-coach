@@ -334,9 +334,13 @@ export default defineSuite("Audits — mémoire des corrections", (t) => {
   t.check("l'audit charge la mémoire de la boutique", runner.includes("fix_attempts"), true);
   t.check("il l'injecte dans la demande", runner.includes("historyToPromptBlock"), true);
   t.check("et la fait trancher après le modèle", runner.includes("applyHistory"), true);
+  // L'APPEL AU MODÈLE NE S'ÉCRIT NI `aiChatCompletion({` NI `aiChatCompletion(`.
+  // construit par une fonction pour que le modèle principal et le modèle de
+  // secours partagent EXACTEMENT la même demande. On repère donc l'appel, pas
+  // sa ponctuation — sinon ce contrôle rend -1 et passe pour vrai à l'envers.
   t.check(
     "la mémoire est chargée avant l'appel au modèle",
-    runner.indexOf("historyToPromptBlock") < runner.indexOf("aiChatCompletion({"),
+    runner.indexOf("historyToPromptBlock") < runner.lastIndexOf("aiChatCompletion"),
     true,
   );
   t.check(

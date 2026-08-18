@@ -345,9 +345,15 @@ jobs:
           base=$(grep -m1 '^AI_BASE_URL' wrangler.toml | cut -d'"' -f2)
           audit=$(grep -m1 '^AI_AUDIT_MODEL' wrangler.toml | cut -d'"' -f2)
           fix=$(grep -m1 '^AI_FIX_MODEL' wrangler.toml | cut -d'"' -f2)
+          # Le modèle de SECOURS est essayé comme les autres. Un secours dont on
+          # ne vérifie rien n'est pas un secours : on ne l'appelle que le jour où
+          # le principal est déjà tombé, c'est-à-dire au pire moment pour
+          # découvrir qu'il ne répond pas non plus.
+          secours=$(grep -m1 '^AI_AUDIT_FALLBACK_MODEL' wrangler.toml | cut -d'"' -f2)
           echo "Fournisseur : $base"
           echo "Modèle d'audit : $audit"
           echo "Modèle de correction : $fix"
+          echo "Modèle de secours : ${secours:-(aucun)}"
 
           echo "--- Catalogue exposé à cette clé ---"
           curl -s --max-time 30 -H "Authorization: Bearer $AI_API_KEY" "$base/models" \
@@ -360,7 +366,7 @@ jobs:
           # avec « Réponse IA invalide ». La sonde reproduit donc la forme
           # réelle de l'appel, et vérifie que l'outil a bien été appelé.
           echec=""
-          for modele in "$audit" "$fix"; do
+          for modele in "$audit" "$fix" $secours; do
             corps=$(jq -n --arg m "$modele" '{
               model: $m,
               messages: [{role:"user", content:"Boutique de test : 0 commande sur 30 jours."}],

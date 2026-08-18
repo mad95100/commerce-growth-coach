@@ -319,8 +319,17 @@ export default defineSuite("Shopify connecté — la chaîne, de l'OAuth au diag
   );
   // LE POINT D'ÉCRITURE EST CE QUI FAIT TOUT : avant l'appel au fournisseur, la
   // trace survit à son échec ; après, elle disparaît avec lui.
+  // L'ANCRE A DÛ CHANGER, ET LE PIÈGE MÉRITE D'ÊTRE DIT. Ce contrôle repérait
+  // l'appel au fournisseur par la chaîne « AI Gateway », qui composait son
+  // message d'erreur ici. La politique de reprise — principal puis modèle de
+  // secours — a été sortie du moteur pour pouvoir être exécutée dans un test,
+  // et cette chaîne est partie avec elle. `indexOf` rendait donc -1, et la
+  // comparaison « les manques sont écrits avant » devenait fausse alors que
+  // rien n'avait bougé dans l'ordre réel.
+  //
+  // `lastIndexOf` vise l'APPEL et non l'import du même nom, en haut du fichier.
   const iManques = runner.indexOf("data_gaps: allGaps(reports)");
-  const iModele = runner.indexOf("AI Gateway");
+  const iModele = runner.lastIndexOf("aiChatCompletionAvecSecours");
   t.check("les manques sont enregistrés", iManques > -1, true);
   t.check("…avant l'appel au fournisseur", iManques < iModele, true);
 

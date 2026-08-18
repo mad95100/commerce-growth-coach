@@ -501,7 +501,12 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
   );
   t.check(
     "le moteur s'exécute avant l'appel au modèle",
-    runner.indexOf("analyseRules({") < runner.indexOf("aiChatCompletion({"),
+    // Même remarque que dans les suites voisines : l'appel au modèle est
+    // désormais construit par une fonction, pour que le modèle principal et
+    // celui de secours envoient EXACTEMENT la même demande. On repère l'appel,
+    // pas sa ponctuation — sinon `indexOf` rend -1 et le contrôle passe à
+    // l'envers, en se déclarant conforme.
+    runner.indexOf("analyseRules({") < runner.lastIndexOf("aiChatCompletion"),
     true,
   );
   // Les interdictions transmises au modèle sont vérifiées à la lettre : ce sont

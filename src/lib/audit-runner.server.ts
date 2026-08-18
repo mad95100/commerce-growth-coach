@@ -70,7 +70,7 @@ export async function executeAuditWork(input: {
 
   // Le fournisseur de modèles est résolu ici pour échouer tout de suite si la
   // configuration manque, plutôt qu'après la capture des données.
-  const { aiChatCompletion, aiModel } = await import("@/lib/ai-gateway.server");
+  const { aiChatCompletionAvecSecours } = await import("@/lib/ai-gateway.server");
 
   // Données réelles de toutes les sources connectées (tolérant aux pannes)
   const { captureAndStoreSnapshot, getSnapshotAround, snapshotToPromptBlock } =
@@ -527,8 +527,36 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     },
   };
 
-  const res = await aiChatCompletion({
-    model: aiModel("audit"),
+  /*
+    LE SECOURS, ET CE QU'IL NE CHANGE PAS.
+
+    CE QUI L'A RENDU NÉCESSAIRE. Un audit réel a échoué en production sur
+    `429 RESOURCE_EXHAUSTED`, quota `generate_content_free_tier_requests`,
+    `limit: 20`, `model: gemini-3.7-flash`. Vingt analyses par JOUR sur l'offre
+    gratuite : passé la vingtième, tous les audits de la journée échouent, et
+    aucune patience n'y change rien.
+
+    CE QUE FAIT LE SECOURS. Il rejoue le MÊME appel — mêmes messages, même
+    outil, même `tool_choice` forcé — sur un second modèle. Rien de ce qui
+    fabrique le diagnostic ne bouge : ni le prompt, ni le schéma de sortie, ni
+    les règles du moteur. Seul le nom du modèle change.
+
+    C'est ce qui rend le secours acceptable. Un repli qui relâcherait le schéma
+    ou retirerait l'appel d'outil pour « faire passer » la réponse produirait un
+    diagnostic d'une autre nature, sans que personne ne puisse le distinguer du
+    premier. Ici, une réponse de secours est soumise aux mêmes exigences : si
+    elle ne les tient pas, elle échoue comme l'autre.
+
+    POURQUOI UN SECOURS SERT VRAIMENT ICI. Les quotas de l'offre gratuite Google
+    sont comptés PAR MODÈLE — `GenerateRequestsPerDayPerProjectPerModel`. Un
+    second modèle a donc son propre compteur.
+
+    LE NOM VIENT DE LA CONFIGURATION, jamais du code : ce fichier ne peut pas
+    savoir quels modèles le compte a le droit d'appeler. Sans
+    `AI_AUDIT_FALLBACK_MODEL`, le comportement est exactement celui d'avant.
+  */
+  const corpsAppel = (modele: string) => ({
+    model: modele,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
@@ -537,10 +565,11 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     tool_choice: { type: "function", function: { name: "submit_audit" } },
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`AI Gateway ${res.status}: ${errText}`);
-  }
+  // La politique de reprise vit dans `ai-gateway.server.ts`, où elle peut être
+  // exécutée contre un `fetch` de substitution. Écrite ici, elle ne s'éprouvait
+  // qu'en montant une boutique, une base et une collecte entière — c'est-à-dire
+  // jamais, pour une règle qui ne sert que les jours de panne.
+  const res = await aiChatCompletionAvecSecours("audit", corpsAppel);
 
   const json = await res.json();
   const message = json.choices?.[0]?.message;

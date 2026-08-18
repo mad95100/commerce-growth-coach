@@ -28,6 +28,7 @@ export type AuditFailureKind =
   | "modele_indisponible"
   | "modele_surcharge"
   | "modele_en_panne"
+  | "quota_fournisseur"
   | "requete_invalide"
   | "delai_depasse"
   | "donnees_absentes"
@@ -146,8 +147,40 @@ export function classifyAuditFailure(raw: string): AuditFailureKind {
     // 408 : le fournisseur n'a pas répondu à temps. Ce n'est pas une panne de
     // son service, et cela se relance tout de suite, pas dans une heure.
     if (code === 408) return "delai_depasse";
-    // Saturation réelle, et elle seule.
-    if (code === 429) return "modele_surcharge";
+    /*
+      DEUX 429 QUI N'ONT RIEN À VOIR, ET LE PRODUIT N'EN CONNAISSAIT QU'UN.
+
+      Constaté en production, corps de réponse réel :
+
+        AI Gateway 429 … "status": "RESOURCE_EXHAUSTED" …
+        "quotaMetric": "generativelanguage.googleapis.com/
+                        generate_content_free_tier_requests"
+        "quotaValue": "20"   "model": "gemini-3.7-flash"
+
+      Ce n'est pas une saturation. C'est NOTRE forfait chez le fournisseur qui
+      est épuisé pour la JOURNÉE — vingt requêtes, offre gratuite. Le marchand
+      lisait pourtant « Notre fournisseur d'analyse était saturé […] Relancez
+      l'audit dans une dizaine de minutes. C'est passager. »
+
+      Trois mensonges dans une phrase : ce n'était pas passager, dix minutes
+      n'y changeaient rien, et le fournisseur n'était pas saturé — il refusait
+      poliment un client qui a dépassé son forfait. Le marchand relance, échoue,
+      relance, échoue, et conclut que le produit ne marche pas.
+
+      Un 429 sans marqueur de quota reste une vraie limitation de débit, qui se
+      réessaie effectivement dans quelques minutes. Les deux sont donc séparés
+      sur les marqueurs que Google écrit lui-même.
+    */
+    if (code === 429) {
+      const quotaEpuise =
+        m.includes("resource_exhausted") ||
+        m.includes("free_tier") ||
+        m.includes("quota exceeded") ||
+        m.includes("exceeded your current quota") ||
+        m.includes("perday") ||
+        m.includes("per day");
+      return quotaEpuise ? "quota_fournisseur" : "modele_surcharge";
+    }
     // 5xx : le fournisseur est en panne. Ce n'est pas la même chose qu'être
     // saturé, et cela ne se réessaie pas au même rythme.
     if (code >= 500) return "modele_en_panne";
@@ -235,6 +268,11 @@ const FAILURES: Record<AuditFailureKind, Omit<AuditFailure, "kind">> = {
     what: "Notre fournisseur d'analyse a renvoyé une erreur.",
     whose: "partenaire",
     next: "Ce n'est pas une saturation passagère : relancez l'audit dans l'heure plutôt que tout de suite. Vos données et votre boutique ne sont pas en cause.",
+  },
+  quota_fournisseur: {
+    what: "Nous avons atteint le nombre d'analyses que notre fournisseur nous autorise pour aujourd'hui.",
+    whose: "nous",
+    next: "Ce n'est pas un encombrement passager et cela ne vient ni de vous ni de votre boutique : c'est notre forfait qui plafonne. Inutile de relancer dans la foulée, cela échouerait pareil. Le compteur repart demain, et nous travaillons à relever cette limite. Votre passage ne vous a pas été décompté.",
   },
   requete_invalide: {
     what: "Notre demande d'analyse a été refusée telle que nous l'avions formée.",

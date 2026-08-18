@@ -71,6 +71,15 @@ APP_URL = "https://ecompilot-ai.madani-mohamed.workers.dev"
 AI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 AI_AUDIT_MODEL = "gemini-3.7-flash"
 AI_FIX_MODEL = "gemini-3.5-flash"
+# SECOURS D'AUDIT. Les quotas de l'offre gratuite Google se comptent PAR MODÈLE
+# (`GenerateRequestsPerDayPerProjectPerModel`) : un second modèle a donc son
+# propre compteur, et c'est ce qui rend ce repli utile plutôt que cosmétique.
+#
+# Ce n'est pas un nom pris au hasard : l'étape « Les modèles de langage
+# configurés répondent » du déploiement essaie DÉJÀ ce modèle avec un appel
+# d'outil forcé, exactement la forme qu'emploie l'audit. Sa compatibilité est
+# donc vérifiée à chaque livraison, pas supposée.
+AI_AUDIT_FALLBACK_MODEL = "gemini-3.5-flash"
 
 # --- Environnement de pré-production -----------------------------------------
 # Worker distinct, base distincte si souhaité, mêmes secrets à renseigner
@@ -89,6 +98,15 @@ APP_URL = "https://preview.ecompilot.ai"
 AI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
 AI_AUDIT_MODEL = "gemini-3.7-flash"
 AI_FIX_MODEL = "gemini-3.5-flash"
+# SECOURS D'AUDIT. Les quotas de l'offre gratuite Google se comptent PAR MODÈLE
+# (`GenerateRequestsPerDayPerProjectPerModel`) : un second modèle a donc son
+# propre compteur, et c'est ce qui rend ce repli utile plutôt que cosmétique.
+#
+# Ce n'est pas un nom pris au hasard : l'étape « Les modèles de langage
+# configurés répondent » du déploiement essaie DÉJÀ ce modèle avec un appel
+# d'outil forcé, exactement la forme qu'emploie l'audit. Sa compatibilité est
+# donc vérifiée à chaque livraison, pas supposée.
+AI_AUDIT_FALLBACK_MODEL = "gemini-3.5-flash"
 
 [env.preview.assets]
 binding = "ASSETS"

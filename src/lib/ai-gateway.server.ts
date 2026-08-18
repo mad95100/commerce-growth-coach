@@ -105,3 +105,103 @@ export async function aiChatCompletion(body: Record<string, unknown>): Promise<R
     body: JSON.stringify(body),
   });
 }
+
+/**
+ * Modèle de secours pour un rôle donné, ou `null`.
+ *
+ * Renseigné par configuration, jamais deviné : ce fichier ne peut pas savoir
+ * quels modèles le compte du jour a le droit d'appeler, et un nom inventé
+ * transformerait une panne de quota en panne de modèle introuvable — un échec
+ * pour un autre, sans rien régler.
+ */
+export function aiFallbackModel(role: AiRole): string | null {
+  const brut =
+    role === "audit" ? process.env.AI_AUDIT_FALLBACK_MODEL : process.env.AI_FIX_FALLBACK_MODEL;
+  const nom = brut?.trim();
+  if (!nom) return null;
+  // Un secours identique au principal ne secourt rien : il rejouerait le même
+  // appel, sur le même quota, pour le même refus.
+  return nom === aiModel(role) ? null : nom;
+}
+
+/**
+ * L'ÉCHEC MÉRITE-T-IL D'ÊTRE RETENTÉ SUR UN AUTRE MODÈLE ?
+ *
+ * C'est la question qui décide de tout, et elle se tranche sur le STATUT, pas
+ * sur l'envie que l'audit aboutisse.
+ *
+ * OUI pour ce qui tient au modèle demandé ou à sa disponibilité du moment :
+ *
+ *   · 429 — quota épuisé ou débit limité. Les quotas de l'offre gratuite Google
+ *     sont comptés PAR MODÈLE (`GenerateRequestsPerDayPerProjectPerModel`) :
+ *     un second modèle a donc son propre compteur, et c'est précisément ce qui
+ *     rend le secours utile plutôt que cosmétique.
+ *   · 404 — le modèle a disparu du catalogue. Google retire régulièrement
+ *     l'accès de ses anciennes versions ; c'est déjà arrivé en production.
+ *   · 5xx — panne côté fournisseur, souvent limitée à un modèle.
+ *
+ * NON pour tout le reste, et chaque refus a sa raison :
+ *
+ *   · 401/403 — c'est la CLÉ qui est refusée. Aucun modèle n'y changera rien,
+ *     et réessayer ne ferait que doubler les traces d'échec d'authentification.
+ *   · 400/413/422 — c'est NOTRE demande qui est mal formée ou trop grosse. Un
+ *     autre modèle la refusera pareil, avec en prime le risque qu'un modèle
+ *     plus permissif l'accepte à moitié et rende un diagnostic dégradé sans que
+ *     personne ne le sache.
+ *   · 2xx — il n'y a rien à secourir.
+ */
+export function meriteUnSecours(statut: number): boolean {
+  if (statut === 429 || statut === 404) return true;
+  return statut >= 500;
+}
+
+/**
+ * Appelle le modèle du rôle, et reprend sur le modèle de secours si l'échec
+ * peut se réparer ainsi.
+ *
+ * POURQUOI CETTE POLITIQUE VIT ICI, ET PAS DANS LE MOTEUR D'AUDIT. Elle y était
+ * écrite en ligne, au milieu de sept cents lignes qui construisent un prompt :
+ * impossible de l'exécuter sans monter une boutique, une base et une collecte
+ * complète. Une règle de reprise qu'on ne peut pas éprouver directement n'est
+ * éprouvée par personne — et c'est celle qui ne sert QUE les jours de panne.
+ *
+ * `corpsPour` reçoit le nom du modèle et rend la demande complète. Les deux
+ * appels passent donc par la MÊME fonction : ni le prompt, ni le schéma de
+ * sortie, ni l'appel d'outil forcé ne peuvent diverger entre le principal et le
+ * secours. C'est ce qui rend le repli acceptable — un secours qui relâcherait
+ * le schéma « pour faire passer » la réponse produirait un diagnostic d'une
+ * autre nature, que rien ne distinguerait du premier.
+ *
+ * En cas de double échec, les DEUX statuts sont dans le message : ne garder que
+ * le second ferait croire à une panne isolée du secours, alors que c'est la
+ * chaîne entière qui n'a pas abouti, et le premier statut est celui qui
+ * explique pourquoi on en est arrivé là.
+ */
+export async function aiChatCompletionAvecSecours(
+  role: AiRole,
+  corpsPour: (modele: string) => Record<string, unknown>,
+  appeler: (corps: Record<string, unknown>) => Promise<Response> = aiChatCompletion,
+): Promise<Response> {
+  const principal = aiModel(role);
+  const premiere = await appeler(corpsPour(principal));
+  if (premiere.ok) return premiere;
+
+  const statut = premiere.status;
+  const texte = await premiere.text();
+  const secours = aiFallbackModel(role);
+
+  if (!secours || !meriteUnSecours(statut)) {
+    throw new Error(`AI Gateway ${statut}: ${texte}`);
+  }
+
+  console.error(
+    `[ia] ${principal} a refusé (${statut}) — reprise sur ${secours}. Réponse : ${texte}`,
+  );
+  const seconde = await appeler(corpsPour(secours));
+  if (seconde.ok) return seconde;
+
+  const texte2 = await seconde.text();
+  throw new Error(
+    `AI Gateway ${statut}: ${texte} — secours ${secours} : AI Gateway ${seconde.status}: ${texte2}`,
+  );
+}
