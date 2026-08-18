@@ -1,0 +1,59 @@
+-- ---------------------------------------------------------------------------
+-- LA BOUCLE « CONNECTEZ SHOPIFY » APRÈS UN OAUTH RÉUSSI
+-- ---------------------------------------------------------------------------
+-- SYMPTÔME, REPRODUIT EN PRODUCTION SUR LA BOUTIQUE DE TEST. Le marchand clique
+-- « Connecter Shopify », Shopify affiche « votre boutique est reliée », il
+-- revient dans l'application — et l'écran lui redemande de connecter Shopify.
+-- Indéfiniment. L'autorisation réussit, le jeton est échangé, la ligne est
+-- écrite, et l'interface persiste à dire que rien n'est connecté.
+--
+-- CE QUI SE PASSE RÉELLEMENT. Le durcissement RLS du 14/08 a fait, dans cet
+-- ordre :
+--
+--     REVOKE ALL ON public.data_connections FROM authenticated;
+--     GRANT SELECT (id, store_id, provider, status, account_id, account_label,
+--                   scope, connected_at, expires_at, last_error,
+--                   created_at, updated_at) ON ... TO authenticated;
+--
+-- Le but était juste : retirer `access_token_ciphertext` et
+-- `refresh_token_ciphertext` de la portée du navigateur. Mais l'énumération
+-- colonne par colonne a OMIS `metadata`, qui n'est ni l'un ni l'autre.
+--
+-- Or `ConnectionsPanel` lit :
+--
+--     .select("id, provider, status, account_id, account_label,
+--              connected_at, metadata")
+--
+-- PostgreSQL refuse la requête ENTIÈRE dès qu'une seule colonne demandée n'est
+-- pas accordée : erreur 42501, « permission denied for column metadata ». La
+-- lecture ne rend donc pas une ligne incomplète — elle ne rend RIEN.
+--
+-- POURQUOI PERSONNE NE L'A VU. Le panneau écrivait `connsQ.data ?? []` : une
+-- lecture refusée devenait un tableau vide, indiscernable de « aucune connexion
+-- ». L'échec n'était affiché nulle part. C'est corrigé séparément, dans le
+-- composant — les deux défauts sont indépendants et devaient l'être tous les
+-- deux : le droit manquant produisait la panne, le silence la rendait
+-- indéchiffrable.
+--
+-- POURQUOI L'AUDIT, LUI, FONCTIONNAIT. `loadChannelCredentials` lit
+-- `data_connections` avec `supabaseAdmin`, le rôle de service, qui ignore RLS
+-- et les droits de colonne. Le moteur voyait donc la connexion et disposait bien
+-- du jeton. Seul le NAVIGATEUR était aveugle — ce qui explique qu'un audit ait
+-- pu être lancé et aboutir jusqu'au fournisseur d'analyse pendant que l'écran
+-- affichait « non connecté ».
+--
+-- POURQUOI ACCORDER `metadata` NE ROUVRE PAS LA FAILLE. Cette colonne ne
+-- contient JAMAIS de secret. Elle n'est écrite qu'à deux endroits, les deux
+-- retours OAuth publicitaires :
+--
+--     meta/callback.ts    metadata: { accounts }    -- id, name, currency, statut
+--     google/callback.ts  metadata: { customers }   -- identifiants clients
+--
+-- Ce sont les comptes publicitaires du marchand lui-même : des identifiants et
+-- des libellés qu'il voit déjà dans Meta Business et Google Ads, et dont
+-- l'interface a besoin pour lui faire CHOISIR lequel piloter. Les deux colonnes
+-- de jetons restent, elles, hors de portée — c'est la seule chose que le
+-- durcissement voulait protéger, et elle reste protégée.
+-- ---------------------------------------------------------------------------
+
+GRANT SELECT (metadata) ON public.data_connections TO authenticated;

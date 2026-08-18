@@ -24,8 +24,11 @@
  */
 
 export type AuditFailureKind =
+  | "configuration_ia"
   | "modele_indisponible"
   | "modele_surcharge"
+  | "modele_en_panne"
+  | "donnees_absentes"
   | "reponse_invalide"
   | "shopify_expire"
   | "shopify_injoignable"
@@ -51,38 +54,155 @@ export type AuditFailure = {
  * souvent que leurs phrases, et une panne mal reconnue tombe sur `inconnu`, qui
  * reste honnête. Mieux vaut un message général vrai qu'un message précis faux.
  */
+/**
+ * Reconnaît la panne à partir du message technique.
+ *
+ * LA SOURCE AVANT LA NATURE, ET C'EST TOUT LE CORRECTIF.
+ *
+ * CE QUE FAISAIT LA VERSION PRÉCÉDENTE. Elle cherchait des fragments dans le
+ * message entier, sans jamais se demander D'OÙ il venait :
+ *
+ *     if (/ai gateway 5\d\d/.test(m) || m.includes("unavailable"))
+ *       return "modele_surcharge";
+ *     ...
+ *     if (m.includes("jeton shopify illisible") || m.includes("401") ||
+ *         m.includes("unauthorized")) return "shopify_expire";
+ *
+ * OR LE MESSAGE CONTIENT LE CORPS BRUT DU FOURNISSEUR. `audit-runner.server.ts`
+ * lève `AI Gateway ${status}: ${errText}`, où `errText` est la réponse du
+ * fournisseur, mot pour mot. Ce texte peut contenir n'importe quoi.
+ *
+ * LES DEUX MÉPRISES, DANS LES DEUX SENS, ÉTAIENT ATTEIGNABLES :
+ *
+ *   · `AI Gateway 401: {"error":"invalid api key"}` — notre clé est refusée.
+ *     Aucune règle « ai gateway » ne couvrait 401, mais « unauthorized » figurait
+ *     dans la règle Shopify. Le marchand lisait donc « Notre accès à votre
+ *     boutique Shopify n'est plus valide. Reconnectez votre boutique. » On
+ *     l'envoyait refaire une connexion parfaitement saine, pour une clé qui est
+ *     la NÔTRE.
+ *
+ *   · Shopify renvoie `503 Service Unavailable`. Le mot « unavailable » était
+ *     capturé plus haut, sans exiger le contexte du fournisseur d'analyse : le
+ *     marchand lisait « Notre fournisseur d'analyse était saturé », un service
+ *     qui n'était pour rien dans la panne.
+ *
+ * CE QUI CHANGE. On identifie d'abord la SOURCE par un marqueur que NOUS
+ * écrivons — le préfixe `AI Gateway <code>` est émis par notre propre code, il
+ * n'est pas devinable depuis un corps de réponse. Les règles générales ne
+ * s'appliquent qu'ensuite, et seulement à ce qui n'a pas déjà été attribué.
+ *
+ * ET LA SATURATION EST SÉPARÉE DE LA PANNE. Un 429 est une saturation réelle et
+ * se réessaie dans dix minutes ; un 500 est une panne du fournisseur et ne se
+ * réessaie pas de la même façon. Les confondre faisait attendre le marchand pour
+ * rien, ou l'inverse.
+ */
 export function classifyAuditFailure(raw: string): AuditFailureKind {
   const m = (raw ?? "").toLowerCase();
 
-  // L'ordre compte : « no longer available » est plus précis que « 404 ».
+  // =========================================================================
+  // 1. NOTRE CONFIGURATION — reconnue avant tout : c'est notre faute, et aucun
+  //    fragment de fournisseur ne doit pouvoir la déguiser.
+  // =========================================================================
+  if (m.includes("configuration ia absente") || m.includes("configuration ia incomplète")) {
+    return "configuration_ia";
+  }
+
+  // =========================================================================
+  // 2. LE FOURNISSEUR D'ANALYSE — identifié par le préfixe que NOUS écrivons.
+  // =========================================================================
+  // `AI Gateway <code>:` vient de `audit-runner.server.ts`. Un corps de réponse
+  // ne peut pas le fabriquer : c'est ce qui rend l'attribution sûre.
+  const passerelle = /ai gateway (\d{3})/.exec(m);
+  if (passerelle) {
+    const code = Number(passerelle[1]);
+    // Le modèle demandé n'existe plus : notre configuration, pas leur charge.
+    if (m.includes("no longer available") || m.includes("model not found")) {
+      return "modele_indisponible";
+    }
+    if (code === 404 || code === 400) return "modele_indisponible";
+    // 401/403 : c'est NOTRE clé qui est refusée. Jamais Shopify.
+    if (code === 401 || code === 403) return "configuration_ia";
+    // Saturation réelle, et elle seule.
+    if (code === 429) return "modele_surcharge";
+    // 5xx : le fournisseur est en panne. Ce n'est pas la même chose qu'être
+    // saturé, et cela ne se réessaie pas au même rythme.
+    if (code >= 500) return "modele_en_panne";
+    return "modele_en_panne";
+  }
+
+  // Formulations de saturation sans code, émises par certains fournisseurs.
+  if (m.includes("overloaded") || m.includes("rate limit")) return "modele_surcharge";
   if (m.includes("no longer available") || m.includes("model not found")) {
     return "modele_indisponible";
   }
-  if (m.includes("ai gateway 404") || m.includes("ai gateway 400")) return "modele_indisponible";
-  if (m.includes("ai gateway 429") || m.includes("overloaded") || m.includes("rate limit")) {
-    return "modele_surcharge";
-  }
-  if (/ai gateway 5\d\d/.test(m) || m.includes("unavailable")) return "modele_surcharge";
+
+  // =========================================================================
+  // 3. LA LECTURE DE LA RÉPONSE — produite par notre propre analyseur.
+  // =========================================================================
   if (
     m.includes("réponse ia invalide") ||
+    m.includes("réponse ia illisible") ||
     m.includes("invalid json") ||
     m.includes("finish_reason")
   ) {
     return "reponse_invalide";
   }
-  if (m.includes("jeton shopify illisible") || m.includes("401") || m.includes("unauthorized")) {
-    return "shopify_expire";
+
+  // =========================================================================
+  // 4. SHOPIFY — exigé nommément. Sans le mot « shopify », aucune de ces
+  //    conclusions n'est prononcée : c'est ce qui empêchait un 401 du
+  //    fournisseur d'analyse de se transformer en « reconnectez votre boutique ».
+  // =========================================================================
+  if (m.includes("shopify")) {
+    if (
+      m.includes("jeton shopify illisible") ||
+      m.includes("401") ||
+      m.includes("unauthorized") ||
+      m.includes("403")
+    ) {
+      return "shopify_expire";
+    }
+    if (
+      m.includes("timeout") ||
+      m.includes("injoignable") ||
+      m.includes("unavailable") ||
+      /\b5\d\d\b/.test(m)
+    ) {
+      return "shopify_injoignable";
+    }
   }
-  if (m.includes("shopify") && (m.includes("timeout") || m.includes("injoignable"))) {
-    return "shopify_injoignable";
-  }
+
+  // AUCUNE SOURCE BRANCHÉE. L'audit a tourné sur les seuls chiffres saisis à la
+  // main : ce n'est pas une panne, et le dire évite d'aller chercher un
+  // coupable là où il n'y en a pas.
+  if (m.includes("aucune source") || m.includes("aucune donnée")) return "donnees_absentes";
+
+  // =========================================================================
+  // 5. NOS PROPRES LIMITES
+  // =========================================================================
   if (m.includes("quota") || m.includes("limite d'audits")) return "quota";
   if (m.includes("tentatives") || m.includes("attempts")) return "trop_de_tentatives";
   if (m.includes("fetch") || m.includes("network") || m.includes("econnreset")) return "reseau";
+
   return "inconnu";
 }
 
 const FAILURES: Record<AuditFailureKind, Omit<AuditFailure, "kind">> = {
+  configuration_ia: {
+    what: "Notre moteur d'analyse n'a pas pu être appelé : son raccordement n'est pas complet de notre côté.",
+    whose: "nous",
+    next: "Rien à faire de votre côté, et surtout pas de reconnecter votre boutique : elle n'est pas en cause. Relancez l'audit plus tard ; votre passage ne vous a pas été décompté.",
+  },
+  modele_en_panne: {
+    what: "Notre fournisseur d'analyse a renvoyé une erreur.",
+    whose: "partenaire",
+    next: "Ce n'est pas une saturation passagère : relancez l'audit dans l'heure plutôt que tout de suite. Vos données et votre boutique ne sont pas en cause.",
+  },
+  donnees_absentes: {
+    what: "L'audit n'a trouvé aucune source de données à lire.",
+    whose: "vous",
+    next: "Connectez Shopify depuis l'onglet Sources de données : sans lui, le diagnostic ne peut s'appuyer que sur les chiffres que vous avez saisis à la main.",
+  },
   modele_indisponible: {
     what: "Notre moteur d'analyse n'a pas pu être utilisé : le modèle sur lequel il s'appuie n'est plus disponible.",
     whose: "nous",

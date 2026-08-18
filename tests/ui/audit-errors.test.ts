@@ -43,7 +43,13 @@ export default defineSuite("Interface — échecs d'audit expliqués", (t) => {
   // --- 2. Chaque famille répond aux deux questions -------------------------
   const cas: Array<[string, string]> = [
     ["AI Gateway 429: overloaded", "modele_surcharge"],
-    ["AI Gateway 503 unavailable", "modele_surcharge"],
+    // UN 503 N'EST PAS UNE SATURATION. Cette ligne attendait
+    // « modele_surcharge » : elle figeait l'amalgame entre un fournisseur
+    // SATURÉ — qui se réessaie dans dix minutes — et un fournisseur EN PANNE,
+    // qui ne se réessaie pas au même rythme. Le marchand attendait dix minutes
+    // pour rien, ou renonçait en croyant à un incident passager.
+    ["AI Gateway 503 unavailable", "modele_en_panne"],
+    ["AI Gateway 500: internal error", "modele_en_panne"],
     ["Réponse IA invalide (length). Relance l'audit.", "reponse_invalide"],
     ["Jeton Shopify illisible.", "shopify_expire"],
     ["Shopify timeout", "shopify_injoignable"],

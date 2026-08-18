@@ -20,6 +20,7 @@ import { startGoogleAdsConnect, selectGoogleAdsAccount } from "@/lib/connectors/
 import { describeAccountChoice, type AdAccount } from "@/lib/connectors/ad-accounts";
 import { disconnectProvider } from "@/lib/connectors/connections.functions";
 import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
+import { ErrorState } from "@/components/AppShell";
 
 type Connection = {
   id: string;
@@ -166,6 +167,40 @@ export function ConnectionsPanel({
     } finally {
       setBusy(null);
     }
+  }
+
+  /*
+    UNE LECTURE REFUSÉE NE VAUT PAS « AUCUNE CONNEXION ».
+
+    CE QUE CE PANNEAU FAISAIT. `connsQ.data ?? []`. Sur un échec de lecture, la
+    liste devenait vide, et vide veut dire ici « rien n'est branché » : le
+    panneau affichait donc « Connecter » pour Shopify, Meta et Google.
+
+    CE QUE CELA A COÛTÉ, EN PRODUCTION. Le droit `SELECT` sur la colonne
+    `metadata` manquait — PostgreSQL refuse la requête entière dès qu'une seule
+    colonne demandée n'est pas accordée. Chaque lecture échouait donc, en
+    silence, et le marchand qui venait de réussir son autorisation Shopify se
+    voyait redemander de la faire. Indéfiniment. Il n'avait AUCUN moyen de
+    savoir que sa boutique était en réalité connectée, ni que le problème était
+    chez nous.
+
+    Le droit manquant produisait la panne ; ce silence la rendait
+    indéchiffrable. Les deux devaient être corrigés, et le second compte
+    davantage : il aurait transformé n'importe quelle autre panne de lecture en
+    la même boucle muette.
+
+    Proposer de RECONNECTER sur un échec de lecture est le pire geste possible :
+    la connexion existe, elle est valide, le moteur s'en sert — et on invite à
+    la refaire.
+  */
+  if (connsQ.isError) {
+    return (
+      <ErrorState
+        title="Impossible de lire vos sources de données"
+        description="Vos connexions n'ont pas pu être chargées. Elles ne sont pas perdues : si vous aviez branché Shopify, la connexion tient toujours et vos audits continuent de s'en servir. C'est l'affichage qui a échoué."
+        onRetry={() => void connsQ.refetch()}
+      />
+    );
   }
 
   return (
