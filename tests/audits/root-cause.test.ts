@@ -272,7 +272,12 @@ export default defineSuite("Audit — causes racines et langage marchand", (t) =
 
   // --- 9 ter. L'écran affiche la phrase écrite, pas celle du code ---------
   const cockpit = readFileSync(`${racine}src/components/Cockpit.tsx`, "utf8");
-  t.check("l'écran traduit le trou", /explain\(gap\.id, gap\.label\)/.test(cockpit), true);
+  // Le troisième argument ne rouvre pas la porte au motif du moteur : `explain`
+  // ne s'en sert que pour les trous `*.unreachable`, que seul `allGaps` produit
+  // et où il écrit une phrase choisie d'après la cause classée. Sans lui, cet
+  // écran conseillait de rebrancher une connexion valable pendant une panne du
+  // fournisseur — l'inverse exact de ce qu'il fallait faire.
+  t.check("l'écran traduit le trou", /explain\(gap\.id, gap\.label,/.test(cockpit), true);
   t.check("le motif technique n'est plus affiché", /\{gap\.reason\}/.test(cockpit), false);
   t.check("l'écran dit quoi faire", /Ce qu'il faut faire/.test(cockpit), true);
 

@@ -213,7 +213,58 @@ export default defineSuite("Collecte — une source muette dit pourquoi", async 
   t.check("…et retombe sur la formulation prudente", sansCause!.reason, phrases.get("injoignable"));
 
   // =========================================================================
-  // 3. LA PHRASE FIXE NE DOIT PAS REVENIR
+  // 3. LE SECOND ÉCRAN NE DOIT PAS DIRE L'INVERSE DU PREMIER
+  // =========================================================================
+  /*
+    DEUX SURFACES, DEUX COUCHES, ET ELLES SE CONTREDISAIENT.
+
+    Le rapport d'audit affiche `g.reason` — la phrase que l'on vient de rendre
+    juste. Le tableau de bord, lui, passe par `explain(gap.id, …)`, une table
+    indexée par IDENTIFIANT SEUL. Or `shopify.unreachable` recouvre les quatre
+    causes, et son entrée disait « Ouvrez l'onglet Connexions et reconnectez
+    votre boutique » pour toutes.
+
+    Rendre le rapport précis sans toucher à celle-ci aurait produit le pire des
+    deux mondes : un écran disant « rien à rebrancher, la panne est chez eux »,
+    l'autre « reconnectez votre boutique », sur le même audit.
+  */
+  const { explain } = await import("../../src/lib/plain-language");
+
+  const conduites = new Map<string, string>();
+  for (const [cause, phrase] of phrases) {
+    const e = explain("shopify.unreachable", "Shopify", phrase);
+    conduites.set(cause, e.how);
+    // Ce qui manque et pourquoi cela compte ne dépendent pas de la cause :
+    // c'est toujours la source principale de l'analyse. Ces deux-là viennent
+    // donc toujours du texte écrit, jamais du motif.
+    t.check(`${cause} : « ce qui manque » reste le texte rédigé`, e.what.length > 0, true);
+    t.check(
+      `${cause} : « pourquoi » reste le texte rédigé`,
+      e.why.includes("source principale"),
+      true,
+    );
+    t.check(`${cause} : la conduite à tenir suit la cause`, e.how, phrase);
+  }
+  t.check("quatre causes, quatre conduites à tenir", new Set(conduites.values()).size, 4);
+  t.check(
+    "la panne du fournisseur n'envoie plus rebrancher",
+    /reconnectez|rebranchez/i.test(conduites.get("fournisseur_en_panne")!),
+    false,
+  );
+
+  // Sans motif — un audit d'avant ce changement, relu aujourd'hui — l'écran
+  // garde le texte rédigé plutôt que de n'afficher rien.
+  const ancien = explain("shopify.unreachable", "Shopify");
+  t.check("un ancien audit garde une conduite à tenir", ancien.how.length > 0, true);
+  t.check("…celle du texte rédigé", /reconnectez/i.test(ancien.how), true);
+
+  // Et la règle ne déborde pas : pour tout autre trou, l'identifiant suffit à
+  // savoir quoi faire, et le motif du moteur ne doit pas s'y substituer.
+  const autre = explain("meta.spend_30d", "Meta Ads", "motif interne du moteur");
+  t.check("un autre trou ignore le motif du moteur", /motif interne/.test(autre.how), false);
+
+  // =========================================================================
+  // 4. LA PHRASE FIXE NE DOIT PAS REVENIR
   // =========================================================================
   const source = readFileSync(`${ROOT}src/lib/observations.ts`, "utf8").replace(
     /\/\*[\s\S]*?\*\//g,

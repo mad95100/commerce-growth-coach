@@ -262,7 +262,11 @@ export function Cockpit({ storeId }: { storeId: string }) {
           </summary>
           <ul className="mt-4 space-y-4">
             {c.dataGaps.map((gap) => {
-              const e = explain(gap.id, gap.label);
+              // `gap.reason` porte la conduite à tenir quand la source entière
+              // est muette : elle dépend de la CAUSE, que l'identifiant seul ne
+              // dit pas. Sans elle, cet écran conseillait de rebrancher une
+              // connexion valable pendant une panne du fournisseur.
+              const e = explain(gap.id, gap.label, gap.reason);
               return (
                 <li key={gap.id} className="border-l-2 border-border pl-4">
                   <p className="text-sm font-medium">{e.what}</p>

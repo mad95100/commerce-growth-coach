@@ -848,7 +848,22 @@ export default defineSuite("Site public — faits techniques et frontière", asy
   // rédigés dans les sources s'adressent au moteur — « Non exposé par l'API
   // Admin » — et arrivaient tels quels sous les yeux de l'utilisateur. Ils
   // décrivaient une panne sans jamais dire quoi faire.
-  t.check("traduites pour le marchand", cockpit.includes("explain(gap.id, gap.label)"), true);
+  /*
+    LE TROISIÈME ARGUMENT N'AFFAIBLIT PAS CETTE RÈGLE, IL LA COMPLÈTE.
+
+    `explain` reçoit désormais `gap.reason` — mais il ne s'en sert QUE pour les
+    trous `*.unreachable`, et ceux-là ne sont produits que par `allGaps`, qui y
+    écrit une phrase choisie d'après la cause classée. Aucun connecteur n'émet
+    de trou portant ce suffixe : le motif interne d'une source ne peut donc pas
+    passer par là.
+
+    Ce qui l'exigeait : `shopify.unreachable` recouvre quatre situations —
+    autorisation à refaire, quota atteint, panne du fournisseur, silence
+    inexpliqué — et l'entrée fixe disait « reconnectez votre boutique » pour
+    les quatre. Trois fois sur quatre, elle envoyait refaire une connexion
+    valable.
+  */
+  t.check("traduites pour le marchand", cockpit.includes("explain(gap.id, gap.label,"), true);
   t.check("le motif interne ne s'affiche plus", cockpit.includes("{gap.reason}"), false);
   t.check("chacune dit quoi faire", cockpit.includes("Ce qu'il faut faire"), true);
   t.check("et ce qu'elle ouvrira", cockpit.includes("Ce que cela ouvrira"), true);

@@ -298,8 +298,34 @@ export function fallbackExplanation(label: string): PlainExplanation {
   };
 }
 
-export function explain(gapId: string, label: string): PlainExplanation {
-  return EXPLANATIONS[gapId] ?? fallbackExplanation(label);
+/**
+ * L'EXPLICATION D'UN TROU, ET LA CONDUITE À TENIR.
+ *
+ * `reason` est facultatif, et il ne sert QUE pour les sources entièrement
+ * muettes — les trous `*.unreachable`. Voici pourquoi.
+ *
+ * Les entrées écrites ci-dessus sont indexées par identifiant seul. Or
+ * `shopify.unreachable` recouvre quatre situations que le connecteur sait
+ * distinguer et qui n'appellent pas la même chose : une autorisation à refaire,
+ * une limite de requêtes atteinte, une panne chez Shopify, un silence
+ * inexpliqué. L'entrée fixe disait « reconnectez votre boutique » pour les
+ * quatre.
+ *
+ * Trois fois sur quatre, c'était l'erreur INVERSE de celle qu'on vient de
+ * corriger ailleurs : envoyer le marchand refaire une connexion parfaitement
+ * valable, pendant que la panne est chez le fournisseur. Il refait, cela ne
+ * change rien, et il en conclut que le produit ne marche pas.
+ *
+ * `reason` porte déjà la phrase juste — `allGaps` la choisit d'après la cause
+ * classée. On la prend donc telle quelle pour « ce qu'il faut faire », en
+ * gardant du tableau ce qu'il dit de mieux : ce qui manque, pourquoi cela
+ * compte, et ce que cela rouvrirait. Le tableau reste la référence pour tous
+ * les autres trous, où l'identifiant suffit à savoir quoi faire.
+ */
+export function explain(gapId: string, label: string, reason?: string | null): PlainExplanation {
+  const base = EXPLANATIONS[gapId] ?? fallbackExplanation(label);
+  if (!gapId.endsWith(".unreachable") || !reason?.trim()) return base;
+  return { ...base, how: reason.trim() };
 }
 
 /**
