@@ -43,6 +43,11 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      # Sert uniquement à interroger l'API publique des publications du CLI
+      # Supabase : sans jeton, l'appel est limité par adresse IP et partagé avec
+      # tous les exécuteurs GitHub, donc refusé de façon intermittente. Ce jeton
+      # ne donne aucun droit hors de ce dépôt.
+      GITHUB_TOKEN: ${{ github.token }}
 
     steps:
       - uses: actions/checkout@v4
@@ -516,7 +521,58 @@ jobs:
           fi
           echo "Projet Supabase : $PROJECT_ID"
 
-          npm install -g supabase@latest
+          # L'INSTALLATION PAR NPM A CASSÉ LE DÉPLOIEMENT, ET ELLE RECASSERA.
+          #
+          #     Error: No matching Supabase CLI binary package found for linux-x64
+          #
+          # Le paquet `supabase` de npm ne contient pas le programme : il le tire
+          # d'un paquet par plate-forme, déclaré en dépendance OPTIONNELLE. Une
+          # dépendance optionnelle qui ne s'installe pas ne fait échouer personne
+          # — npm continue, l'installation se déclare réussie, et le programme
+          # manque. C'est arrivé cinq minutes après un déploiement identique qui
+          # avait réussi : rien n'avait changé chez nous.
+          #
+          # Ce que cela coûtait : l'étape s'arrête ici, donc `db push` ne tourne
+          # pas ET le contrôle de démarrage qui la suit est sauté. Un schéma en
+          # retard sans que rien ne l'applique, c'est exactement la panne que les
+          # étapes voisines existent pour empêcher.
+          #
+          # On prend donc le binaire publié, directement.
+          #
+          # NI LA VERSION NI LE NOM DU FICHIER NE SONT ÉCRITS ICI. Les deux sont
+          # LUS dans la publication elle-même : une version figée vieillit, et un
+          # nom d'archive supposé produirait un 404 — c'est-à-dire la même panne
+          # sous un autre nom. On demande la dernière publication, on y CHERCHE
+          # une archive Linux 64 bits sans présumer de son intitulé, et on
+          # échoue explicitement si elle n'y est pas, plutôt que de continuer
+          # sans programme.
+          RELEASE_JSON=$(curl -fsSL --retry 3 --retry-delay 3 \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            https://api.github.com/repos/supabase/cli/releases/latest)
+
+          ASSET_URL=$(printf '%s' "$RELEASE_JSON" \
+            | grep -o '"browser_download_url": *"[^"]*"' \
+            | sed 's/.*"\(https[^"]*\)"/\1/' \
+            | grep -i 'linux' \
+            | grep -Ei 'amd64|x86_64' \
+            | grep -E '\.tar\.gz$' \
+            | head -1)
+
+          if [ -z "$ASSET_URL" ]; then
+            echo "::error::Aucune archive Linux 64 bits dans la dernière publication du CLI Supabase. Les migrations n'ont PAS été appliquées : le schéma distant peut être en retard sur le code qui vient d'être déployé."
+            exit 1
+          fi
+
+          echo "CLI Supabase : $ASSET_URL"
+          curl -fsSL --retry 3 --retry-delay 3 "$ASSET_URL" -o /tmp/supabase.tar.gz
+          tar -xzf /tmp/supabase.tar.gz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+
+          # Le programme répond-il réellement ? C'est exactement ce que
+          # l'installation par npm affirmait à tort.
+          supabase --version
+
           supabase link --project-ref "$PROJECT_ID"
 
           # L'historique local et distant DOIVENT concorder. Un décalage d'une
