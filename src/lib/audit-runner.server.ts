@@ -235,6 +235,34 @@ export async function executeAuditWork(input: {
   // mesurées sont nommées : la fuite n'est jamais cherchée au travers d'un trou.
   const funnel = buildFunnel(allObservations(reports));
 
+  /*
+    LES MANQUES SONT ÉCRITS AVANT D'APPELER LE FOURNISSEUR.
+
+    POURQUOI ICI, ET PAS À LA FIN. `data_gaps` n'était enregistré que dans la
+    mise à jour de SUCCÈS. Un audit qui échouait ensuite — le fournisseur
+    d'analyse indisponible, par exemple — n'en gardait aucune trace : seul
+    `error_message` était écrit.
+
+    Le marchand dont le jeton Shopify venait d'expirer lisait donc, en tout et
+    pour tout, « notre fournisseur d'analyse était saturé ». La première cause,
+    la seule sur laquelle il pouvait agir, avait disparu au moment précis où
+    elle comptait — et l'écran lui désignait un coupable qui n'y était pour
+    rien.
+
+    La collecte est terminée à cette ligne et le fournisseur n'a pas encore été
+    appelé : c'est le seul endroit où l'on sait ce qui manque tout en étant
+    certain que rien ne l'a encore emporté. Une écriture en échec ici ne doit
+    évidemment pas faire tomber l'audit — elle est consignée et l'on continue.
+  */
+  try {
+    await supabase
+      .from("audits")
+      .update({ data_gaps: allGaps(reports), updated_at: new Date().toISOString() })
+      .eq("id", auditId);
+  } catch (err) {
+    console.error("[audit] enregistrement des manques impossible :", err);
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("experience_level")

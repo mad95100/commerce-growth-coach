@@ -1,0 +1,12 @@
+import { BASE, AUDIT_ECHOUE, launch, makeContext } from "./harness.mjs";
+const b = await launch();
+const ctx = await makeContext(b, {});
+const p = await ctx.newPage();
+await p.goto(`${BASE}/audits/${AUDIT_ECHOUE}`, { waitUntil: "networkidle" });
+await p.waitForTimeout(2500);
+const t = await p.locator("body").innerText();
+console.log("message final affiché        :", /saturé/.test(t));
+console.log("cause antérieure affichée    :", /Ce que nous n'avions déjà pas pu lire/.test(t));
+console.log("la source en panne est nommée:", /Shopify/.test(t) && /injoignable/.test(t));
+console.log("l'ordre de correction est dit:", /corrigez-les d'abord/.test(t));
+await b.close();

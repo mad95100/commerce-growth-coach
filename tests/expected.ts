@@ -326,7 +326,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "integrations/shopify-connecte.test.ts",
-    minChecks: 30,
+    minChecks: 45,
     covers:
       "La boucle « Connectez Shopify » après un OAuth réussi, signalée en production. L'autorisation, l'échange du jeton et l'écriture étaient sains : le durcissement RLS avait redonné le droit de lecture COLONNE PAR COLONNE en omettant `metadata`, et PostgreSQL refuse la requête entière dès qu'une colonne demandée n'est pas accordée. Le panneau lisait `connsQ.data ?? []` : une lecture refusée devenait « aucune connexion », et le marchand se voyait proposer de refaire ce qu'il venait de réussir. Le contrôle confronte désormais les colonnes DEMANDÉES aux colonnes ACCORDÉES. Il fige aussi la distinction entre les deux symptômes — le moteur lit avec le rôle de service, donc l'audit tournait — et les deux méprises du classement d'échec : notre clé refusée accusait Shopify, une panne Shopify accusait le fournisseur d'analyse.",
   },

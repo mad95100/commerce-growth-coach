@@ -240,6 +240,54 @@ export default defineSuite("Shopify connecté — la chaîne, de l'OAuth au diag
     false,
   );
 
+  // =========================================================================
+  // 6. UNE ERREUR N'EN MASQUE PLUS UNE AUTRE
+  // =========================================================================
+  /*
+    LE CHEMIN COMPLET DU MASQUAGE, ET SES TROIS MAILLONS.
+
+    Un seul `try` couvrait les trois sources : Shopify qui expire, et Meta comme
+    Google n'étaient même pas tentés. L'échec n'allait qu'au journal. Et
+    `data_gaps` n'était écrit que dans la mise à jour de SUCCÈS — donc perdu
+    précisément quand l'audit échouait ensuite.
+
+    Résultat : le marchand dont le jeton Shopify venait d'expirer lisait, en
+    tout et pour tout, « notre fournisseur d'analyse était saturé ».
+  */
+  const runner = sansCommentaires(lire("src/lib/audit-runner.server.ts"));
+  for (const source of ["Shopify", "Meta", "Google"]) {
+    t.check(
+      `la collecte ${source} est rattrapée séparément`,
+      new RegExp(`collecte ${source} impossible`).test(runner),
+      true,
+    );
+  }
+  t.check(
+    "un échec de collecte devient un rapport injoignable",
+    (runner.match(/reachable: false/g) ?? []).length >= 4,
+    true,
+  );
+  // LE POINT D'ÉCRITURE EST CE QUI FAIT TOUT : avant l'appel au fournisseur, la
+  // trace survit à son échec ; après, elle disparaît avec lui.
+  const iManques = runner.indexOf("data_gaps: allGaps(reports)");
+  const iModele = runner.indexOf("AI Gateway");
+  t.check("les manques sont enregistrés", iManques > -1, true);
+  t.check("…avant l'appel au fournisseur", iManques < iModele, true);
+
+  const rapport = sansCommentaires(lire("src/routes/_authenticated/audits.$auditId.tsx"));
+  t.check(
+    "l'écran d'échec montre ce qui n'avait déjà pas pu être lu",
+    /Ce que nous n'avions déjà pas pu lire/.test(rapport),
+    true,
+  );
+  t.check("…et dit dans quel ordre corriger", /corrigez-les d'abord/.test(rapport), true);
+  // La colonne est du JSON : une entrée à moitié écrite ne doit pas s'afficher.
+  t.check(
+    "les manques illisibles sont écartés, pas rendus",
+    /label && reason && id \? \[\{ id, label, reason \}\] : \[\]/.test(rapport),
+    true,
+  );
+
   // L'ABSENCE DE SOURCE EST UN ÉTAT, PAS UNE PANNE.
   const vide = explainAuditFailure("Aucune source de données connectée pour cette boutique");
   t.check("l'absence de source a son propre verdict", vide.kind, "donnees_absentes");

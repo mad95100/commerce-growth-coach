@@ -70,7 +70,32 @@ const stores = [
   },
 ];
 
+export const AUDIT_ECHOUE = "77777777-7777-4777-8777-777777777779";
+
 const audits = [
+  {
+    id: AUDIT_ECHOUE,
+    store_id: STORE_A,
+    status: "failed",
+    score: null,
+    category_scores: {},
+    potential_gain_min: null,
+    potential_gain_max: null,
+    verdict: null,
+    summary: null,
+    error_message: "AI Gateway 429: overloaded",
+    data_gaps: [
+      {
+        id: "shopify.unreachable",
+        label: "Shopify",
+        source: "shopify",
+        reason: "Source injoignable — aucune donnée de ce canal.",
+        wouldEnable: "Tout le diagnostic Shopify.",
+      },
+    ],
+    created_at: "2026-08-18T09:00:00Z",
+    completed_at: null,
+  },
   {
     id: AUDIT_1,
     store_id: STORE_A,
@@ -426,7 +451,7 @@ export function fixtureFor(url, scenario) {
       rows = findings;
       break;
     case "data_connections":
-      rows = scenario === "vide" ? [] : connections;
+      rows = scenario === "vide" || scenario === "sansconnexion" ? [] : connections;
       break;
     case "profiles":
       rows = [profile];

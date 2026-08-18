@@ -369,6 +369,25 @@ function AuditPage() {
     (audit?.stores as { currency?: string | null } | undefined)?.currency,
   );
   /** Nul quand la jointure ne rend pas la boutique. Lu comme tel, jamais casté. */
+  /**
+   * Les manques relevés pendant la collecte, lus sans rien supposer.
+   *
+   * `data_gaps` est une colonne JSON : sa forme vient du moteur, le typage ne la
+   * garantit pas. On ne retient que les entrées réellement lisibles — un manque
+   * à moitié écrit ne vaut pas mieux qu'un manque absent.
+   */
+  const manquesDeCollecte = Array.isArray(audit?.data_gaps)
+    ? (audit.data_gaps as unknown[]).flatMap((g) => {
+        if (!g || typeof g !== "object") return [];
+        const o = g as Record<string, unknown>;
+        const texte = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+        const label = texte(o.label);
+        const reason = texte(o.reason);
+        const id = texte(o.id) ?? label;
+        return label && reason && id ? [{ id, label, reason }] : [];
+      })
+    : [];
+
   const storeName = (audit?.stores as { name?: string | null } | undefined)?.name?.trim() || null;
 
   const totalGainMin = findings.reduce((s, f) => s + (Number(f.estimated_gain_min) || 0), 0);
@@ -436,6 +455,40 @@ function AuditPage() {
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
             {auditFailureText(audit.error_message)}
           </p>
+          {/*
+            CE QUI A ÉCHOUÉ AVANT, ET QUI COMPTE DAVANTAGE.
+
+            Cet écran n'affichait QUE le dernier message. Un marchand dont le
+            jeton Shopify venait d'expirer lisait donc « notre fournisseur
+            d'analyse était saturé », et rien d'autre : la première cause — la
+            seule sur laquelle il pouvait agir — restait invisible, et l'écran
+            lui désignait un coupable qui n'y était pour rien.
+
+            Les manques relevés pendant la collecte sont maintenant enregistrés
+            AVANT l'appel au fournisseur, donc ils survivent à son échec. Les
+            montrer ici, sous le message final, empêche qu'une erreur en masque
+            une autre — et remet le marchand devant ce qu'il peut réellement
+            corriger.
+          */}
+          {manquesDeCollecte.length > 0 && (
+            <div className="mt-6 rounded-xl border border-warning/30 bg-warning/10 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-warning">
+                <AlertTriangle className="h-4 w-4" />
+                Ce que nous n'avions déjà pas pu lire
+              </div>
+              <ul className="mt-2 space-y-1.5">
+                {manquesDeCollecte.map((g) => (
+                  <li key={g.id} className="text-sm text-muted-foreground">
+                    <span className="text-foreground">{g.label}</span> — {g.reason}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Ces points sont indépendants de l'échec ci-dessus : corrigez-les d'abord, le
+                prochain diagnostic en tiendra compte.
+              </p>
+            </div>
+          )}
           {canRetryNow(audit.error_message) ? (
             <Link to="/stores/$storeId" params={{ storeId: audit.store_id }}>
               <Button className="mt-6">Relancer un audit</Button>
