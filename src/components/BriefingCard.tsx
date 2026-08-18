@@ -153,21 +153,45 @@ export function BriefingCard({
           )}
 
           {/* Le bouton mène à l'aperçu. Il n'exécute rien par lui-même. */}
+          {/*
+            LE LIBELLÉ VIENT DU MOTEUR, DONC SA LONGUEUR EST INCONNUE.
+
+            « Afficher les frais de livraison sur la fiche produit » mesurait
+            416 px dans un cadre de 320 : le bouton débordait, et avec lui toute
+            la page. Ce n'est pas un cas limite — le libellé est construit à
+            partir du constat, il sera parfois plus long encore.
+
+            Le bouton prend donc la pleine largeur sous `sm`, et son texte se
+            replie au lieu de pousser : `whitespace-normal` défait le
+            `whitespace-nowrap` que le composant applique par défaut, et
+            `h-auto` laisse le bouton grandir plutôt que de rogner son contenu.
+          */}
           {briefing.action.kind === "annuler" ? (
-            <Link to="/tracking/$storeId" params={{ storeId }} className="mt-4 inline-block">
-              <Button variant="outline">
-                <Undo2 className="mr-2 h-4 w-4" /> {briefing.action.label}
+            <Link
+              to="/tracking/$storeId"
+              params={{ storeId }}
+              className="mt-4 inline-block w-full sm:w-auto"
+            >
+              <Button
+                variant="outline"
+                className="h-auto w-full whitespace-normal py-2 text-left sm:w-auto"
+              >
+                <Undo2 className="mr-2 h-4 w-4 shrink-0" /> {briefing.action.label}
               </Button>
             </Link>
           ) : auditId ? (
-            <Link to="/audits/$auditId" params={{ auditId }} className="mt-4 inline-block">
-              <Button className="bg-gradient-primary text-primary-foreground">
+            <Link
+              to="/audits/$auditId"
+              params={{ auditId }}
+              className="mt-4 inline-block w-full sm:w-auto"
+            >
+              <Button className="h-auto w-full whitespace-normal bg-gradient-primary py-2 text-left text-primary-foreground sm:w-auto">
                 {briefing.action.kind === "corriger" ? (
-                  <Wrench className="mr-2 h-4 w-4" />
+                  <Wrench className="mr-2 h-4 w-4 shrink-0" />
                 ) : (
-                  <Compass className="mr-2 h-4 w-4" />
+                  <Compass className="mr-2 h-4 w-4 shrink-0" />
                 )}
-                {briefing.action.label} <ArrowRight className="ml-2 h-4 w-4" />
+                {briefing.action.label} <ArrowRight className="ml-2 h-4 w-4 shrink-0" />
               </Button>
             </Link>
           ) : null}

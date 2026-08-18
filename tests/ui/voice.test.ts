@@ -135,6 +135,30 @@ const IMPÉRATIFS = [
   // Deux tutoiements dans une phrase de douze mots, sur le seul écran qui
   // répond à « est-ce que ce que j'ai fait a servi ? ».
   "Applique",
+  // AJOUTÉ APRÈS LA FRONTIÈRE D'ERREUR GLOBALE. « Recharge la page ou reviens à
+  // l'accueil » y vivait — le DERNIER écran que voit un marchand quand tout le
+  // reste a échoué, et le seul qui tutoyait encore. Le verbe manquait à cette
+  // liste : rien ne le cherchait, donc rien ne l'a vu.
+  "Recharge",
+  // Relevés en même temps, par balayage : aucun n'était présent dans le code,
+  // et c'est précisément pour cela qu'ils sont nommés maintenant — une liste
+  // qui n'est complétée qu'après coup n'a jamais protégé de rien.
+  "Sélectionne",
+  "Remplis",
+  "Saisis",
+  "Consulte",
+  "Modifie",
+  "Supprime",
+  "Enregistre",
+  "Envoie",
+  "Active",
+  "Configure",
+  "Complète",
+  "Indique",
+  "Essaie",
+  "Valide",
+  "Confirme",
+  "Copie",
 ];
 
 /**

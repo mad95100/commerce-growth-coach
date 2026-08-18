@@ -8,27 +8,54 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { Rocket } from "lucide-react";
 
 import appCss from "../styles.css?url";
 import { reportError } from "../lib/error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 
+/**
+ * LA SORTIE DE SECOURS RENVOYAIT LE MARCHAND À LA PAGE DE VENTE.
+ *
+ * Une adresse inconnue dans une application d'une seule page, c'est presque
+ * toujours un marchand DÉJÀ CONNECTÉ : un signet périmé, un lien collé de
+ * travers, une ressource supprimée. Le seul bouton proposé le renvoyait vers
+ * l'accueil commercial — l'écran qui explique le produit à quelqu'un qui ne
+ * l'a pas encore. Il perdait sa place et relisait un argumentaire.
+ *
+ * Les deux sorties sont maintenant offertes, le tableau de bord en premier.
+ * Un visiteur non connecté qui le suit est simplement reconduit vers la
+ * connexion : aucune des deux issues ne mène nulle part.
+ *
+ * Le logo a été ajouté : sans lui, cette page ne portait AUCUNE marque du
+ * produit et se lisait comme une erreur de serveur, pas comme un écran
+ * d'EcomPilot.
+ */
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-6">
       <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold">Page introuvable</h2>
+        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-primary">
+          <Rocket className="h-5 w-5 text-primary-foreground" />
+        </div>
+        <h1 className="mt-8 font-display text-6xl font-bold text-foreground">404</h1>
+        <h2 className="mt-4 font-display text-xl font-semibold">Page introuvable</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Cette page n'existe pas ou a été déplacée.
+          Cette adresse n'existe pas, ou la page a été déplacée. Rien n'est perdu de votre côté.
         </p>
-        <div className="mt-6">
+        <div className="mt-8 flex flex-col justify-center gap-2 sm:flex-row">
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            Retour au tableau de bord
+          </Link>
           <Link
             to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:opacity-90"
+            className="inline-flex items-center justify-center rounded-md border border-input px-4 py-2 text-sm font-medium transition-colors hover:bg-accent/10"
           >
-            Retour à l'accueil
+            Page d'accueil
           </Link>
         </div>
       </div>
@@ -46,9 +73,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold">Erreur inattendue</h1>
+        {/* TUTOIEMENT DANS LA FRONTIÈRE D'ERREUR GLOBALE — le dernier écran
+            que voit un marchand quand tout le reste a échoué, et le seul qui
+            tutoyait encore. « Recharge » manquait à la liste des impératifs
+            surveillés : une liste nommée ne protège que de ce qu'elle nomme. */}
+        <h1 className="font-display text-xl font-semibold">Une erreur inattendue est survenue</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Recharge la page ou reviens à l'accueil.
+          Rien n'a été perdu. Réessayez, ou revenez à votre tableau de bord.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -61,10 +92,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             Réessayer
           </button>
           <a
-            href="/"
+            href="/dashboard"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
           >
-            Accueil
+            Tableau de bord
           </a>
         </div>
       </div>
