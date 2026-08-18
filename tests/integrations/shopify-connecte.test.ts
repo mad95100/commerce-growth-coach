@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { defineSuite } from "../harness";
 import { classifyAuditFailure, explainAuditFailure } from "../../src/lib/audit-errors";
 
@@ -58,17 +58,42 @@ function migrations(): string {
     .join("\n");
 }
 
-/** Colonnes de `data_connections` réellement lisibles par `authenticated`. */
-function colonnesLisibles(sql: string): Set<string> {
-  const lisibles = new Set<string>();
-  const motif = /GRANT SELECT\s*\(([^)]*)\)\s*ON\s+public\.data_connections\s+TO\s+authenticated/gi;
+/**
+ * Colonnes réellement lisibles par `authenticated`, table par table.
+ *
+ * Ne recense QUE les tables dont les droits sont accordés colonne par colonne :
+ * ce sont les seules où une colonne peut être oubliée. Une table accordée en
+ * bloc n'a pas ce risque, et l'inclure ferait crier le contrôle à tort.
+ */
+function lisiblesParTable(sql: string): Map<string, Set<string>> {
+  const parTable = new Map<string, Set<string>>();
+  const motif = /GRANT SELECT\s*\(([^)]*)\)\s*ON\s+public\.(\w+)\s+TO\s+authenticated/gi;
   for (const m of sql.matchAll(motif)) {
+    const table = m[2];
+    if (!parTable.has(table)) parTable.set(table, new Set());
     for (const c of m[1].split(",")) {
       const nom = c.trim().replace(/--.*$/gm, "").trim();
-      if (nom) lisibles.add(nom);
+      if (nom) parTable.get(table)!.add(nom);
     }
   }
-  return lisibles;
+  return parTable;
+}
+
+/** Fichiers rendus dans le NAVIGATEUR : eux seuls subissent les droits de rôle. */
+function fichiersNavigateur(): string[] {
+  const out: string[] = [];
+  const parcourir = (dossier: string) => {
+    for (const entrée of readdirSync(`${ROOT}${dossier}`)) {
+      const relatif = `${dossier}/${entrée}`;
+      if (statSync(`${ROOT}${relatif}`).isDirectory()) parcourir(relatif);
+      else if (/\.(ts|tsx)$/.test(relatif)) out.push(relatif);
+    }
+  };
+  parcourir("src/routes");
+  parcourir("src/components");
+  // Le code serveur passe par le rôle de service : ces droits ne s'y appliquent
+  // pas, et l'y soumettre produirait de faux écarts.
+  return out.filter((f) => !/\.server\.ts$|\.functions\.ts$|src\/routes\/api\//.test(f));
 }
 
 /** Colonnes que le navigateur demande dans son `.select(...)`. */
@@ -88,18 +113,43 @@ export default defineSuite("Shopify connecté — la chaîne, de l'OAuth au diag
   // =========================================================================
   // 1. LA CAUSE RACINE : chaque colonne lue doit être accordée
   // =========================================================================
-  const lisibles = colonnesLisibles(sql);
+  const parTable = lisiblesParTable(sql);
+  const lisibles = parTable.get("data_connections") ?? new Set<string>();
   const demandees = colonnesDemandees(panneau);
 
   t.check("le panneau lit bien `data_connections`", demandees.length >= 5, true);
   t.check("des droits de colonne sont bien accordés", lisibles.size >= 10, true);
 
-  // LE CONTRÔLE QUI AURAIT ÉVITÉ LA PANNE. Il confronte ce que le navigateur
-  // DEMANDE à ce que la base lui ACCORDE. Toute colonne ajoutée au `select`
-  // sans être ajoutée au `GRANT` fera échouer ici — avant la production.
-  for (const colonne of demandees) {
-    t.check(`la colonne « ${colonne} » est lisible par le navigateur`, lisibles.has(colonne), true);
+  /*
+    LE CONTRÔLE QUI AURAIT ÉVITÉ LA PANNE, ÉTENDU À TOUTE LA CLASSE.
+
+    Il confronte ce que le navigateur DEMANDE à ce que la base lui ACCORDE, sur
+    TOUTES les tables dont les droits sont donnés colonne par colonne — pas
+    seulement celle qui a cassé. Une table qui passerait demain aux droits par
+    colonne serait couverte sans que personne ait à y penser, et c'est exactement
+    le geste qui a produit la panne : une énumération écrite une fois, jamais
+    reconfrontée aux lectures.
+
+    PostgreSQL refuse la requête ENTIÈRE dès qu'une seule colonne demandée n'est
+    pas accordée : un oubli ne dégrade pas la lecture, il l'annule.
+  */
+  let colonnesVerifiees = 0;
+  for (const chemin of fichiersNavigateur()) {
+    const source = readFileSync(`${ROOT}${chemin}`, "utf8");
+    for (const m of source.matchAll(/\.from\("(\w+)"\)\s*\.select\(\s*"([^"]+)"/g)) {
+      const accordees = parTable.get(m[1]);
+      if (!accordees) continue;
+      for (const brut of m[2].split(",")) {
+        const col = brut.trim().replace(/\(.*/, "").trim();
+        if (!col || col === "*" || col.includes("(")) continue;
+        colonnesVerifiees++;
+        t.check(`${chemin} : ${m[1]}.${col} est accordée au navigateur`, accordees.has(col), true);
+      }
+    }
   }
+  // GARDE-FOU DU RELEVÉ : si les motifs cessaient de correspondre, la boucle
+  // ci-dessus se déclarerait conforme sans avoir rien confronté.
+  t.check("des colonnes ont bien été confrontées", colonnesVerifiees >= 5, true);
 
   // ET LES JETONS RESTENT HORS DE PORTÉE. C'est ce que le durcissement voulait
   // protéger, et l'ajout de `metadata` ne doit pas l'avoir desserré.
