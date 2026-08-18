@@ -301,6 +301,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "L'état OAuth, seule chose qui empêche d'attacher un compte publicitaire à la boutique d'autrui. Le retour d'autorisation est une route PUBLIQUE, appelée sans session à nous : le paramètre `state` lui dit pour quelle boutique elle travaille, et sa signature est tout ce qui empêche de le fabriquer. Sans elle, un état forgé avec l'identifiant de la boutique d'un autre y rattache le compte de l'attaquant — puis un diagnostic parle de campagnes que le marchand n'a jamais lancées. Le code était déjà correct quand cette suite a été écrite ; il n'était couvert par rien. Une primitive de sécurité juste mais non testée n'est juste que pour l'instant.",
   },
   {
+    file: "security/pages-oauth.test.ts",
+    minChecks: 60,
+    covers:
+      "Les pages HTML rendues au retour d'une autorisation. Deux des trois retours recopiaient le paramètre `error` de l'adresse dans le document sans l'échapper : une adresse fabriquée exécutait du script sur l'origine de l'application, celle où la session Supabase est rangée dans le stockage local — sans compte, sur simple clic. Constaté au navigateur sur Meta et Google avant correction. La cause n'était pas l'oubli d'un échappement mais TROIS COPIES d'une même fonction, dans trois fichiers, dont une seule avait été corrigée au fil du temps ; d'où la seconde moitié de cette suite, qui vérifie qu'aucun retour ne refabrique ses pages lui-même. Couvre aussi ce que ces pages disaient : réponses brutes des fournisseurs, messages internes, et le « [object Object] » que rendait l'échec d'enregistrement — une PostgrestError étant un objet nu, jamais une `Error`.",
+  },
+  {
     file: "ui/promesses.test.ts",
     minChecks: 20,
     covers:
