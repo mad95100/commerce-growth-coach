@@ -96,8 +96,28 @@ export default defineSuite("Rapport — la preuve est montrée au marchand", (t)
   t.check("« Pourquoi » est bien présent", iPourquoi > -1, true);
   t.check("« Impact » est bien présent", iImpact > -1, true);
   t.check("« Ce que vous devez faire » est bien présent", iActions > -1, true);
+  /*
+    L'ORDRE A CHANGÉ, ET DANS LE BON SENS.
+
+    Ce contrôle exigeait `preuve < impact` : le marchand lisait le problème, un
+    relevé de chiffres Shopify et nos suppositions, PUIS ce que cela lui coûte.
+    On lui demandait d'évaluer une démonstration avant de lui avoir dit
+    pourquoi elle le concernait — l'ordre d'un rapport d'expertise, pas celui
+    d'un conseil qu'on écoute.
+
+    L'ordre est désormais : ce qui ne va pas, ce que ça coûte, sur quoi nous
+    nous appuyons, quoi faire. La preuve n'est ni déplacée en annexe ni
+    repliée : elle arrive à l'endroit exact où naît la question « comment le
+    savez-vous ? », c'est-à-dire juste après l'annonce du montant.
+
+    CE QUI EST PROTÉGÉ RESTE LE MÊME, et c'est le point : la preuve précède
+    toujours la RECOMMANDATION. Une preuve placée après ce qu'on demande de
+    faire ne sert plus à décider, elle justifie après coup — c'était le vrai
+    sujet de ce contrôle, et il tient toujours.
+  */
   t.check("la preuve vient après le problème", iPreuve > iPourquoi, true);
-  t.check("la preuve vient avant l'impact", iPreuve < iImpact, true);
+  t.check("l'impact est annoncé avant la preuve", iImpact < iPreuve, true);
+  t.check("la preuve vient avant la recommandation", iPreuve < iActions, true);
   t.check("l'impact vient avant la recommandation", iImpact < iActions, true);
 
   // =========================================================================

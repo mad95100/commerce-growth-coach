@@ -573,16 +573,30 @@ function AuditPage() {
           {/* Hero */}
           <div className="card-elevated rounded-2xl p-8">
             <div className="flex flex-col items-center gap-6 md:flex-row md:text-left">
-              <ScoreRing score={audit.score} size={140} />
+              <ScoreRing score={audit.score} size={112} />
               <div className="flex-1">
                 {/* Le nom de la boutique est un ORNEMENT de ce titre : quand la
                     jointure ne le rend pas, on affiche « Score global » seul
                     plutôt que de faire tomber le rapport avec lui. */}
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                <div className="intitule">
                   {storeName ? `Score global — ${storeName}` : "Score global"}
                 </div>
-                <h1 className="mt-1 font-display text-3xl font-bold">{audit.verdict}</h1>
-                <p className="mt-3 text-muted-foreground">{audit.summary}</p>
+                {/*
+                  LE VERDICT ÉTAIT EN `text-3xl` À TOUTES LES LARGEURS.
+
+                  Mesuré au navigateur à 390 px : le verdict de la boutique de
+                  test occupait NEUF LIGNES et la totalité du premier écran. À
+                  cette longueur, une graisse 700 en 30 px n'est plus un titre —
+                  c'est un paragraphe crié, qu'on saute.
+
+                  Le verdict est écrit par le modèle : sa longueur n'est pas
+                  sous notre contrôle, la taille doit donc l'être. Elle part de
+                  20 px sur téléphone et remonte avec la place disponible.
+                */}
+                <h1 className="mt-1.5 font-display text-xl font-bold leading-snug sm:text-2xl md:text-3xl">
+                  {audit.verdict}
+                </h1>
+                <p className="mt-3 text-sm text-muted-foreground sm:text-base">{audit.summary}</p>
                 {/*
                   POURQUOI IL N'Y A PAS DE NOTE, DIT À CÔTÉ DE L'ANNEAU VIDE.
                   Une note absente sans explication se lit comme une panne, et
@@ -598,14 +612,25 @@ function AuditPage() {
                     ci-dessous, eux, sont établis et restent valables.
                   </p>
                 )}
+                {/*
+                  LE MONTANT ÉTAIT UNE PASTILLE DE 14 PX.
+
+                  « Gain potentiel : 1 800 € – 3 400 €/mois », en petit, sous le
+                  résumé — plus discret que le verdict, plus discret que le
+                  score, et de la taille d'une note. C'est pourtant la seule
+                  ligne de cet écran qui répond à « qu'est-ce que j'y gagne ».
+
+                  Il reprend ici le traitement du tableau de bord : même classe,
+                  même couleur, même poids. Le montant récupérable ne change pas
+                  de taille selon l'écran où le marchand le lit.
+                */}
                 {totalGainMax > 0 && (
-                  <div className="mt-4 inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-2 text-sm text-success">
-                    <Zap className="h-4 w-4" />
-                    Gain potentiel :{" "}
-                    <strong>
+                  <div className="mt-5 border-t border-border pt-5">
+                    <div className="intitule">Récupérable / mois</div>
+                    <p className="montant mt-1 text-3xl leading-tight">
                       {formatMoney(totalGainMin, storeCurrency)} –{" "}
-                      {formatMoney(totalGainMax, storeCurrency)}/mois
-                    </strong>
+                      {formatMoney(totalGainMax, storeCurrency)}
+                    </p>
                   </div>
                 )}
               </div>
@@ -911,9 +936,33 @@ function FindingCard({
             )}
             <span className="text-xs text-muted-foreground uppercase">{finding.category}</span>
           </div>
-          <h2 className={`mt-2 font-display text-lg font-bold ${done ? "line-through" : ""}`}>
-            {finding.title}
-          </h2>
+          {/*
+            LE MONTANT REMONTE EN TÊTE DE CARTE.
+
+            Il était rangé dans la rangée des boutons, en bas, sous la forme
+            d'une pastille verte de la taille d'un libellé — à côté de
+            « Corriger à ma place » et « Générer le texte », donc lu comme une
+            troisième commande plutôt que comme l'enjeu.
+
+            Or c'est lui qui décide de l'ordre dans lequel le marchand traite la
+            liste. Il se place donc là où l'œil arrive : en face du titre, dans
+            la couleur de l'argent, aligné d'une carte à l'autre pour que trois
+            constats se comparent d'un coup d'œil.
+          */}
+          <div className="mt-2 flex items-start justify-between gap-4">
+            <h2 className={`min-w-0 font-display text-lg font-bold ${done ? "line-through" : ""}`}>
+              {finding.title}
+            </h2>
+            {(finding.estimated_gain_max ?? 0) > 0 && (
+              <div className="shrink-0 text-right">
+                <div className="montant text-base leading-tight sm:text-lg">
+                  +{formatMoney(Number(finding.estimated_gain_min), storeCurrency)} –{" "}
+                  {formatMoney(Number(finding.estimated_gain_max), storeCurrency)}
+                </div>
+                <div className="text-[11px] text-muted-foreground">par mois</div>
+              </div>
+            )}
+          </div>
 
           {/* Place dans la chaîne causale. Corriger un symptôme sans sa cause ne
               produit rien : c'est dit ici, à l'endroit où la décision se prend. */}
@@ -963,6 +1012,29 @@ function FindingCard({
             </div>
           )}
           {/*
+            L'IMPACT REMONTE AVANT LA PREUVE.
+
+            Il était placé APRÈS le bloc de preuve. Le marchand lisait donc,
+            dans l'ordre : le problème, puis un relevé de chiffres Shopify et
+            nos suppositions, puis seulement ce que cela lui coûte. On lui
+            demandait d'évaluer une démonstration avant de lui avoir dit
+            pourquoi elle le concerne.
+
+            L'ordre est maintenant celui d'un conseil qu'on écoute : ce qui ne
+            va pas, ce que ça coûte, sur quoi nous nous appuyons, quoi faire.
+            La preuve n'est pas reléguée pour autant — elle reste dépliée, à
+            l'endroit exact où naît la question « comment vous le savez ? ».
+          */}
+          {!compact && finding.impact_description && (
+            <div className="mt-3">
+              <div className="text-xs uppercase text-muted-foreground flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> Impact
+              </div>
+              <p className="mt-1 text-sm">{finding.impact_description}</p>
+            </div>
+          )}
+
+          {/*
             LA PREUVE, ENTRE LE PROBLÈME ET SON IMPACT.
 
             CE QUI MANQUAIT. Le moteur exige `based_on` et `assumptions` pour
@@ -990,14 +1062,6 @@ function FindingCard({
                   {preuve.assumptions}
                 </p>
               )}
-            </div>
-          )}
-          {!compact && finding.impact_description && (
-            <div className="mt-3">
-              <div className="text-xs uppercase text-muted-foreground flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" /> Impact
-              </div>
-              <p className="mt-1 text-sm">{finding.impact_description}</p>
             </div>
           )}
           {steps.length > 0 && (
@@ -1078,13 +1142,6 @@ function FindingCard({
             </div>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {(finding.estimated_gain_max ?? 0) > 0 && (
-              <div className="inline-flex items-center gap-2 rounded-lg bg-success/10 px-3 py-1.5 text-sm text-success">
-                <Zap className="h-3 w-3" />+
-                {formatMoney(Number(finding.estimated_gain_min), storeCurrency)} à{" "}
-                {formatMoney(Number(finding.estimated_gain_max), storeCurrency)}/mois
-              </div>
-            )}
             {!applied && !proposal && (
               <Button
                 size="sm"

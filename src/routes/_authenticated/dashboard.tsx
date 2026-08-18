@@ -74,18 +74,41 @@ function Dashboard() {
         `flex-wrap` et `items-start` : sur téléphone, le titre et le bouton se
         chevauchaient, le second poussant le premier sur deux lignes.
       */}
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="font-display text-3xl font-bold">Tableau de bord</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {activeStore.name
-              ? `Ce que nous voyons aujourd'hui sur ${activeStore.name}.`
-              : "L'état de vos boutiques."}
-          </p>
-        </div>
+      {/*
+        L'EN-TÊTE BRÛLAIT LE PREMIER ÉCRAN MOBILE.
+
+        Mesuré au navigateur, à 390 px : « Tableau de bord » en 30 px, une
+        phrase de contexte sur deux lignes, puis un bouton « Nouvelle
+        boutique » occupant sa propre rangée. Le marchand faisait défiler tout
+        cela AVANT de voir un seul chiffre. Sur l'écran qui doit répondre à
+        « comment va ma boutique ? », le premier tiers ne répondait rien.
+
+        Trois corrections, dans cet ordre d'importance :
+
+        · Le titre passe en `text-xl` : il nomme la page, il n'est pas la page.
+          Le nom de la BOUTIQUE monte à sa place — c'est lui qui dit de quoi on
+          parle quand on en a plusieurs.
+        · La phrase de contexte disparaît. Elle disait « Ce que nous voyons
+          aujourd'hui sur Atelier Lumen » : le titre et le sélecteur le disaient
+          déjà, deux fois.
+        · « Nouvelle boutique » redevient une action secondaire — icône seule
+          sur mobile, libellé à partir de `sm`. Ce n'est pas ce que le marchand
+          vient faire ici.
+      */}
+      <div className="mb-6 flex items-center justify-between gap-3">
+        {/* Avec plusieurs boutiques, le sélecteur juste en dessous nomme déjà
+            celle qui est affichée : répéter son nom dans le titre écrivait la
+            même chose deux fois, à deux lignes d'intervalle. Avec une seule
+            boutique il n'y a pas de sélecteur, et c'est le titre qui la nomme. */}
+        <h1 className="min-w-0 truncate font-display text-xl font-bold">
+          {(storesQ.data?.length ?? 0) > 1
+            ? "Tableau de bord"
+            : activeStore.name || "Tableau de bord"}
+        </h1>
         <Link to="/onboarding" className="shrink-0">
-          <Button variant="outline">
-            <StoreIcon className="mr-2 h-4 w-4" /> Nouvelle boutique
+          <Button variant="outline" size="sm" aria-label="Ajouter une boutique">
+            <StoreIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Ajouter</span>
           </Button>
         </Link>
       </div>

@@ -121,11 +121,20 @@ export default defineSuite("Interface — ce qui est dit à qui ne voit pas l'é
   );
 
   const rapport = sansCommentaires(lire("src/routes/_authenticated/audits.$auditId.tsx"));
-  t.check(
-    "les titres de constat sont des sections sous le verdict",
-    /<h2 className=\{`mt-2 font-display/.test(rapport),
-    true,
-  );
+  /*
+    CE CONTRÔLE ÉPINGLAIT UNE CLASSE CSS, PAS UN NIVEAU DE TITRE.
+
+    Il exigeait littéralement `<h2 className={`mt-2 font-display`. Le niveau de
+    titre — la seule chose qui compte pour qui navigue au lecteur d'écran —
+    était donc vérifié par accident, à travers une marge. Toute refonte visuelle
+    le faisait tomber sans qu'aucune propriété d'accessibilité n'ait bougé, et,
+    plus grave, un titre passé en `h3` avec la même marge serait passé.
+
+    On vérifie maintenant ce que la règle dit : le titre d'un constat est un
+    `h2`, il porte bien le titre du constat, et il n'est pas seul.
+  */
+  const titresDeConstat = [...rapport.matchAll(/<h2\b[^>]*>\s*\{finding\.title\}/g)];
+  t.check("le titre d'un constat est un h2", titresDeConstat.length >= 1, true);
   t.check(
     "aucun titre de constat n'est resté en h3",
     /<h3[^>]*>\s*\{finding\.title\}/.test(rapport),

@@ -266,7 +266,15 @@ function ScoreCircle({ score }: { score: number }) {
   const radius = 50;
   const circ = 2 * Math.PI * radius;
   const offset = circ - (score / 100) * circ;
-  const color = score < 40 ? "hsl(0 70% 60%)" : score < 70 ? "hsl(40 90% 60%)" : "hsl(155 60% 55%)";
+  // Mêmes jetons que l'anneau du produit : la vitrine et l'application montrent
+  // le même score dans la même couleur, sinon la promesse change de sens entre
+  // la page d'accueil et l'écran qu'on découvre après inscription.
+  const color =
+    score < 40
+      ? "var(--color-destructive)"
+      : score < 70
+        ? "var(--color-warning)"
+        : "var(--color-success)";
   return (
     <div className="relative flex h-32 w-32 items-center justify-center">
       <svg className="h-32 w-32 -rotate-90" viewBox="0 0 120 120">
@@ -274,7 +282,7 @@ function ScoreCircle({ score }: { score: number }) {
           cx="60"
           cy="60"
           r={radius}
-          stroke="oklch(1 0 0 / 0.1)"
+          stroke="var(--color-secondary)"
           strokeWidth="10"
           fill="none"
         />

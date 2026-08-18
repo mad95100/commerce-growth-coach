@@ -33,3 +33,7 @@ dist-ssr
 
 # Captures produites par les sondes navigateur (tests/navigateur/shoot.mjs).
 tests/navigateur/captures/
+
+# Fichiers de travail de la refonte visuelle : les artboards `.dc.html` et la
+# page assemblée sont un support de décision, pas une source du produit.
+.design/

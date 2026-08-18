@@ -250,9 +250,33 @@ export default defineSuite("Produit — les promesses faites au marchand sont te
     /c\.potentialMax === 0/.test(cockpitUi),
     true,
   );
+  /*
+    LA PROMESSE, PAS LA PHRASE.
+
+    Ce contrôle épinglait une phrase au caractère près — « Ce n'est pas un
+    potentiel nul, c'est un potentiel non mesuré ». La règle qu'il protège est
+    pourtant plus simple, et elle survit à toute réécriture : l'écran doit dire
+    DEUX choses dans ce cas, sans quoi il ment par omission.
+
+      · que rien n'a été chiffré (et non que le potentiel vaut zéro) ;
+      · que ce n'est PAS un potentiel nul, en toutes lettres.
+
+    C'est ce qui est vérifié maintenant. Un futur remaniement peut raccourcir le
+    texte — il l'a été — sans faire tomber le contrôle, mais il ne peut pas
+    laisser tomber l'une des deux affirmations.
+  */
+  // Le texte d'un écran est réparti sur plusieurs lignes par le formateur : une
+  // phrase se cherche donc sur une source aux espaces normalisés, sinon le
+  // contrôle tombe au prochain reformatage sans qu'un mot ait changé.
+  const cockpitTexte = cockpitUi.replace(/\s+/g, " ");
   t.check(
-    "et la phrase dit lequel des deux c'est",
-    /Ce n'est pas un potentiel nul, c'est un potentiel non mesuré/.test(cockpitUi),
+    "le cas non chiffré est nommé comme tel",
+    /non chiffré|pas pu être rattachés à un montant/i.test(cockpitTexte),
+    true,
+  );
+  t.check(
+    "et l'écran dit que ce n'est pas un potentiel nul",
+    /n'est pas un potentiel nul/i.test(cockpitTexte),
     true,
   );
   // L'ABSENCE D'AUDIT GARDE SA PROPRE PHRASE : la confondre avec « rien à

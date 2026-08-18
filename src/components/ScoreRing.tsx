@@ -21,15 +21,26 @@ export function ScoreRing({ score, size = 128 }: { score: number | null; size?: 
   const noté = score !== null && Number.isFinite(score);
   const clamped = noté ? Math.max(0, Math.min(100, score)) : 0;
   const offset = circ - (clamped / 100) * circ;
-  // SANS NOTE, AUCUNE COULEUR DE JUGEMENT. Le rouge dit « mauvais » ; il ne
-  // doit pas dire « inconnu ».
+  /*
+    LES COULEURS VIENNENT DU THÈME, PLUS DU FICHIER.
+
+    Elles étaient écrites en dur pour un fond sombre : un ambre à 0.78 de
+    clarté, un vert à 0.78, et surtout une piste `oklch(1 0 0 / 0.1)` — du
+    BLANC translucide, invisible sur du papier. Sur fond clair, l'anneau
+    n'avait donc plus de piste, et son arc criait plus fort que le montant
+    récupérable, qui est pourtant le sujet de la carte.
+
+    Elles reprennent les jetons sémantiques : la sévérité s'y lit de la même
+    façon que partout ailleurs dans le produit, et un changement de palette
+    n'oublie plus ce composant.
+  */
   const color = !noté
-    ? "oklch(1 0 0 / 0.18)"
+    ? "var(--color-border)"
     : clamped < 40
-      ? "oklch(0.65 0.24 25)"
+      ? "var(--color-destructive)"
       : clamped < 70
-        ? "oklch(0.78 0.17 60)"
-        : "oklch(0.78 0.17 155)";
+        ? "var(--color-warning)"
+        : "var(--color-success)";
   return (
     <div
       className="relative inline-flex items-center justify-center"
@@ -40,7 +51,7 @@ export function ScoreRing({ score, size = 128 }: { score: number | null; size?: 
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="oklch(1 0 0 / 0.1)"
+          stroke="var(--color-secondary)"
           strokeWidth={stroke}
           fill="none"
         />
