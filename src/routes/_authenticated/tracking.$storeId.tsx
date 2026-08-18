@@ -174,10 +174,32 @@ function TrackingPage() {
             d'affaires.
           </p>
         </div>
+        {/*
+          « REMESURER » N'EST PROPOSÉ QUE S'IL Y A QUELQUE CHOSE À MESURER.
+
+          Le bouton s'affichait en pleine couleur d'action principale sur une
+          page dont l'état vide annonce, à deux centimètres de là : « Aucune
+          correction suivie pour l'instant. » Le marchand cliquait, et recevait
+          « Rien à remesurer. » — une réponse exacte à une invitation qui
+          n'aurait pas dû exister.
+
+          Ce n'est pas qu'une maladresse : la remesure interroge les partenaires
+          publicitaires, donc consomme un quota d'API pour zéro correction. Et
+          le produit s'interdit déjà cela ailleurs — « Corriger maintenant »
+          n'apparaît que là où une correction existe. L'écran de suivi faisait
+          exception sans raison.
+
+          Le bouton reste visible pendant le chargement : le masquer puis le
+          faire apparaître ferait sauter l'en-tête à l'arrivée des données.
+        */}
         <Button
           onClick={() => refreshM.mutate()}
           disabled={refreshM.isPending}
-          className="bg-gradient-primary text-primary-foreground"
+          className={`bg-gradient-primary text-primary-foreground ${
+            !trackingQ.isLoading && outcomes.length === 0 ? "invisible" : ""
+          }`}
+          aria-hidden={!trackingQ.isLoading && outcomes.length === 0}
+          tabIndex={!trackingQ.isLoading && outcomes.length === 0 ? -1 : undefined}
         >
           {refreshM.isPending ? (
             <>

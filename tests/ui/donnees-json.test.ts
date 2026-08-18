@@ -107,6 +107,39 @@ export default defineSuite("Interface — aucune valeur absente ne s'affiche tel
   );
 
   // =========================================================================
+  // 3 bis. « PÉRIODE : INVALID DATE » SUR L'ÉCRAN DE FACTURATION
+  // =========================================================================
+  /*
+    Même classe, autre bout du produit. La carte de plan SUPPOSE que
+    `periodStart` est une date nue et lui accole `T00:00:00Z`. C'est vrai
+    aujourd'hui — colonne `date`, plus un `slice(0, 10)` côté serveur : deux
+    précautions aux deux bouts, et rien entre elles qui les relie.
+
+    Qu'un seul côté change et la concaténation donne
+    « 2026-08-01T00:00:00ZT00:00:00Z », que `toLocaleDateString` rend
+    littéralement « Invalid Date » — sur l'écran qui annonce au marchand ce
+    qu'il a consommé et ce qui lui reste.
+  */
+  const plan = sansCommentaires(lire("src/components/PlanUsageCard.tsx"));
+  t.check(
+    "la date n'est complétée que si elle en a la forme",
+    /\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(e\.periodStart\)/.test(plan),
+    true,
+  );
+  t.check(
+    "une date illisible est détectée",
+    /Number\.isNaN\(periodDate\.getTime\(\)\)/.test(plan),
+    true,
+  );
+  t.check(
+    "…et la période disparaît au lieu de s'afficher invalide",
+    /\{periodLabel && \(/.test(plan),
+    true,
+  );
+  // Les compteurs, eux, restent : ils sont le vrai sujet de la carte.
+  t.check("les compteurs restent affichés sans la période", /SHOWN\.map/.test(plan), true);
+
+  // =========================================================================
   // 4. Ce qui a été vérifié et n'avait pas à changer
   // =========================================================================
   // `scoreDelta` est calculé en TypeScript et mis à `null` explicitement : le

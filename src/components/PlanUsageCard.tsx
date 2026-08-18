@@ -46,17 +46,42 @@ export function PlanUsageCard() {
   }
   const e = q.data;
 
-  const periodLabel = new Date(`${e.periodStart}T00:00:00Z`).toLocaleDateString("fr-FR", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  /*
+    « PÉRIODE : INVALID DATE ».
+
+    Cette ligne SUPPOSE que `periodStart` est une date nue — « 2026-08-01 » — et
+    lui accole `T00:00:00Z`. C'est vrai aujourd'hui : la colonne `period_start`
+    est de type `date`, et `billing.server.ts` tronque en plus à dix caractères.
+    Deux précautions, aux deux bouts, et rien entre les deux qui les relie.
+
+    Qu'un seul des deux côtés change — colonne passée en `timestamptz`, `slice`
+    retiré lors d'un remaniement — et la concaténation donne
+    « 2026-08-01T00:00:00ZT00:00:00Z » : une date invalide, que
+    `toLocaleDateString` rend littéralement « Invalid Date ». Sur l'écran qui
+    annonce au marchand ce qu'il a consommé et ce qui lui reste.
+
+    C'est la même règle que partout ailleurs dans ce produit : une valeur qu'on
+    ne sait pas lire ne s'affiche pas telle quelle. Ici, la période disparaît —
+    les compteurs, eux, restent lisibles et sont le vrai sujet de la carte.
+  */
+  const periodDate = new Date(
+    /^\d{4}-\d{2}-\d{2}$/.test(e.periodStart) ? `${e.periodStart}T00:00:00Z` : e.periodStart,
+  );
+  const periodLabel = Number.isNaN(periodDate.getTime())
+    ? null
+    : periodDate.toLocaleDateString("fr-FR", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      });
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card/50 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-display text-lg font-bold">Plan {PLAN_LABELS[e.tier]}</h2>
-        <span className="text-xs text-muted-foreground">Période : {periodLabel}</span>
+        {periodLabel && (
+          <span className="text-xs text-muted-foreground">Période : {periodLabel}</span>
+        )}
       </div>
 
       <div className="mt-4 space-y-3">
