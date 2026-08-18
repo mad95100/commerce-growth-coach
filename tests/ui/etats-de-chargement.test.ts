@@ -111,6 +111,42 @@ export default defineSuite("Interface — l'attente occupe la place de ce qu'ell
   }
 
   // =========================================================================
+  // 3 bis. L'ABSENCE RÉELLE DOIT POUVOIR SE PRODUIRE
+  // =========================================================================
+  /*
+    LA BRANCHE « N'EXISTE PLUS » ÉTAIT INATTEIGNABLE.
+
+    `single()` EXIGE exactement une ligne : quand il n'y en a aucune, PostgREST
+    répond 406 et le client lève. La requête partait donc en ERREUR, `isError`
+    se déclenchait le premier, et le marchand qui rouvrait un signet vers une
+    boutique supprimée lisait « la lecture a échoué — réessayez », avec un
+    bouton qui ne pouvait pas réussir.
+
+    Le message juste était écrit dix lignes plus bas, et ne s'affichait jamais.
+
+    `maybeSingle()` rend `data: null` sans erreur : l'échec redevient un échec,
+    et l'absence redevient une absence. Vérifié au navigateur — un identifiant
+    inconnu affiche bien « Cette boutique n'existe plus » et « Ce rapport est
+    introuvable ».
+  */
+  for (const [chemin, sujet] of [
+    ["src/routes/_authenticated/stores.$storeId.tsx", "la boutique"],
+    ["src/routes/_authenticated/audits.$auditId.tsx", "le rapport"],
+  ] as const) {
+    const source = sansCommentaires(lire(chemin));
+    t.check(
+      `${chemin} : ${sujet} absent(e) ne lève pas une erreur`,
+      /\.single\(\)/.test(source),
+      false,
+    );
+    t.check(
+      `${chemin} : la lecture unique tolère zéro ligne`,
+      /\.maybeSingle\(\)/.test(source),
+      true,
+    );
+  }
+
+  // =========================================================================
   // 4. Les ossatures restent annoncées à qui ne les voit pas
   // =========================================================================
   const shell = lire("src/components/AppShell.tsx");

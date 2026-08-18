@@ -217,12 +217,30 @@ function AuditPage() {
   const auditQ = useQuery({
     queryKey: ["audit", auditId],
     queryFn: async () => {
+      /*
+        `maybeSingle` ET NON `single`.
+
+        `single()` EXIGE exactement une ligne : quand il n'y en a aucune,
+        PostgREST répond 406 et le client lève. La requête part donc en ERREUR,
+        et l'écran affiché est « la lecture a échoué — réessayez », avec un
+        bouton qui ne réussira jamais.
+
+        Or l'absence n'est pas une panne. Un marchand qui rouvre un signet vers
+        une boutique supprimée, ou qui suit un lien périmé, ne doit pas être
+        renvoyé vers un nouvel essai : il doit apprendre que l'objet n'existe
+        plus. La branche qui le lui dit était écrite juste en dessous — elle
+        était simplement INATTEIGNABLE, `isError` se déclenchant toujours en
+        premier.
+
+        `maybeSingle()` rend `data: null` sans erreur quand il n'y a pas de
+        ligne : l'échec redevient un échec, et l'absence redevient une absence.
+      */
       const data = donneesOuLeve(
         await supabase
           .from("audits")
           .select("*, stores(id, name, currency)")
           .eq("id", auditId)
-          .single(),
+          .maybeSingle(),
       );
       return data;
     },
