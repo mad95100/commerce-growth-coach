@@ -136,7 +136,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <span className="font-display font-bold">EcomPilot AI</span>
           </Link>
-          <Button variant="ghost" size="sm" onClick={signOut}>
+          {/* L'ICÔNE SEULE NE DIT RIEN. Relevé dans l'arbre d'accessibilité en
+              vue mobile : ce bouton s'y annonçait « button », sans plus. Un
+              lecteur d'écran ne pouvait donc pas savoir qu'il met fin à la
+              session — la seule action de cet en-tête, et elle déconnecte. */}
+          <Button variant="ghost" size="sm" onClick={signOut} aria-label="Se déconnecter">
             <LogOut className="h-4 w-4" />
           </Button>
         </header>
@@ -364,7 +368,7 @@ export function ErrorState({
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
         <AlertTriangle className="h-6 w-6" />
       </div>
-      <h3 className="mt-4 font-display text-xl font-bold">{title}</h3>
+      <h2 className="mt-4 font-display text-xl font-bold">{title}</h2>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p>
       {onRetry && (
         <Button onClick={onRetry} variant="outline" className="mt-6">
@@ -391,7 +395,7 @@ export function EmptyState({
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
         <Plus className="h-6 w-6" />
       </div>
-      <h3 className="mt-4 font-display text-xl font-bold">{title}</h3>
+      <h2 className="mt-4 font-display text-xl font-bold">{title}</h2>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">{description}</p>
       {actionLabel && onAction && (
         <Button onClick={onAction} className="mt-6 bg-gradient-primary text-primary-foreground">

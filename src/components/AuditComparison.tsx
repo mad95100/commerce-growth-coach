@@ -64,7 +64,7 @@ export function AuditComparison({ storeId }: { storeId: string }) {
   if (audits.length < 2) {
     return (
       <div className="card-elevated rounded-2xl p-6">
-        <h3 className="font-display text-lg font-bold">Évolution</h3>
+        <h2 className="font-display text-lg font-bold">Évolution</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           {audits.length === 0
             ? "Aucun audit terminé pour l'instant. Lancez-en un pour commencer à suivre votre progression."

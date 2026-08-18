@@ -196,7 +196,7 @@ function Dashboard() {
                     <div className="truncate text-xs uppercase tracking-wider text-muted-foreground">
                       {store.niche || "Boutique"}
                     </div>
-                    <h3 className="mt-1 truncate font-display text-xl font-bold">{store.name}</h3>
+                    <h2 className="mt-1 truncate font-display text-xl font-bold">{store.name}</h2>
                     {store.url && (
                       <div className="mt-1 truncate text-xs text-muted-foreground">{store.url}</div>
                     )}

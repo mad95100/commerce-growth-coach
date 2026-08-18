@@ -210,27 +210,50 @@ export function ConnectionsPanel({
                   </Button>
                 </>
               ) : (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Input
-                    value={shopInput}
-                    onChange={(e) => setShopInput(e.target.value)}
-                    placeholder="monshop.myshopify.com"
-                    className="max-w-xs"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={handleConnectShopify}
-                    disabled={busy === "shopify"}
-                    className="bg-gradient-primary text-primary-foreground"
+                /*
+                  LE CHAMP LE PLUS IMPORTANT DU PRODUIT N'AVAIT PAS D'ÉTIQUETTE.
+
+                  C'est ici que le marchand saisit l'adresse de sa boutique pour
+                  ouvrir la connexion Shopify — le geste dont dépend tout le
+                  reste du diagnostic. Le champ ne portait qu'un texte d'exemple,
+                  qui disparaît dès la première frappe : le nom du champ
+                  s'effaçait au moment exact où l'on écrivait dedans.
+
+                  Une étiquette VISIBLE plutôt qu'un `aria-label` : un débutant
+                  qui ne connaît pas la différence entre l'adresse publique de
+                  sa boutique et son domaine `myshopify.com` a besoin de lire la
+                  consigne, pas seulement de l'entendre.
+                */
+                <div className="mt-3">
+                  <label
+                    htmlFor={`shopify-domaine-${storeId}`}
+                    className="block text-xs text-muted-foreground"
                   >
-                    {busy === "shopify" ? (
-                      <>
-                        <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Redirection...
-                      </>
-                    ) : (
-                      "Connecter"
-                    )}
-                  </Button>
+                    Domaine Shopify de votre boutique
+                  </label>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    <Input
+                      id={`shopify-domaine-${storeId}`}
+                      value={shopInput}
+                      onChange={(e) => setShopInput(e.target.value)}
+                      placeholder="monshop.myshopify.com"
+                      className="max-w-xs"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleConnectShopify}
+                      disabled={busy === "shopify"}
+                      className="bg-gradient-primary text-primary-foreground"
+                    >
+                      {busy === "shopify" ? (
+                        <>
+                          <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Redirection...
+                        </>
+                      ) : (
+                        "Connecter"
+                      )}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>

@@ -467,13 +467,19 @@ function StoreGoalCard({ storeId, goal }: { storeId: string; goal: string | null
 
   return (
     <div className="card-elevated rounded-2xl p-6">
-      <h2 className="font-display text-lg font-bold">Votre objectif principal</h2>
+      <h2 className="font-display text-lg font-bold" id={`objectif-${storeId}`}>
+        Votre objectif principal
+      </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         En une phrase, ce que vous cherchez à obtenir. Nous nous en servons pour orienter le
         diagnostic — un objectif de rentabilité et un objectif de volume ne donnent pas les mêmes
         priorités.
       </p>
+      {/* Le champ n'avait pour nom accessible que son texte d'exemple, qui
+          disparaît à la première frappe : le lecteur d'écran perdait alors
+          l'intitulé. Le titre de la carte le nomme désormais. */}
       <Textarea
+        aria-labelledby={`objectif-${storeId}`}
         className="mt-4"
         rows={3}
         value={texte}

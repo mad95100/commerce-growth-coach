@@ -625,7 +625,7 @@ function AuditPage() {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <div className="text-xs uppercase text-muted-foreground">{f.title}</div>
-                          <h3 className="mt-1 font-display text-lg font-bold">{ac.title}</h3>
+                          <h2 className="mt-1 font-display text-lg font-bold">{ac.title}</h2>
                         </div>
                         <Button
                           size="sm"
@@ -770,9 +770,9 @@ function FindingCard({
             )}
             <span className="text-xs text-muted-foreground uppercase">{finding.category}</span>
           </div>
-          <h3 className={`mt-2 font-display text-lg font-bold ${done ? "line-through" : ""}`}>
+          <h2 className={`mt-2 font-display text-lg font-bold ${done ? "line-through" : ""}`}>
             {finding.title}
-          </h3>
+          </h2>
 
           {/* Place dans la chaîne causale. Corriger un symptôme sans sa cause ne
               produit rien : c'est dit ici, à l'endroit où la décision se prend. */}

@@ -325,6 +325,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
   {
+    file: "ui/accessibilite.test.ts",
+    minChecks: 40,
+    covers:
+      "Ce que l'application dit à qui ne la voit pas, relevé dans l'arbre d'accessibilité du navigateur. Le bouton qui met fin à la session s'annonçait « button », sans plus — seule action de l'en-tête mobile. Le champ « Votre objectif principal » n'était nommé que par son texte d'exemple, qui disparaît à la première frappe : il perdait son nom au moment où le marchand écrivait dedans. Et quatre écrans sautaient de `h1` à `h3`, creusant un trou dans la navigation par titres, principal moyen de parcourir une page sans la voir.",
+  },
+  {
     file: "ui/responsive.test.ts",
     minChecks: 25,
     covers:
