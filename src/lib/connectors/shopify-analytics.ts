@@ -128,6 +128,63 @@ function rate(numerator: number | null, denominator: number | null): number | nu
 }
 
 /**
+ * POURQUOI L'ENTONNOIR EST ILLISIBLE — ET CE QUE LE MARCHAND PEUT EN FAIRE.
+ *
+ * LE DÉFAUT. Deux phrases seulement étaient disponibles, choisies par un test
+ * sur trois mots : si l'erreur contenait « access », « permission » ou
+ * « scope », on parlait de permission ; sinon, on écrivait « Les statistiques
+ * de trafic de la boutique n'ont pas pu être lues. »
+ *
+ * Cette seconde phrase recouvrait donc tout le reste, et elle laisse entendre
+ * qu'une prochaine tentative pourrait aboutir. Or les causes n'ont rien de
+ * commun, et deux d'entre elles ne s'arrangeront jamais toutes seules :
+ *
+ *   · la requête vise un champ que l'API Shopify n'expose plus — c'est NOTRE
+ *     défaut, il se reproduira à l'identique à chaque audit, et aucune action
+ *     du marchand n'y changera quoi que ce soit ;
+ *   · la boutique n'a pas accès à ShopifyQL — c'est une question d'offre
+ *     Shopify, pas de branchement ni de panne.
+ *
+ * Faire attendre quelqu'un devant l'une de ces deux-là est exactement ce que
+ * le reste de ce produit s'efforce d'éviter.
+ *
+ * CE QUE CETTE FONCTION NE FAIT PAS. Elle ne devine rien : chaque phrase est
+ * adossée à un motif présent dans la réponse de Shopify. Ce qui ne correspond à
+ * aucun s'annonce comme non identifié, plutôt que d'emprunter la formulation
+ * de la cause voisine.
+ */
+export function raisonEntonnoirIllisible(erreur?: string | null): string {
+  const e = (erreur ?? "").toLowerCase();
+
+  // La permission d'analyse : la seule cause que le marchand puisse lever.
+  if (/access denied|permission|scope|read_analytics|unauthorized|401|403/.test(e)) {
+    return "La permission d'analyse n'a pas été accordée à l'application : le trafic reste illisible tant qu'elle ne l'est pas. Rebranchez la boutique pour la réaccorder.";
+  }
+
+  // Le champ interrogé n'existe pas (ou plus) : notre requête est en cause.
+  if (
+    /doesn't exist|does not exist|undefined field|cannot query field|no longer|deprecated|removed/.test(
+      e,
+    )
+  ) {
+    return "Notre façon d'interroger les statistiques de Shopify n'est plus acceptée par leur interface. C'est un défaut de notre côté, pas du vôtre : relancer l'audit ne changera rien tant que nous ne l'aurons pas corrigé, et nous en avons la trace.";
+  }
+
+  // ShopifyQL n'est pas ouvert à toutes les offres Shopify.
+  if (/not available|unavailable for|plan|subscription|upgrade/.test(e)) {
+    return "Les statistiques détaillées de Shopify ne sont pas ouvertes à cette boutique : elles dépendent de l'offre Shopify souscrite, et non d'un réglage d'EcomPilot. Rien à rebrancher de votre côté.";
+  }
+
+  // Un refus réseau franc : passager, et il se relance.
+  if (/^http 5\d\d|timeout|timed out|network|fetch failed/.test(e)) {
+    return "Shopify n'a pas répondu à notre demande de statistiques au moment de l'analyse. C'est passager : relancez l'audit un peu plus tard.";
+  }
+
+  // Rien de reconnu. On le dit, plutôt que d'emprunter une phrase voisine.
+  return "Les statistiques de trafic de la boutique n'ont pas pu être lues, et nous n'avons pas su dire pourquoi. Le détail technique est enregistré de notre côté.";
+}
+
+/**
  * Les observations de l'entonnoir.
  *
  * DEUX RÈGLES, ET ELLES SONT LA RAISON D'ÊTRE DE CETTE FONCTION.
@@ -151,10 +208,7 @@ export function funnelObservations(raw: FunnelRaw): {
       id: "shopify.sessions_30d",
       label: "Sessions et entonnoir",
       source: "shopify",
-      reason:
-        raw.error && /access|permission|scope/i.test(raw.error)
-          ? "La permission d'analyse n'a pas été accordée à l'application : le trafic reste illisible."
-          : "Les statistiques de trafic de la boutique n'ont pas pu être lues.",
+      reason: raisonEntonnoirIllisible(raw.error),
       wouldEnable:
         "Localiser la fuite : combien de visiteurs arrivent, combien ajoutent au panier, combien entrent en caisse, combien paient.",
     });

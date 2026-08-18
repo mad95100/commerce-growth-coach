@@ -226,6 +226,97 @@ export default defineSuite("Shopify — entonnoir réel et localisation de la fu
     true,
   );
 
+  /*
+    LES CAUSES QUI NE S'ARRANGERONT PAS TOUTES SEULES.
+
+    Une seule phrase couvrait tout ce qui n'était pas une permission : « Les
+    statistiques de trafic de la boutique n'ont pas pu être lues. » Elle laisse
+    entendre qu'une prochaine tentative pourrait aboutir. C'est faux pour deux
+    des causes réelles, et c'est là que cela coûte le plus cher :
+
+      · le champ interrogé n'existe plus chez Shopify — notre défaut, identique
+        à chaque audit, et rien de ce que fait le marchand n'y changera rien ;
+      · ShopifyQL n'est pas ouvert à l'offre de la boutique — une question
+        d'abonnement Shopify, ni un branchement ni une panne.
+
+    Faire patienter quelqu'un devant l'une de ces deux-là, audit après audit,
+    est exactement ce que le reste de ce produit s'efforce d'éviter.
+  */
+  const causes: Array<[string, string, RegExp]> = [
+    [
+      "champ disparu",
+      "Field 'shopifyqlQuery' doesn't exist on type 'QueryRoot'",
+      /défaut de notre côté|relancer l'audit ne changera rien/i,
+    ],
+    [
+      "offre Shopify",
+      "shopifyqlQuery is not available for this plan",
+      /offre Shopify|rien à rebrancher/i,
+    ],
+    ["panne passagère", "HTTP 503", /passager|un peu plus tard/i],
+  ];
+  for (const [nom, brut, attendu] of causes) {
+    const g = funnelObservations({
+      sessions: null,
+      cartAdditions: null,
+      reachedCheckout: null,
+      completedCheckout: null,
+      reachable: false,
+      error: brut,
+    }).gaps[0];
+    t.check(`${nom} : la cause est reconnue`, attendu.test(g?.reason ?? ""), true);
+    // Aucun terme technique n'atteint le marchand : la règle du produit ne
+    // s'assouplit pas parce qu'on devient plus précis.
+    for (const interdit of ["shopifyql", "graphql", "queryroot", "http"]) {
+      t.check(
+        `${nom} : n'expose pas « ${interdit} »`,
+        (g?.reason ?? "").toLowerCase().includes(interdit),
+        false,
+      );
+    }
+  }
+
+  // Ce qui n'est reconnu par aucun motif ne prend pas la formulation du voisin.
+  const opaque = funnelObservations({
+    sessions: null,
+    cartAdditions: null,
+    reachedCheckout: null,
+    completedCheckout: null,
+    reachable: false,
+    error: "quelque chose d'inattendu",
+  }).gaps[0];
+  t.check(
+    "une cause non identifiée se dit comme telle",
+    /n'avons pas su dire pourquoi/i.test(opaque?.reason ?? ""),
+    true,
+  );
+  t.check(
+    "…sans accuser la permission ni l'offre",
+    /permission|offre Shopify/i.test(opaque?.reason ?? ""),
+    false,
+  );
+  // Et les quatre causes ne se confondent pas entre elles.
+  const phrases = new Set(
+    [
+      "Access denied",
+      "Field 'x' doesn't exist",
+      "not available for this plan",
+      "HTTP 503",
+      "?",
+    ].map(
+      (e) =>
+        funnelObservations({
+          sessions: null,
+          cartAdditions: null,
+          reachedCheckout: null,
+          completedCheckout: null,
+          reachable: false,
+          error: e,
+        }).gaps[0]?.reason ?? "",
+    ),
+  );
+  t.check("cinq causes donnent cinq phrases distinctes", phrases.size, 5);
+
   // --- 4. Localisation de la fuite -----------------------------------------
   const fuite = locateLeak(richeBrut);
   t.check("la fuite est localisée", fuite?.from, "visite");

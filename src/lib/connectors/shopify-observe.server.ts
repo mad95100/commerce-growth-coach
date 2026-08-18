@@ -222,6 +222,15 @@ export async function fetchShopifyObservations(
   // L'appel est isolé : son échec retire l'entonnoir du diagnostic, il ne
   // retire pas le diagnostic.
   const funnel = await fetchFunnel(base, headers, fetcher);
+  // LA CAUSE EXACTE VA AU JOURNAL. La phrase montrée au marchand est
+  // volontairement dépouillée de tout terme technique ; sans cette ligne, le
+  // message de Shopify — celui qui dit si le champ a disparu, si la permission
+  // manque ou si l'offre ne l'ouvre pas — n'existait nulle part une fois
+  // l'audit terminé, et la question « pourquoi cet entonnoir est-il toujours
+  // vide ? » restait sans réponse possible.
+  if (!funnel.reachable) {
+    console.error(`[audit] entonnoir ShopifyQL illisible (${shop}) :`, funnel.error);
+  }
   const funnelReport = funnelObservations(funnel);
 
   const shopifyReport = shopifyObservations(raw);

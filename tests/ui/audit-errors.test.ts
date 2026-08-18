@@ -50,6 +50,35 @@ export default defineSuite("Interface — échecs d'audit expliqués", (t) => {
     // pour rien, ou renonçait en croyant à un incident passager.
     ["AI Gateway 503 unavailable", "modele_en_panne"],
     ["AI Gateway 500: internal error", "modele_en_panne"],
+    /*
+      LES CODES QUE LE CLASSIFICATEUR AFFIRMAIT SANS LES CONNAÎTRE.
+
+      Après 400, 401, 403, 404 et 429, il restait un `return modele_en_panne`
+      qui ramassait TOUT le reste. Le marchand lisait alors quatre
+      affirmations — « le fournisseur a renvoyé une erreur », « cela vient d'un
+      service externe », « vos données ne sont pas en cause », « attendez une
+      heure » — pour un code sur lequel rien n'avait été établi.
+
+      Les trois cas ci-dessous sont ceux où cette phrase était non seulement
+      non fondée, mais FAUSSE :
+
+        · 413 — la charge est trop volumineuse. La panne est chez nous, et elle
+          tient précisément au volume des données de la boutique : lui dire que
+          ses données ne sont pas en cause est l'inverse de la vérité.
+        · 422 — le corps que nous envoyons est jugé inexploitable. Notre défaut,
+          et il se reproduira à l'identique dans une heure.
+        · 402 — c'est NOTRE compte chez le fournisseur qui ne permet plus
+          l'appel. Rien de passager.
+
+      Et 408 n'est pas une panne du service : attendre une heure y est un
+      mauvais conseil, alors qu'une relance immédiate aboutit souvent.
+    */
+    ["AI Gateway 413: request entity too large", "requete_invalide"],
+    ["AI Gateway 422: unprocessable entity", "requete_invalide"],
+    ["AI Gateway 402: billing required", "configuration_ia"],
+    ["AI Gateway 408: request timeout", "delai_depasse"],
+    // Un code jamais vu ne devient plus un diagnostic.
+    ["AI Gateway 418: teapot", "inconnu"],
     ["Réponse IA invalide (length). Relance l'audit.", "reponse_invalide"],
     ["Jeton Shopify illisible.", "shopify_expire"],
     ["Shopify timeout", "shopify_injoignable"],
@@ -94,6 +123,51 @@ export default defineSuite("Interface — échecs d'audit expliqués", (t) => {
   // Une entrée absente ou vide reste traitée, sans lever.
   t.check("un message absent est traité", auditFailureText(null).length > 40, true);
   t.check("un message vide est traité", classifyAuditFailure(""), "inconnu");
+
+  // --- 2 bis. CE QU'UN ÉCHEC DE NOTRE FAIT NE DOIT PLUS DIRE ---------------
+  /*
+    Le contrôle ci-dessus vérifie l'ÉTIQUETTE. Celui-ci vérifie la PHRASE, et
+    c'est elle que le marchand lit. Un 413 ou un 422 rendaient le texte de
+    `modele_en_panne`, qui affirme trois choses fausses d'un coup : que la panne
+    vient d'un service externe, que les données de la boutique n'y sont pour
+    rien, et qu'attendre une heure y changera quelque chose.
+  */
+  for (const brut of ["AI Gateway 413: too large", "AI Gateway 422: unprocessable"]) {
+    const e = explainAuditFailure(brut);
+    const texte = auditFailureText(brut);
+    t.check(`« ${brut.slice(12, 15)} » : la panne nous est imputée`, e.whose, "nous");
+    t.check(
+      `« ${brut.slice(12, 15)} » : n'accuse pas un service externe`,
+      /service externe|fournisseur d'analyse a renvoyé/.test(texte),
+      false,
+    );
+    t.check(
+      `« ${brut.slice(12, 15)} » : ne promet pas qu'attendre suffira`,
+      /dans l'heure|dans une dizaine de minutes|dans quelques heures/.test(texte),
+      false,
+    );
+    // Et surtout : ne jure pas que les données du marchand sont hors de cause,
+    // alors qu'un 413 tient précisément à leur volume.
+    t.check(
+      `« ${brut.slice(12, 15)} » : ne dédouane pas les données à tort`,
+      /vos données et votre boutique ne sont pas en cause/i.test(texte),
+      false,
+    );
+    t.check(`« ${brut.slice(12, 15)} » : le passage est rendu`, shouldRefundAudit(brut), true);
+  }
+
+  // Un code inconnu n'affirme plus rien non plus.
+  const inconnuTexte = auditFailureText("AI Gateway 418: teapot");
+  t.check(
+    "un code jamais vu n'accuse pas le fournisseur",
+    /service externe|fournisseur d'analyse a renvoyé/.test(inconnuTexte),
+    false,
+  );
+  t.check(
+    "…et dit franchement qu'on ne sait pas",
+    /n'avons pas su dire précisément pourquoi/.test(inconnuTexte),
+    true,
+  );
 
   // --- 3. Le bouton proposé correspond à la panne -------------------------
   // Proposer « Relancer » sur une panne qui exige une reconnexion enverrait le

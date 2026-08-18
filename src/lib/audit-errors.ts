@@ -28,6 +28,8 @@ export type AuditFailureKind =
   | "modele_indisponible"
   | "modele_surcharge"
   | "modele_en_panne"
+  | "requete_invalide"
+  | "delai_depasse"
   | "donnees_absentes"
   | "reponse_invalide"
   | "shopify_expire"
@@ -122,12 +124,48 @@ export function classifyAuditFailure(raw: string): AuditFailureKind {
     if (code === 404 || code === 400) return "modele_indisponible";
     // 401/403 : c'est NOTRE clé qui est refusée. Jamais Shopify.
     if (code === 401 || code === 403) return "configuration_ia";
+    // 402 : le compte que NOUS avons chez le fournisseur ne permet plus
+    // l'appel. Rien de passager, et rien qui concerne la boutique.
+    if (code === 402) return "configuration_ia";
+    /*
+      413 / 422 : LA DEMANDE EST REFUSÉE, PAS LE SERVICE EN PANNE.
+
+      Une charge trop volumineuse ou un corps que le fournisseur juge
+      inexploitable sont des défauts de CE QUE NOUS ENVOYONS. Ils tombaient
+      auparavant dans le repli ci-dessous, et le marchand lisait « Notre
+      fournisseur d'analyse a renvoyé une erreur […] Vos données et votre
+      boutique ne sont pas en cause ».
+
+      Les deux moitiés de cette phrase étaient fausses à la fois : la panne
+      n'était pas chez le fournisseur, et sur un 413 elle tient précisément au
+      volume de données de la boutique. On attribuait donc à un tiers un défaut
+      qui est le nôtre, en promettant qu'attendre une heure y changerait quelque
+      chose — alors que le même audit échouera identiquement.
+    */
+    if (code === 413 || code === 422) return "requete_invalide";
+    // 408 : le fournisseur n'a pas répondu à temps. Ce n'est pas une panne de
+    // son service, et cela se relance tout de suite, pas dans une heure.
+    if (code === 408) return "delai_depasse";
     // Saturation réelle, et elle seule.
     if (code === 429) return "modele_surcharge";
     // 5xx : le fournisseur est en panne. Ce n'est pas la même chose qu'être
     // saturé, et cela ne se réessaie pas au même rythme.
     if (code >= 500) return "modele_en_panne";
-    return "modele_en_panne";
+    /*
+      TOUT LE RESTE : ON NE SAIT PAS, ET ON LE DIT.
+
+      Cette ligne rendait `modele_en_panne` — c'est-à-dire une AFFIRMATION :
+      « le fournisseur a renvoyé une erreur », « cela vient d'un service
+      externe », « vos données ne sont pas en cause », « attendez une heure ».
+      Quatre assertions, pour un code que ce classificateur n'a jamais vu et sur
+      lequel il n'a rien établi.
+
+      C'est exactement le geste que tout ce fichier existe pour empêcher :
+      déguiser une cause inconnue en diagnostic. Un code inattendu du
+      fournisseur reste un échec dont nous ne savons rien de plus que son
+      numéro, et « nous ne savons pas » est la seule phrase vraie disponible.
+    */
+    return "inconnu";
   }
 
   // Formulations de saturation sans code, émises par certains fournisseurs.
@@ -197,6 +235,16 @@ const FAILURES: Record<AuditFailureKind, Omit<AuditFailure, "kind">> = {
     what: "Notre fournisseur d'analyse a renvoyé une erreur.",
     whose: "partenaire",
     next: "Ce n'est pas une saturation passagère : relancez l'audit dans l'heure plutôt que tout de suite. Vos données et votre boutique ne sont pas en cause.",
+  },
+  requete_invalide: {
+    what: "Notre demande d'analyse a été refusée telle que nous l'avions formée.",
+    whose: "nous",
+    next: "Cela ne vient ni d'une panne ni d'un encombrement : c'est notre façon de préparer la demande qui est en cause, et attendre n'y changerait rien. Nous en avons la trace et c'est à nous de la corriger. Votre passage ne vous a pas été décompté.",
+  },
+  delai_depasse: {
+    what: "Notre fournisseur d'analyse n'a pas répondu dans le temps imparti.",
+    whose: "partenaire",
+    next: "Relancez l'audit maintenant : un dépassement de délai ne se répète pas systématiquement, et il n'y a rien à attendre. Vos données et votre boutique ne sont pas en cause.",
   },
   donnees_absentes: {
     what: "L'audit n'a trouvé aucune source de données à lire.",
