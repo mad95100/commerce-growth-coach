@@ -302,7 +302,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/source-injoignable.test.ts",
-    minChecks: 59,
+    minChecks: 76,
     covers:
       "Ce que le marchand lit quand une source n'a rien donné. Le connecteur savait distinguer une autorisation révoquée d'une panne de fournisseur ; `allGaps`, dernier maillon avant l'écran, écrivait la même phrase fixe pour toutes les causes. Or une seule est réparable par le marchand — et c'est la plus fréquente après un branchement qui a mal tourné. Sous « Source injoignable », il lisait un incident passager, attendait, relançait, et retombait sur le même vide : la forme finale de la boucle signalée. Le connecteur est exécuté ici contre un `fetch` de substitution, statut par statut.",
   },
