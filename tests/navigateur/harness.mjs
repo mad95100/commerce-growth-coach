@@ -463,7 +463,19 @@ export function fixtureFor(url, scenario) {
   return { status: 200, body: rows };
 }
 
-export async function makeContext(browser, { scenario = "normal", mobile = false } = {}) {
+/**
+ * `tablesEnPanne` : une PANNE PARTIELLE.
+ *
+ * Le scénario « erreur » fait tomber toutes les lectures d'un coup — la page
+ * part alors sur son écran d'échec global, et l'on ne voit jamais ce qui se
+ * passe quand UNE SEULE requête échoue au milieu d'un écran par ailleurs
+ * complet. C'est pourtant la forme réelle du défaut : `metadata` refusé sur
+ * `data_connections` n'a jamais empêché la lecture des boutiques.
+ */
+export async function makeContext(
+  browser,
+  { scenario = "normal", mobile = false, tablesEnPanne = [], fonctionsEnPanne = [] } = {},
+) {
   const ctx = await browser.newContext({
     viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 },
     deviceScaleFactor: 2,
@@ -495,6 +507,13 @@ export async function makeContext(browser, { scenario = "normal", mobile = false
     }
     const json = (body) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    if (fonctionsEnPanne.some((f) => nom.startsWith(f))) {
+      return route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { message: "panne simulée" } }),
+      });
+    }
     if (nom.startsWith("getCockpit")) return json({ result: COCKPIT });
     if (nom.toLowerCase().includes("entitlement"))
       return json({
@@ -522,6 +541,11 @@ export async function makeContext(browser, { scenario = "normal", mobile = false
     if (url.pathname.startsWith("/auth/v1/token")) return json(200, SESSION);
     if (url.pathname.startsWith("/auth/v1/logout")) return json(204, {});
     if (url.pathname.startsWith("/auth/v1/")) return json(200, {});
+
+    const table = tableOf(url);
+    if (table && tablesEnPanne.includes(table)) {
+      return json(500, { message: "panne simulée", code: "XX000" });
+    }
 
     const fx = fixtureFor(url, scenario);
     if (fx) {

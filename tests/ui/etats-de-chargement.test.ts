@@ -147,6 +147,38 @@ export default defineSuite("Interface — l'attente occupe la place de ce qu'ell
   }
 
   // =========================================================================
+  // 3 ter. LE REPLI MUET : `data ?? []` SUR UNE LECTURE EN ÉCHEC
+  // =========================================================================
+  /*
+    LA CLASSE DE DÉFAUT QUI A PRODUIT LA BOUCLE « CONNECTEZ SHOPIFY ».
+
+    `xQ.data ?? []` transforme un échec de lecture en liste vide. Or une liste
+    vide a un SENS dans l'interface : « rien à afficher ». L'échec disparaît donc
+    derrière une affirmation, et c'est toujours la plus coûteuse :
+
+      · sources de données → « aucune connexion », donc « Connecter Shopify »,
+        alors que la boutique venait d'être connectée avec succès ;
+      · constats d'audit   → un audit ABOUTI qui n'a rien trouvé. Un certificat
+        de bonne santé fabriqué par une panne, sur l'écran qui EST le livrable ;
+      · suivi des gains    → « aucune correction suivie », sur l'écran qui répond
+        à « est-ce que ce que j'ai fait a servi ? ».
+
+    Le contrôle exige que toute requête dont l'absence est repliée en valeur vide
+    consulte aussi son `isError`. Il ne juge pas ce qui est affiché — seulement
+    que l'échec ne puisse pas se confondre avec le vide.
+  */
+  for (const chemin of ECRANS) {
+    const source = sansCommentaires(lire(chemin));
+    for (const m of source.matchAll(/(\w+Q)\.data\s*\?\?\s*(?:\[\]|\{\})/g)) {
+      t.check(
+        `${chemin} : l'échec de ${m[1]} ne se confond pas avec le vide`,
+        new RegExp(`${m[1]}\\.isError`).test(source),
+        true,
+      );
+    }
+  }
+
+  // =========================================================================
   // 4. Les ossatures restent annoncées à qui ne les voit pas
   // =========================================================================
   const shell = lire("src/components/AppShell.tsx");

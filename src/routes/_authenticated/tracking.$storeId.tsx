@@ -2,7 +2,7 @@ import { formatMoney } from "@/lib/currency";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AppShell, ListSkeleton } from "@/components/AppShell";
+import { AppShell, ErrorState, ListSkeleton } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getStoreTracking, refreshTracking } from "@/lib/tracking.functions";
@@ -154,6 +154,16 @@ function TrackingPage() {
   });
 
   const outcomes = trackingQ.data ?? [];
+  /*
+    L'ÉCHEC DE LECTURE SE DISAIT « AUCUNE CORRECTION SUIVIE ».
+
+    Et il éteignait du même coup le bouton de remesure, qui dépend désormais du
+    nombre de corrections : le marchand se retrouvait devant une page vide, sans
+    action possible, en croyant n'avoir jamais rien corrigé. Sur l'écran qui
+    répond à « est-ce que ce que j'ai fait a servi ? », c'est la réponse la plus
+    décourageante qui soit — et elle est fausse.
+  */
+  const suiviIllisible = trackingQ.isError;
   const alerts = outcomes.filter((o) => o.alert_message);
 
   return (
@@ -196,10 +206,12 @@ function TrackingPage() {
           onClick={() => refreshM.mutate()}
           disabled={refreshM.isPending}
           className={`bg-gradient-primary text-primary-foreground ${
-            !trackingQ.isLoading && outcomes.length === 0 ? "invisible" : ""
+            !trackingQ.isLoading && !suiviIllisible && outcomes.length === 0 ? "invisible" : ""
           }`}
-          aria-hidden={!trackingQ.isLoading && outcomes.length === 0}
-          tabIndex={!trackingQ.isLoading && outcomes.length === 0 ? -1 : undefined}
+          aria-hidden={!trackingQ.isLoading && !suiviIllisible && outcomes.length === 0}
+          tabIndex={
+            !trackingQ.isLoading && !suiviIllisible && outcomes.length === 0 ? -1 : undefined
+          }
         >
           {refreshM.isPending ? (
             <>
@@ -245,7 +257,13 @@ function TrackingPage() {
       )}
 
       <div className="mt-8 space-y-6">
-        {trackingQ.isLoading ? (
+        {suiviIllisible ? (
+          <ErrorState
+            title="Impossible d'afficher le suivi de vos corrections"
+            description="Vos mesures ne sont pas perdues : elles restent enregistrées et continuent d'être suivies. C'est l'affichage qui a échoué."
+            onRetry={() => void trackingQ.refetch()}
+          />
+        ) : trackingQ.isLoading ? (
           <ListSkeleton rows={3} label="Chargement du suivi de vos corrections" />
         ) : outcomes.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">

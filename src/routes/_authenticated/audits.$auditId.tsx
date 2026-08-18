@@ -302,6 +302,25 @@ function AuditPage() {
    * réservée puis interrompue reste `applied` en base sans qu'on sache si elle
    * est partie. La proposer à l'annulation reviendrait à écrire à l'aveugle.
    */
+  /*
+    CE QUI A DÉJÀ ÉTÉ APPLIQUÉ N'A PAS PU ÊTRE LU — ET C'EST DANGEREUX.
+
+    `actionsQ` ne décore pas seulement l'écran. Il porte deux choses que le
+    marchand doit voir avant d'agir : le bouton d'ANNULATION d'une correction
+    déjà appliquée, et surtout l'avertissement « Issue inconnue » — celui qui
+    dit qu'une écriture est partie sans que sa réponse nous revienne, et qu'il
+    ne faut donc pas la rejouer.
+
+    Replié en `?? []`, un échec de lecture faisait disparaître cet
+    avertissement. Le constat réapparaissait comme non traité, et le marchand
+    pouvait relancer la correction : un second code promo, une seconde hausse de
+    budget. C'est le seul repli muet de cette page qui peut produire une
+    ÉCRITURE en double sur une vraie boutique.
+
+    On n'efface pas le rapport pour autant : les constats sont lisibles et
+    utiles. On dit ce qu'on ne sait pas, à l'endroit où la décision se prend.
+  */
+  const etatDesActionsIllisible = actionsQ.isError;
   const appliedActionByFinding = new Map<string, { id: string; revertible: boolean }>();
   /** Écritures dont l'issue est inconnue : à signaler, jamais à rejouer seul. */
   const unknownActionByFinding = new Map<string, { targetLabel: string | null }>();
@@ -362,6 +381,23 @@ function AuditPage() {
     );
   const audit = auditQ.data;
   const findings = findingsQ.data ?? [];
+  /*
+    UN RAPPORT VIDE PAR PANNE SE LIT COMME UN RAPPORT SANS PROBLÈME.
+
+    `findingsQ.data ?? []` : sur un échec de lecture, la liste des constats
+    devient vide, et TOUT le reste s'affiche normalement — le score, le verdict,
+    le gain potentiel, « Problèmes (0) », « 0 / 0 actions faites ». Le marchand
+    lit un audit abouti qui n'a rien trouvé sur sa boutique.
+
+    C'est le pire résultat possible de cette classe de défaut : les autres
+    replis silencieux font croire qu'il manque quelque chose ; celui-ci délivre
+    un certificat de bonne santé fabriqué par une panne de lecture, sur l'écran
+    qui EST le livrable du produit.
+
+    Même règle que pour les sources de données : un échec de lecture s'annonce,
+    il ne se déguise pas en résultat.
+  */
+  const constatsIllisibles = findingsQ.isError;
 
   // Les gains sont estimés dans la devise de la boutique. Inconnue, elle est
   // annoncée comme telle plutôt que supposée.
@@ -505,6 +541,35 @@ function AuditPage() {
         </div>
       ) : (
         <>
+          {etatDesActionsIllisible && (
+            <div className="mb-6 rounded-xl border border-warning/30 bg-warning/10 p-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-warning">
+                <AlertTriangle className="h-4 w-4" />
+                Nous n'avons pas pu lire ce qui a déjà été appliqué
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Les constats ci-dessous sont à jour, mais l'historique des corrections déjà lancées
+                ne nous est pas revenu. Avant de relancer une correction, vérifiez dans votre compte
+                qu'elle n'a pas déjà été appliquée : nous ne pouvons pas vous le garantir pour
+                l'instant.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={() => void actionsQ.refetch()}
+              >
+                Réessayer
+              </Button>
+            </div>
+          )}
+          {constatsIllisibles && (
+            <ErrorState
+              title="Impossible d'afficher les constats de cet audit"
+              description="L'audit a bien abouti et ses conclusions sont enregistrées : c'est leur lecture qui a échoué. Ne concluez pas que rien n'a été trouvé — réessayez dans un instant."
+              onRetry={() => void findingsQ.refetch()}
+            />
+          )}
           {/* Hero */}
           <div className="card-elevated rounded-2xl p-8">
             <div className="flex flex-col items-center gap-6 md:flex-row md:text-left">
@@ -605,7 +670,12 @@ function AuditPage() {
                 pousser la page entière — un onglet reste atteignable, et rien
                 d'autre ne bouge. */}
             <TabsList className="max-w-full overflow-x-auto">
-              <TabsTrigger value="problems">Problèmes ({findings.length})</TabsTrigger>
+              {/* Sans les constats, le compte vaudrait « (0) » — la seule
+                  affirmation que cet écran ne doit pas faire quand il ne sait
+                  pas. On retire le nombre plutôt que d'en inventer un. */}
+              <TabsTrigger value="problems">
+                Problèmes{constatsIllisibles ? "" : ` (${findings.length})`}
+              </TabsTrigger>
               <TabsTrigger value="plan">Plan d'action</TabsTrigger>
               <TabsTrigger value="corrections">Corrections auto</TabsTrigger>
             </TabsList>
