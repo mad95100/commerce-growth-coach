@@ -325,6 +325,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
   {
+    file: "ui/responsive.test.ts",
+    minChecks: 25,
+    covers:
+      "Rien ne déborde du cadre, de 320 à 1440 px. Mesuré au navigateur sur neuf écrans à six largeurs : à 320 px, le document de la page boutique faisait 1065 pixels — plus de trois fois le cadre, en-tête compris, et le bouton d'action principal se trouvait hors de l'écran. Une seule cause partout : `min-width: auto`, qui interdit à un élément flexible ou de grille de descendre sous la largeur intrinsèque de son contenu — ici l'adresse insécable d'une boutique. C'est aussi pourquoi les `truncate` ne tronquaient rien. Le contrôle protège les `min-w-0` posés, le défilement local des onglets, et interdit toute largeur figée au-delà de 320 px.",
+  },
+  {
     file: "ui/erreurs-de-lecture.test.ts",
     minChecks: 40,
     covers:

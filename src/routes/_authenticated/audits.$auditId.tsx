@@ -529,7 +529,11 @@ function AuditPage() {
 
           {/* Tabs */}
           <Tabs defaultValue="problems" className="mt-8">
-            <TabsList>
+            {/* Les trois onglets mesurent 373 px : ils débordaient d'un cadre
+                de 320 px. Ils défilent désormais latéralement plutôt que de
+                pousser la page entière — un onglet reste atteignable, et rien
+                d'autre ne bouge. */}
+            <TabsList className="max-w-full overflow-x-auto">
               <TabsTrigger value="problems">Problèmes ({findings.length})</TabsTrigger>
               <TabsTrigger value="plan">Plan d'action</TabsTrigger>
               <TabsTrigger value="corrections">Corrections auto</TabsTrigger>

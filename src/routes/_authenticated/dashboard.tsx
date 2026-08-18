@@ -185,14 +185,18 @@ function Dashboard() {
                 key={store.id}
                 to="/stores/$storeId"
                 params={{ storeId: store.id }}
-                className="card-elevated group rounded-2xl p-6 transition-all hover:border-primary/40"
+                className="card-elevated group min-w-0 rounded-2xl p-6 transition-all hover:border-primary/40"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                {/* `min-w-0` sur la colonne flexible, sans quoi `truncate` ne
+                    tronque rien : une adresse de boutique ne comporte aucune
+                    coupure possible, la colonne prend sa largeur entière et la
+                    carte déborde du cadre. Mesuré à 320 px : 343 px de large. */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs uppercase tracking-wider text-muted-foreground">
                       {store.niche || "Boutique"}
                     </div>
-                    <h3 className="mt-1 font-display text-xl font-bold">{store.name}</h3>
+                    <h3 className="mt-1 truncate font-display text-xl font-bold">{store.name}</h3>
                     {store.url && (
                       <div className="mt-1 truncate text-xs text-muted-foreground">{store.url}</div>
                     )}

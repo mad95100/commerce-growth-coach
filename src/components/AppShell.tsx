@@ -112,7 +112,23 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex-1">
+      {/*
+        `min-w-0` N'EST PAS UN DÉTAIL : c'est ce qui laisse la page rétrécir.
+
+        MESURÉ AU NAVIGATEUR, à 320 px de large : le document de la page boutique
+        faisait 1065 px — plus de trois fois le cadre. Toute la page défilait
+        latéralement, l'en-tête compris, et il fallait balayer de côté pour lire
+        la moindre phrase.
+
+        LA CAUSE. Un élément flexible a `min-width: auto` par défaut : il refuse
+        de descendre sous la largeur intrinsèque de son contenu. Il suffit donc
+        d'UN descendant large — un tableau, une adresse qui ne se coupe pas, un
+        élément en `whitespace-nowrap` — pour que ce conteneur s'élargisse, et
+        avec lui l'application entière. Le contenu n'a jamais reçu l'autorisation
+        de se réduire ; il l'a maintenant, et ce qui déborde déborde
+        localement, dans son propre cadre, au lieu d'emporter la page.
+      */}
+      <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-border/50 bg-background/60 px-6 py-3 backdrop-blur md:hidden">
           <Link to="/dashboard" className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-primary">

@@ -111,10 +111,10 @@ function StoresIndex() {
             const actives = connexions.filter((c) => c.status === "active");
 
             return (
-              <div key={store.id} className="card-elevated flex flex-col rounded-2xl p-6">
+              <div key={store.id} className="card-elevated flex min-w-0 flex-col rounded-2xl p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                    <div className="truncate text-xs uppercase tracking-wider text-muted-foreground">
                       {store.niche || "Boutique"}
                     </div>
                     <h2 className="mt-1 truncate font-display text-xl font-bold">{store.name}</h2>
@@ -166,13 +166,13 @@ function StoresIndex() {
                     cartes côte à côte dont l'une porte un verdict long et
                     l'autre non alignent leurs actions à des hauteurs
                     différentes, et la grille paraît bancale. */}
-                <div className="mt-auto flex items-center justify-between gap-4 border-t border-border/50 pt-4">
-                  <span className="text-xs text-muted-foreground">
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-4">
+                  <span className="min-w-0 text-xs text-muted-foreground">
                     {store.monthly_revenue
                       ? `${formatMoney(store.monthly_revenue, store.currency)}/mois`
                       : "Chiffre d'affaires à renseigner"}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-2">
                     {dernier && (
                       <Button asChild variant="ghost" size="sm">
                         <Link to="/audits/$auditId" params={{ auditId: dernier.id }}>

@@ -21,21 +21,26 @@ function Landing() {
     <div className="min-h-screen">
       <header className="border-b border-border/40 backdrop-blur-sm sticky top-0 z-40 bg-background/60">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link to="/" className="flex items-center gap-2">
+          {/* À 320 px, le mot-symbole, « Se connecter » et « Commencer » font
+              ensemble 324 px pour 272 px disponibles : l'en-tête débordait, et
+              avec lui toute la page d'accueil. Sous `sm`, l'icône seule tient
+              lieu de logo — elle identifie le produit et rend ses cent pixels
+              aux deux actions, qui sont ce que le visiteur vient chercher. */}
+          <Link to="/" className="flex shrink-0 items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary">
               <Rocket className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-display text-lg font-bold">EcomPilot AI</span>
+            <span className="hidden font-display text-lg font-bold sm:inline">EcomPilot AI</span>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Link to="/auth">
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="px-2 sm:px-3">
                 Se connecter
               </Button>
             </Link>
             <Link to="/auth" search={{ mode: "signup" }}>
-              <Button size="sm" className="bg-gradient-primary text-primary-foreground">
-                Commencer <ArrowRight className="ml-1 h-4 w-4" />
+              <Button size="sm" className="bg-gradient-primary px-3 text-primary-foreground">
+                Commencer <ArrowRight className="ml-1 hidden h-4 w-4 sm:inline" />
               </Button>
             </Link>
           </div>
@@ -82,11 +87,13 @@ function Landing() {
             prêtes à appliquer. Ce que nous ne pouvons pas mesurer, nous le disons — plutôt que de
             le remplir avec une estimation.
           </p>
+          {/* Le bouton mesurait 304 px dans un cadre de 320 px moins ses marges :
+              il débordait. Pleine largeur sous `sm`, largeur naturelle au-delà. */}
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link to="/auth" search={{ mode: "signup" }}>
+            <Link to="/auth" search={{ mode: "signup" }} className="w-full sm:w-auto">
               <Button
                 size="lg"
-                className="bg-gradient-primary text-primary-foreground glow-primary"
+                className="w-full bg-gradient-primary text-primary-foreground glow-primary sm:w-auto"
               >
                 Lancer mon premier diagnostic
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -221,10 +228,14 @@ function Landing() {
               Le premier diagnostic est gratuit. Aucune installation, aucune carte bancaire, et rien
               n'est modifié sur votre boutique sans que vous l'ayez confirmé.
             </p>
-            <Link to="/auth" search={{ mode: "signup" }}>
+            <Link
+              to="/auth"
+              search={{ mode: "signup" }}
+              className="mt-8 inline-block w-full sm:w-auto"
+            >
               <Button
                 size="lg"
-                className="mt-8 bg-gradient-primary text-primary-foreground glow-primary"
+                className="w-full bg-gradient-primary text-primary-foreground glow-primary sm:w-auto"
               >
                 Lancer mon premier diagnostic
                 <ArrowRight className="ml-2 h-4 w-4" />
