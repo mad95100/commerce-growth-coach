@@ -325,6 +325,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
   {
+    file: "ui/erreurs-de-lecture.test.ts",
+    minChecks: 40,
+    covers:
+      "Ce que le marchand voit quand une lecture échoue, et au bout de combien de temps. Deux défauts mesurés au navigateur. PostgREST ne rend pas une `Error` mais un objet nu : `err instanceof Error` était toujours faux, et toute l'interface affichait le mot « Erreur », seul, à qui n'avait pas pu enregistrer son modèle économique, son objectif ou sa boutique. Et l'ossature de chargement tenait 8,5 s avant le moindre mot — trois nouveaux essais par défaut, y compris sur un 403 qui ne changera jamais. Le statut HTTP, qui vit sur la RÉPONSE et non sur l'erreur, est désormais conservé ; ce qui est définitif n'est plus rejoué, les écritures ne sont jamais rejouées, et le délai est plafonné à 2 s.",
+  },
+  {
     file: "ui/page-accueil.test.ts",
     minChecks: 20,
     covers:

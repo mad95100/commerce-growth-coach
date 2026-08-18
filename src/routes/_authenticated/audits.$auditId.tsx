@@ -50,6 +50,7 @@ import {
   Search,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
 
 export const Route = createFileRoute("/_authenticated/audits/$auditId")({
   head: () => ({ meta: [{ title: "Audit — EcomPilot AI" }] }),
@@ -216,12 +217,13 @@ function AuditPage() {
   const auditQ = useQuery({
     queryKey: ["audit", auditId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("audits")
-        .select("*, stores(id, name, currency)")
-        .eq("id", auditId)
-        .single();
-      if (error) throw error;
+      const data = donneesOuLeve(
+        await supabase
+          .from("audits")
+          .select("*, stores(id, name, currency)")
+          .eq("id", auditId)
+          .single(),
+      );
       return data;
     },
     // Tant que l'audit tourne, la page se rafraîchit : l'analyse se termine
@@ -257,12 +259,13 @@ function AuditPage() {
   const findingsQ = useQuery({
     queryKey: ["findings", auditId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("audit_findings")
-        .select("*")
-        .eq("audit_id", auditId)
-        .order("sort_order");
-      if (error) throw error;
+      const data = donneesOuLeve(
+        await supabase
+          .from("audit_findings")
+          .select("*")
+          .eq("audit_id", auditId)
+          .order("sort_order"),
+      );
       return data as Finding[];
     },
   });

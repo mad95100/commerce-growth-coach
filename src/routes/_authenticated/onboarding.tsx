@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { StoreEconomicsFields } from "@/components/StoreEconomicsFields";
 import { EMPTY_STORE_ECONOMICS, parseStoreEconomics } from "@/lib/store-profile";
 import { Loader2, Rocket } from "lucide-react";
+import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
@@ -45,21 +46,22 @@ function Onboarding() {
       }
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error("Non connecté");
-      const { data, error } = await supabase
-        .from("stores")
-        .insert({
-          owner_id: userData.user.id,
-          name: form.name,
-          url: form.url.trim() || null,
-          niche: form.niche || null,
-          monthly_ad_budget: form.monthly_ad_budget ? Number(form.monthly_ad_budget) : null,
-          monthly_revenue: form.monthly_revenue ? Number(form.monthly_revenue) : null,
-          goal: form.goal || null,
-          ...parsed.payload,
-        })
-        .select()
-        .single();
-      if (error) throw error;
+      const data = donneesOuLeve(
+        await supabase
+          .from("stores")
+          .insert({
+            owner_id: userData.user.id,
+            name: form.name,
+            url: form.url.trim() || null,
+            niche: form.niche || null,
+            monthly_ad_budget: form.monthly_ad_budget ? Number(form.monthly_ad_budget) : null,
+            monthly_revenue: form.monthly_revenue ? Number(form.monthly_revenue) : null,
+            goal: form.goal || null,
+            ...parsed.payload,
+          })
+          .select()
+          .single(),
+      );
       toast.success("Boutique ajoutée ! Prêt pour votre premier audit ?");
       navigate({ to: "/stores/$storeId", params: { storeId: data.id } });
     } catch (err) {

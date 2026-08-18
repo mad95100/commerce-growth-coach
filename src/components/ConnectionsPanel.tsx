@@ -19,6 +19,7 @@ import { startMetaConnect, selectMetaAdAccount } from "@/lib/connectors/meta.fun
 import { startGoogleAdsConnect, selectGoogleAdsAccount } from "@/lib/connectors/google.functions";
 import { describeAccountChoice, type AdAccount } from "@/lib/connectors/ad-accounts";
 import { disconnectProvider } from "@/lib/connectors/connections.functions";
+import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
 
 type Connection = {
   id: string;
@@ -83,11 +84,12 @@ export function ConnectionsPanel({
   const connsQ = useQuery({
     queryKey: ["connections", storeId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("data_connections")
-        .select("id, provider, status, account_id, account_label, connected_at, metadata")
-        .eq("store_id", storeId);
-      if (error) throw error;
+      const data = donneesOuLeve(
+        await supabase
+          .from("data_connections")
+          .select("id, provider, status, account_id, account_label, connected_at, metadata")
+          .eq("store_id", storeId),
+      );
       return data as Connection[];
     },
   });

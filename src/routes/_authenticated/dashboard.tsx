@@ -9,6 +9,7 @@ import { ArrowRight, Sparkles, Store as StoreIcon, TrendingUp } from "lucide-rea
 import { ScoreRing } from "@/components/ScoreRing";
 import { Cockpit } from "@/components/Cockpit";
 import { useEffect } from "react";
+import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   // La boutique regardée vit dans l'adresse : le marchand peut la mettre en
@@ -28,11 +29,12 @@ function Dashboard() {
   const storesQ = useQuery({
     queryKey: ["stores"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stores")
-        .select("*, audits(id, score, status, created_at, verdict)")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
+      const data = donneesOuLeve(
+        await supabase
+          .from("stores")
+          .select("*, audits(id, score, status, created_at, verdict)")
+          .order("created_at", { ascending: false }),
+      );
       return data;
     },
   });

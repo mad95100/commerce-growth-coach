@@ -13,6 +13,7 @@ import {
   type ExperienceLevel,
 } from "@/lib/store-profile";
 import { toast } from "sonner";
+import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Paramètres — EcomPilot AI" }] }),
@@ -43,11 +44,12 @@ function SettingsPage() {
     setLoading(true);
     try {
       const { data: u } = await supabase.auth.getUser();
-      const { error } = await supabase
-        .from("profiles")
-        .update({ full_name: fullName, experience_level: experienceLevel })
-        .eq("user_id", u.user!.id);
-      if (error) throw error;
+      donneesOuLeve(
+        await supabase
+          .from("profiles")
+          .update({ full_name: fullName, experience_level: experienceLevel })
+          .eq("user_id", u.user!.id),
+      );
       toast.success("Profil mis à jour");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");

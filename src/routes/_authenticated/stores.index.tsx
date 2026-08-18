@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ScoreRing } from "@/components/ScoreRing";
 import { formatMoney } from "@/lib/currency";
 import { ArrowRight, Plug, PlugZap, Sparkles, Store as StoreIcon } from "lucide-react";
+import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
 
 /**
  * LA LISTE DES BOUTIQUES.
@@ -52,13 +53,14 @@ function StoresIndex() {
   const q = useQuery({
     queryKey: ["stores-with-connections"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stores")
-        .select(
-          "*, audits(id, score, status, created_at, verdict), data_connections(provider, status)",
-        )
-        .order("created_at", { ascending: false });
-      if (error) throw error;
+      const data = donneesOuLeve(
+        await supabase
+          .from("stores")
+          .select(
+            "*, audits(id, score, status, created_at, verdict), data_connections(provider, status)",
+          )
+          .order("created_at", { ascending: false }),
+      );
       return data;
     },
   });

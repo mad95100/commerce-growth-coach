@@ -34,6 +34,7 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
 
 export const Route = createFileRoute("/_authenticated/stores/$storeId")({
   head: () => ({ meta: [{ title: "Boutique — EcomPilot AI" }] }),
@@ -49,8 +50,9 @@ function StorePage() {
   const storeQ = useQuery({
     queryKey: ["store", storeId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("stores").select("*").eq("id", storeId).single();
-      if (error) throw error;
+      const data = donneesOuLeve(
+        await supabase.from("stores").select("*").eq("id", storeId).single(),
+      );
       return data;
     },
   });
@@ -58,12 +60,13 @@ function StorePage() {
   const auditsQ = useQuery({
     queryKey: ["audits", storeId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("audits")
-        .select("*")
-        .eq("store_id", storeId)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
+      const data = donneesOuLeve(
+        await supabase
+          .from("audits")
+          .select("*")
+          .eq("store_id", storeId)
+          .order("created_at", { ascending: false }),
+      );
       return data;
     },
   });
@@ -452,8 +455,7 @@ function StoreGoalCard({ storeId, goal }: { storeId: string; goal: string | null
       // Vidé, le champ redevient `null` — pas la chaîne vide : le moteur
       // distingue « pas d'objectif déclaré » d'un objectif qui serait blanc.
       const valeur = texte.trim() === "" ? null : texte.trim();
-      const { error } = await supabase.from("stores").update({ goal: valeur }).eq("id", storeId);
-      if (error) throw error;
+      donneesOuLeve(await supabase.from("stores").update({ goal: valeur }).eq("id", storeId));
       await qc.invalidateQueries({ queryKey: ["store", storeId] });
       toast.success("Objectif enregistré.");
     } catch (err) {
@@ -505,8 +507,7 @@ function StoreEconomicsCard({ store }: { store: EconomicsStore }) {
     }
     setSaving(true);
     try {
-      const { error } = await supabase.from("stores").update(parsed.payload).eq("id", store.id);
-      if (error) throw error;
+      donneesOuLeve(await supabase.from("stores").update(parsed.payload).eq("id", store.id));
       await qc.invalidateQueries({ queryKey: ["store", store.id] });
       await qc.invalidateQueries({ queryKey: ["cockpit", store.id] });
       toast.success("Modèle économique enregistré.");
