@@ -325,6 +325,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
   {
+    file: "ui/donnees-json.test.ts",
+    minChecks: 9,
+    covers:
+      "Aucune valeur absente ne s'affiche telle quelle. Le tableau de bord pouvait afficher « il en manque . Soit environ undefined EUR par mois. » dans la phrase même qui chiffre la perte du marchand : la garde testait `!== null` alors que la valeur était ABSENTE, et `undefined !== null` est vrai. L'entonnoir est relu d'une colonne JSON par un simple cast — le type dit ce que le moteur écrit aujourd'hui, pas ce que la base contient. Sur un produit dont l'argument est de n'avancer aucun chiffre injustifié, le mot `undefined` à la place d'un montant contredit tout, et précisément là où l'on parle d'argent.",
+  },
+  {
     file: "ui/accessibilite.test.ts",
     minChecks: 40,
     covers:

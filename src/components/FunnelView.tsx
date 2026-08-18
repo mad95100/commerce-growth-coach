@@ -95,10 +95,33 @@ export function FunnelView({ funnel, className }: { funnel: Funnel; className?: 
               {leak && (
                 <p className="mt-1.5 flex items-start gap-1.5 text-xs text-destructive">
                   <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                  {/*
+                    `!== null` NE SUFFISAIT PAS, ET LA DIFFÉRENCE SE VOIT.
+
+                    L'entonnoir est lu depuis une COLONNE JSON — `cockpit.functions.ts`
+                    fait `audit.funnel as Funnel | null`, un cast, sans validation.
+                    Le type est donc une déclaration d'intention, pas une garantie :
+                    un audit enregistré par une version antérieure du moteur, avant
+                    l'introduction de `costPerMonth`, ne porte pas le champ du tout.
+                    Il vaut alors `undefined`, et `undefined !== null` est VRAI.
+
+                    Le marchand lisait, en toutes lettres, dans la phrase qui chiffre
+                    sa perte : « il en manque . Soit environ undefined EUR par mois. »
+                    Sur un produit dont l'argument est de n'avancer aucun chiffre
+                    injustifié, afficher le mot `undefined` à la place du montant est
+                    le pire rendu possible — pire qu'une absence, qui au moins
+                    s'assume.
+
+                    `== null` couvre les deux, et `Number.isFinite` écarte en plus les
+                    valeurs qui ne sont pas des nombres. La phrase de repli existait
+                    déjà et disait juste ce qu'il faut : elle sert maintenant dans
+                    tous les cas où le montant n'est pas connu.
+                  */}
                   <span>
                     {leak.rate} % seulement passent cette étape, contre {leak.reference} %
-                    habituellement — il en manque {leak.missing}.
-                    {leak.costPerMonth !== null
+                    habituellement
+                    {Number.isFinite(leak.missing) ? ` — il en manque ${leak.missing}` : ""}.
+                    {leak.costPerMonth != null && Number.isFinite(leak.costPerMonth)
                       ? ` Soit environ ${leak.costPerMonth}${leak.currency ? ` ${leak.currency}` : ""} par mois.`
                       : " Cette perte ne peut pas être chiffrée sans votre panier moyen."}
                   </span>
