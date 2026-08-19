@@ -654,7 +654,21 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
   }
 
   // Scoring et priorisation déterministes côté serveur (jamais devinés par l'IA)
-  const categoryScores = computeCategoryScores(parsed.findings);
+  /*
+    CE QUI A ÉTÉ INSTRUIT, ET CE QUI NE L'A PAS ÉTÉ.
+
+    `assessDiagnostics` a déjà tranché, plus haut, quels diagnostics les données
+    permettaient de poser. Chaque diagnostic porte son domaine, qui est une
+    catégorie de score : le relevé existe donc, il n'était simplement pas
+    consulté au moment de noter.
+
+    Sans lui, une catégorie sans constat valait 78 — « prudent » — qu'elle ait
+    été examinée et trouvée saine, ou qu'aucune donnée n'ait permis de la
+    regarder. Une boutique dont Shopify n'avait pas répondu obtenait ainsi un
+    score honorable calculé sur du vide.
+  */
+  const categoriesInstruites = new Set(availability.available.map((a) => a.diagnostic.domain));
+  const categoryScores = computeCategoryScores(parsed.findings, categoriesInstruites);
   const globalScore = computeGlobalScore(categoryScores);
   const potential = computePotential(parsed.findings);
 

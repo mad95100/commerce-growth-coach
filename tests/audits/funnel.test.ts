@@ -306,8 +306,13 @@ export default defineSuite("Moteur — entonnoir et localisation de la fuite", (
     "l'ancrage a lieu AVANT le calcul des priorités",
     // Comparé aux APPELS, pas aux imports : `computeCategoryScores` apparaît
     // en tête de fichier, bien avant tout code exécuté.
+    //
+    // ET SANS LA PARENTHÈSE FERMANTE. L'appel prend désormais un second
+    // argument — les catégories réellement instruites. Une ancre qui figeait la
+    // signature rendait -1, et la comparaison « avant » devenait fausse alors
+    // que l'ordre n'avait pas bougé d'une ligne.
     runner.indexOf("anchorGainsOnLeak(parsed.findings") <
-      runner.indexOf("computeCategoryScores(parsed.findings)"),
+      runner.indexOf("computeCategoryScores(parsed.findings"),
     true,
   );
   const funnelModule = read("src/lib/funnel.ts");

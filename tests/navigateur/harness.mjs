@@ -151,6 +151,7 @@ const findings = [
     difficulty: 1,
     time_minutes: 40,
     confidence: "high",
+    epistemic_level: "fait",
     auto_correction: null,
   },
   {
@@ -172,6 +173,7 @@ const findings = [
     difficulty: 2,
     time_minutes: 60,
     confidence: "medium",
+    epistemic_level: "observe",
     auto_correction: { kind: "email", body: "..." },
   },
   {
@@ -192,6 +194,7 @@ const findings = [
     difficulty: 1,
     time_minutes: 20,
     confidence: "high",
+    epistemic_level: "hypothese",
     auto_correction: { kind: "copy", body: "..." },
   },
 ];

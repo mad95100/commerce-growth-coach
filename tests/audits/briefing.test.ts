@@ -113,7 +113,10 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
     true,
   );
   t.check("la preuve de la fuite est citée", full.proof.length >= 2, true);
-  t.check("la certitude est nommée", full.certainty.label, "Fait");
+  // Le libellé du niveau le plus fort est passé de « Fait » à « Mesuré » : il
+  // s'oppose désormais à « Observé », et « Fait » ne disait pas ce qui les
+  // sépare — les deux sont des faits, seul l'un est chiffré.
+  t.check("la certitude est nommée", full.certainty.label, "Mesuré");
   t.check("avec ce qu'elle autorise", full.certainty.hint.length > 10, true);
   t.check("la cause racine est donnée", full.rootCause?.includes("frais de livraison"), true);
   t.check(
@@ -250,7 +253,7 @@ export default defineSuite("Produit — briefing du directeur", (t) => {
   );
   t.check("l'action est d'annuler", regressed.action?.kind, "annuler");
   t.check("automatisable ici", regressed.action?.label, "Annuler la correction");
-  t.check("c'est un fait mesuré", regressed.certainty.label, "Fait");
+  t.check("c'est un fait mesuré", regressed.certainty.label, "Mesuré");
   t.check(
     "et le geste prévu reprend ensuite",
     regressed.nextDecision.includes("Frais de port cachés"),

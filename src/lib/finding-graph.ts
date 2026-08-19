@@ -37,6 +37,7 @@ import { computePriority, type ScorableFinding } from "@/lib/scoring";
 
 export const EPISTEMIC_LEVELS = [
   "fait",
+  "observe",
   "deduction_forte",
   "hypothese",
   "donnee_manquante",
@@ -45,7 +46,8 @@ export const EPISTEMIC_LEVELS = [
 export type EpistemicLevel = (typeof EPISTEMIC_LEVELS)[number];
 
 export const EPISTEMIC_LABELS: Record<EpistemicLevel, string> = {
-  fait: "Fait",
+  fait: "Mesuré",
+  observe: "Observé",
   deduction_forte: "Déduction forte",
   hypothese: "Hypothèse",
   donnee_manquante: "Donnée manquante",
@@ -53,7 +55,9 @@ export const EPISTEMIC_LABELS: Record<EpistemicLevel, string> = {
 
 /** Ce que chaque niveau autorise à dire, en une phrase, pour l'interface. */
 export const EPISTEMIC_HINTS: Record<EpistemicLevel, string> = {
-  fait: "Mesuré dans vos données. Vous pouvez agir dessus sans vérifier.",
+  fait: "Chiffré dans vos données, avec sa source et sa période.",
+  observe:
+    "Constaté directement sur votre boutique. Le fait est certain ; ce qu'il coûte n'est pas chiffré.",
   deduction_forte: "Déduit de vos données, avec des hypothèses annoncées. Très probable.",
   hypothese: "Piste plausible, non démontrée. À vérifier avant d'y mettre du budget.",
   donnee_manquante:
@@ -317,6 +321,63 @@ function confidenceOf(f: { confidence?: string | null }): "low" | "medium" | "hi
  * « élevée » annoncée par le modèle ne vaut rien. C'est exactement le cas qu'on
  * veut voir écrit « Donnée manquante » dans le rapport plutôt que « Fait ».
  */
+/**
+ * La preuve citée est-elle une MESURE, ou une constatation ?
+ *
+ * C'est la distinction qui manquait, et elle change ce qu'on a le droit
+ * d'affirmer. « 412 paniers créés, 149 paiements engagés (Shopify, 30 derniers
+ * jours) » est un chiffre : il porte une quantité, une source et une période, et
+ * l'on peut en déduire un montant perdu. « Titre principal relevé sur la page
+ * d'accueil : Collection » est une constatation : le fait est certain, mais rien
+ * dedans ne permet de chiffrer quoi que ce soit.
+ *
+ * Les deux étaient annoncés « Fait — mesuré dans vos données, vous pouvez agir
+ * sans vérifier ». Sur une constatation, c'était une promesse que la preuve ne
+ * tenait pas : le marchand croyait lire un chiffrage là où il n'y avait qu'un
+ * relevé.
+ *
+ * LE TEST EST DÉLIBÉRÉMENT CONSERVATEUR. Sans quantité, aucune mesure — un
+ * texte peut décrire longuement sans rien compter. La présence d'un nombre ne
+ * suffit pas non plus : une référence de produit ou une année en contiennent.
+ * On exige donc une quantité ET un repère de source ou de période, faute de quoi
+ * on redescend sur « Observé ». Se tromper dans ce sens coûte une nuance ;
+ * l'inverse coûte la confiance.
+ */
+export function citeUneMesure(based_on: unknown): boolean {
+  const texte = normalizeText(based_on);
+  if (!texte) return false;
+  // Une quantité : au moins deux chiffres, ou un chiffre suivi d'une unité.
+  const quantite = /\d[\d\s.,]*\d|\d\s*(?:%|€|\$|j\b|jours?\b)/.test(texte);
+  if (!quantite) return false;
+  // Un repère qui rattache le chiffre à une origine ou à une fenêtre.
+  return /shopify|meta|google|analytics|commandes?|sessions?|paniers?|visiteurs?|derniers? jours|sur \d|30 j|par mois|\/mois/i.test(
+    texte,
+  );
+}
+
+/**
+ * Classe une conclusion selon ce qui la soutient.
+ *
+ * La table complète, sans exception :
+ *
+ * | Base citée | Chiffrée | Hypothèses | Confiance | Niveau           |
+ * | ---------- | -------- | ---------- | --------- | ---------------- |
+ * | non        | —        | —          | —         | Donnée manquante |
+ * | oui        | —        | —          | faible    | Hypothèse        |
+ * | oui        | oui      | non        | élevée    | Mesuré           |
+ * | oui        | non      | non        | élevée    | Observé          |
+ * | oui        | —        | non        | moyenne   | Déduction forte  |
+ * | oui        | —        | oui        | élevée    | Déduction forte  |
+ * | oui        | —        | oui        | moyenne   | Hypothèse        |
+ *
+ * La première ligne prime sur tout le reste : sans base citée, une confiance
+ * « élevée » annoncée par le modèle ne vaut rien. C'est exactement le cas qu'on
+ * veut voir écrit « Donnée manquante » plutôt que « Mesuré ».
+ *
+ * Et « Mesuré » exige désormais un chiffre : une constatation de vitrine, si
+ * certaine soit-elle, ne devient pas une mesure parce que le modèle s'est dit
+ * confiant.
+ */
 export function classifyEpistemic(f: {
   confidence?: string | null;
   evidence?: Evidence;
@@ -328,7 +389,10 @@ export function classifyEpistemic(f: {
   if (confidence === "low") return "hypothese";
 
   const assumed = hasSubstance(f.evidence?.assumptions);
-  if (!assumed) return confidence === "high" ? "fait" : "deduction_forte";
+  if (!assumed) {
+    if (confidence !== "high") return "deduction_forte";
+    return citeUneMesure(f.evidence?.based_on) ? "fait" : "observe";
+  }
   return confidence === "high" ? "deduction_forte" : "hypothese";
 }
 
@@ -341,6 +405,11 @@ export function classifyEpistemic(f: {
  */
 export const EPISTEMIC_CEILING: Record<EpistemicLevel, PriorityBand> = {
   fait: "critique",
+  // Une observation vaut une mesure sur la CERTITUDE du fait : une navigation
+  // absente du document est absente, point. Elle ne plafonne donc pas la
+  // priorité. Ce qu'elle ne porte pas, c'est un montant — et c'est le rôle du
+  // second axe, affiché à part, de le dire.
+  observe: "critique",
   deduction_forte: "critique",
   hypothese: "important",
   donnee_manquante: "opportunite",
@@ -483,7 +552,8 @@ const SEVERITY_SENTENCE: Record<string, string> = {
 };
 
 const EPISTEMIC_SENTENCE: Record<EpistemicLevel, string> = {
-  fait: "Établi sur vos données réelles.",
+  fait: "Chiffré sur vos données réelles.",
+  observe: "Constaté sur votre boutique ; le coût n'est pas chiffré.",
   deduction_forte: "Déduit de vos données, avec des hypothèses annoncées.",
   hypothese: "Repose sur une hypothèse : à vérifier avant d'y consacrer un budget.",
   donnee_manquante: "La donnée qui permettrait de conclure manque.",

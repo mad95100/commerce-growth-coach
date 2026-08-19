@@ -107,11 +107,37 @@ export function computePriority(f: ScorableFinding): number {
   return Math.round((impact * CONFIDENCE_WEIGHT[confidence(f)] * urgency) / difficulty);
 }
 
-/** Score 0-100 par catégorie : on part de 100 et on retire le poids des problèmes trouvés. */
-export function computeCategoryScores(findings: ScorableFinding[]): Record<Category, number> {
-  const scores = {} as Record<Category, number>;
+/**
+ * Score 0-100 par catégorie : on part de 100 et on retire le poids des
+ * problèmes trouvés.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * LE DÉFAUT CORRIGÉ : « RIEN TROUVÉ » ET « RIEN REGARDÉ » DONNAIENT 78.
+ *
+ * Une catégorie sans constat recevait 78 — « prudent ». Mais deux situations
+ * opposées y tombaient ensemble :
+ *
+ *   · la catégorie a été instruite et rien de fâcheux n'en est ressorti ;
+ *   · aucune donnée ne permettait de l'instruire.
+ *
+ * Une boutique dont Shopify n'a pas répondu obtenait donc 78 partout, et un
+ * score global honorable, calculé sur du vide. C'est très exactement la
+ * fabrication d'un chiffre à partir d'une absence — ce que le reste du produit
+ * s'interdit partout ailleurs.
+ *
+ * `examinees` nomme les catégories réellement instruites. Celles qui n'en sont
+ * pas restent ABSENTES du relevé : pas de zéro, pas de 78, rien. Sans
+ * argument, le comportement d'avant est conservé — un appelant qui ne sait pas
+ * ce qui a été examiné ne doit pas voir son score disparaître.
+ */
+export function computeCategoryScores(
+  findings: ScorableFinding[],
+  examinees?: ReadonlySet<Category>,
+): Partial<Record<Category, number>> {
+  const scores: Partial<Record<Category, number>> = {};
   for (const cat of CATEGORIES) {
     const hits = findings.filter((f) => f.category === cat);
+    if (hits.length === 0 && examinees && !examinees.has(cat)) continue;
     const penalty = hits.reduce(
       (s, f) => s + SEVERITY_WEIGHT[severity(f)] * CONFIDENCE_WEIGHT[confidence(f)],
       0,
@@ -134,14 +160,45 @@ const CATEGORY_GLOBAL_WEIGHT: Record<Category, number> = {
   operations: 0.6,
 };
 
-export function computeGlobalScore(categoryScores: Record<Category, number>): number {
+/**
+ * Part du poids total qu'il faut avoir instruite pour qu'une note d'ensemble
+ * veuille dire quelque chose.
+ *
+ * En dessous, la moyenne parle surtout de ce qu'on a réussi à regarder. Une
+ * note calculée sur deux catégories mineures serait pire qu'aucune note : elle
+ * aurait l'autorité d'un chiffre sans en avoir le fondement.
+ */
+export const COUVERTURE_MINIMALE = 0.5;
+
+/**
+ * Score global = moyenne pondérée des catégories instruites, ou `null`.
+ *
+ * `null` n'est pas un échec : c'est une réponse. Le rapport l'affiche « non
+ * noté » et dit ce qui manque pour le calculer, au lieu de présenter un nombre
+ * qui ne repose sur rien.
+ */
+export function computeGlobalScore(
+  categoryScores: Partial<Record<Category, number>>,
+): number | null {
   let total = 0;
-  let weights = 0;
+  let instruit = 0;
+  let poidsTotal = 0;
   for (const cat of CATEGORIES) {
-    total += (categoryScores[cat] ?? 78) * CATEGORY_GLOBAL_WEIGHT[cat];
-    weights += CATEGORY_GLOBAL_WEIGHT[cat];
+    poidsTotal += CATEGORY_GLOBAL_WEIGHT[cat];
+    const note = categoryScores[cat];
+    if (note == null) continue;
+    total += note * CATEGORY_GLOBAL_WEIGHT[cat];
+    instruit += CATEGORY_GLOBAL_WEIGHT[cat];
   }
-  return Math.round(total / weights);
+  if (instruit / poidsTotal < COUVERTURE_MINIMALE) return null;
+  return Math.round(total / instruit);
+}
+
+/** Les catégories qu'aucune donnée n'a permis d'instruire. */
+export function categoriesNonInstruites(
+  categoryScores: Partial<Record<Category, number>>,
+): Category[] {
+  return CATEGORIES.filter((c) => categoryScores[c] == null);
 }
 
 /** Potentiel total identifié par mois, dans la devise de la boutique, plafonné pour rester crédible. */

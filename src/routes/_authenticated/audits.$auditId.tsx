@@ -29,6 +29,7 @@ import {
   type PriorityBand,
 } from "@/lib/finding-graph";
 import { toast } from "sonner";
+import { explain } from "@/lib/plain-language";
 import {
   AlertTriangle,
   Copy,
@@ -48,6 +49,7 @@ import {
   HelpCircle,
   History,
   Search,
+  ChevronRight,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
@@ -141,6 +143,19 @@ function AuditPage() {
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [revertingId, setRevertingId] = useState<string | null>(null);
   const [proposals, setProposals] = useState<Record<string, ActionProposal>>({});
+  /*
+    LE REFUS SE MÉMORISE, IL NE S'EFFACE PAS.
+
+    Quand aucune correction automatique n'existe pour un constat, la réponse
+    arrivait en notification passagère. Le bouton restait là, identique,
+    invitant à recliquer — et chaque clic coûte un appel au modèle, donc du
+    quota, pour un refus déjà connu.
+
+    On garde donc la raison par constat : le bouton cède la place à ce qui est
+    réellement possible, et le marchand cesse de payer pour réapprendre la même
+    chose.
+  */
+  const [refus, setRefus] = useState<Record<string, string>>({});
 
   /** Annule une correction déjà appliquée. Écriture, donc mêmes garde-fous serveur. */
   async function handleRevert(findingId: string, actionId: string) {
@@ -163,7 +178,7 @@ function AuditPage() {
     try {
       const res = await proposeFixFn({ data: { findingId } });
       if (res.kind === "no_action") {
-        toast.info(res.reason);
+        setRefus((r) => ({ ...r, [findingId]: res.reason }));
         return;
       }
       setProposals((p) => ({ ...p, [findingId]: res.proposal }));
@@ -688,6 +703,48 @@ function AuditPage() {
             </div>
           )}
 
+          {/*
+            « DONNÉE MANQUANTE » DEVIENT UNE RÉPONSE, PAS UNE FIN DE PHRASE.
+
+            Les manques relevés pendant la collecte n'étaient montrés que sur un
+            audit ÉCHOUÉ. Sur un audit abouti, le marchand lisait donc un rapport
+            silencieux sur ce que nous n'avions pas pu regarder — et pouvait
+            croire le tour complet.
+
+            Rien n'est inventé ici : `explain()` est la même traduction que le
+            tableau de bord emploie déjà, et le motif vient de la cause classée
+            par le connecteur. Elle répond aux quatre questions dans l'ordre où
+            elles se posent — ce qui manque, pourquoi cela compte, comment
+            l'obtenir, ce que cela rouvrirait — au lieu de s'arrêter à
+            « donnée manquante ».
+          */}
+          {manquesDeCollecte.length > 0 && (
+            <details className="group mt-6 rounded-xl border border-border bg-card">
+              <summary className="flex cursor-pointer items-center gap-2 p-4 text-sm font-semibold">
+                <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                Ce que nous n'avons pas pu regarder ({manquesDeCollecte.length})
+              </summary>
+              <ul className="space-y-4 border-t border-border p-4">
+                {manquesDeCollecte.map((g) => {
+                  const e = explain(g.id, g.label, g.reason);
+                  return (
+                    <li key={g.id} className="border-l-2 border-border pl-3">
+                      <p className="text-sm font-medium">{e.what}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{e.why}</p>
+                      <p className="mt-1.5 text-sm">
+                        <span className="font-medium">Pour l'obtenir : </span>
+                        <span className="text-muted-foreground">{e.how}</span>
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Ce que cela rouvrirait : {e.unlocks}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          )}
+
           {/* Tabs */}
           <Tabs defaultValue="problems" className="mt-8">
             {/* Les trois onglets mesurent 373 px : ils débordaient d'un cadre
@@ -718,6 +775,7 @@ function AuditPage() {
                   onConfirmProposal={handleConfirmProposal}
                   onCancelProposal={handleCancelProposal}
                   proposal={proposals[f.id]}
+                  refus={refus[f.id]}
                   appliedAction={appliedActionByFinding.get(f.id)}
                   unknownAction={unknownActionByFinding.get(f.id)}
                   onRevert={handleRevert}
@@ -765,6 +823,7 @@ function AuditPage() {
                           onConfirmProposal={handleConfirmProposal}
                           onCancelProposal={handleCancelProposal}
                           proposal={proposals[f.id]}
+                          refus={refus[f.id]}
                           appliedAction={appliedActionByFinding.get(f.id)}
                           unknownAction={unknownActionByFinding.get(f.id)}
                           onRevert={handleRevert}
@@ -833,6 +892,7 @@ function FindingCard({
   onCancelProposal,
   onRevert,
   proposal,
+  refus,
   appliedAction,
   unknownAction,
   fixing,
@@ -854,6 +914,8 @@ function FindingCard({
   onCancelProposal: (findingId: string) => void;
   onRevert: (findingId: string, actionId: string) => void;
   proposal?: ActionProposal;
+  /** Raison pour laquelle aucune correction automatique n'existe ici. */
+  refus?: string;
   appliedAction?: { id: string; revertible: boolean };
   /** Écriture dont l'issue n'est pas connue. Signalée, jamais rejouée seule. */
   unknownAction?: { targetLabel: string | null };
@@ -895,7 +957,10 @@ function FindingCard({
       <div className="flex items-start gap-4">
         <button
           onClick={() => onToggle(finding.id, finding.status)}
-          className="mt-0.5 shrink-0"
+          /* L'ICÔNE FAIT 24 PX, LA CIBLE DOIT EN FAIRE 44. La marge négative
+             agrandit la zone cliquable sans déplacer l'icône d'un pixel : le
+             geste devient atteignable au pouce et la mise en page ne bouge pas. */
+          className="-m-2.5 mt-0 shrink-0 rounded-full p-2.5"
           aria-label="Marquer comme fait"
         >
           {done ? (
@@ -1141,8 +1206,33 @@ function FindingCard({
                 ))}
             </div>
           )}
+          {/*
+            CHAQUE BOUTON FAIT EXACTEMENT CE QUE SON INTITULÉ ANNONCE.
+
+            « Corriger à ma place » était proposé sur TOUS les constats, y
+            compris ceux qu'aucun outil ne sait écrire. Le marchand cliquait,
+            attendait la préparation, et recevait un refus en notification
+            passagère — puis retrouvait le même bouton, intact, invitant à
+            recommencer.
+
+            Deux choses étaient fausses. La promesse d'abord : le geste ne
+            corrige rien tout seul, il PRÉPARE une proposition que le marchand
+            confirme ensuite, écran de contrôle à l'appui. Et la disponibilité :
+            elle n'est connue qu'après coup, mais une fois connue elle doit se
+            voir.
+          */}
+          {refus && !applied && !proposal && (
+            <div className="mt-4 rounded-lg border border-border bg-secondary/60 p-3 text-sm">
+              <div className="font-semibold">Pas de correction automatique ici</div>
+              <p className="mt-1 text-muted-foreground">{refus}</p>
+              <p className="mt-1 text-muted-foreground">
+                Les étapes ci-dessus restent valables : elles se font depuis votre administration
+                Shopify.
+              </p>
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {!applied && !proposal && (
+            {!applied && !proposal && !refus && (
               <Button
                 size="sm"
                 onClick={() => onProposeFix(finding.id)}
@@ -1151,11 +1241,11 @@ function FindingCard({
               >
                 {proposing ? (
                   <>
-                    <Loader2 className="mr-2 h-3 w-3 animate-spin" /> L'IA prépare la correction...
+                    <Loader2 className="mr-2 h-3 w-3 animate-spin" /> Préparation en cours…
                   </>
                 ) : (
                   <>
-                    <Sparkles className="mr-2 h-3 w-3" /> Corriger à ma place
+                    <Sparkles className="mr-2 h-3 w-3" /> Préparer la correction
                   </>
                 )}
               </Button>
@@ -1167,10 +1257,10 @@ function FindingCard({
                 onClick={() => {
                   const ac = finding.auto_correction as { content: string };
                   navigator.clipboard.writeText(ac.content);
-                  toast.success("Correction copiée !");
+                  toast.success("Texte copié.");
                 }}
               >
-                <Copy className="mr-2 h-3 w-3" /> Copier la correction
+                <Copy className="mr-2 h-3 w-3" /> Copier le texte proposé
               </Button>
             ) : (
               <Button

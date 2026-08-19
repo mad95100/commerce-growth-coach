@@ -6,6 +6,7 @@ import {
   PRIORITY_BANDS,
   ROOT_CAUSE_THRESHOLD,
   analyseFindings,
+  citeUneMesure,
   classifyEpistemic,
   countByBand,
   decideBand,
@@ -67,8 +68,28 @@ export default defineSuite("Audits — chaîne causale et priorité justifiée",
   t.check("un texte trop court ne compte pas", hasSubstance("ok"), false);
   t.check("les espaces seuls ne comptent pas", hasSubstance("   "), false);
 
-  // --- Les quatre niveaux de certitude -------------------------------------
-  t.check("quatre niveaux, pas un de plus", EPISTEMIC_LEVELS.length, 4);
+  // --- Les cinq niveaux de certitude ---------------------------------------
+  /*
+    « OBSERVÉ » A ÉTÉ AJOUTÉ, ET IL COMBLE UNE CONFUSION RÉELLE.
+
+    Le classement ne regardait que la PRÉSENCE d'une base citée, jamais sa
+    NATURE. Deux preuves de nature opposée recevaient donc le même niveau :
+
+      · « 412 paniers créés, 149 paiements engagés (Shopify, 30 derniers
+        jours) » — une quantité, une source, une période. On peut en tirer un
+        montant.
+      · « Titre principal relevé sur la page d'accueil : Collection » — une
+        constatation certaine, mais qui ne compte rien.
+
+    Les deux s'affichaient « Fait — mesuré dans vos données, vous pouvez agir
+    dessus sans vérifier ». Sur la seconde, c'était une promesse que la preuve
+    ne tenait pas.
+
+    Les deux restent également CERTAINS — d'où un plafond de priorité identique.
+    Ce qui les sépare est le chiffrage, et le rapport le montre sur un second
+    axe plutôt que de le fondre dans le premier.
+  */
+  t.check("cinq niveaux, pas un de plus", EPISTEMIC_LEVELS.length, 5);
 
   const evidence = (based_on: string, assumptions = "") => ({ based_on, assumptions });
   const source = "Sessions et commandes Shopify sur 30 jours";
@@ -79,6 +100,29 @@ export default defineSuite("Audits — chaîne causale et priorité justifiée",
     classifyEpistemic({ confidence: "high", evidence: evidence(source) }),
     "fait",
   );
+  const releve = "Titre principal relevé sur la page d'accueil : « Collection »";
+  t.check(
+    "constatation non chiffrée, confiance élevée → Observé",
+    classifyEpistemic({ confidence: "high", evidence: evidence(releve) }),
+    "observe",
+  );
+  t.check(
+    "une constatation ne devient pas une mesure par confiance déclarée",
+    classifyEpistemic({ confidence: "high", evidence: evidence(releve) }) === "fait",
+    false,
+  );
+  // Le test de chiffrage exige une quantité ET un repère de source ou de
+  // période : un nombre isolé — une référence, une année — n'en fait pas une
+  // mesure.
+  t.check("un chiffre seul ne suffit pas", citeUneMesure("Référence 4021 absente"), false);
+  t.check("un texte sans chiffre n'est jamais une mesure", citeUneMesure(releve), false);
+  t.check("quantité + source = mesure", citeUneMesure(source), true);
+  t.check(
+    "quantité + période = mesure",
+    citeUneMesure("412 paniers créés sur les 30 derniers jours"),
+    true,
+  );
+
   t.check(
     "base citée, sans hypothèse, confiance moyenne → Déduction forte",
     classifyEpistemic({ confidence: "medium", evidence: evidence(source) }),

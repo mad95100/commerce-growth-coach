@@ -301,6 +301,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "L'état OAuth, seule chose qui empêche d'attacher un compte publicitaire à la boutique d'autrui. Le retour d'autorisation est une route PUBLIQUE, appelée sans session à nous : le paramètre `state` lui dit pour quelle boutique elle travaille, et sa signature est tout ce qui empêche de le fabriquer. Sans elle, un état forgé avec l'identifiant de la boutique d'un autre y rattache le compte de l'attaquant — puis un diagnostic parle de campagnes que le marchand n'a jamais lancées. Le code était déjà correct quand cette suite a été écrite ; il n'était couvert par rien. Une primitive de sécurité juste mais non testée n'est juste que pour l'instant.",
   },
   {
+    file: "audits/montee-en-gamme.test.ts",
+    minChecks: 30,
+    covers:
+      "Ce qu'un rapport n'a pas le droit d'affirmer. Le score était calculé sur des catégories jamais instruites — une catégorie sans constat valait 78, qu'elle ait été examinée et trouvée saine ou qu'aucune donnée n'ait permis de la regarder ; une boutique dont aucune source n'avait répondu obtenait donc une note honorable sur du vide. Couvre aussi la devise jamais inventée, les boutons qui ne promettent plus une correction automatique là où aucun outil ne sait écrire, et les manques de collecte enfin montrés sur un audit ABOUTI — avec les quatre questions dans l'ordre où elles se posent, au lieu de s'arrêter à « donnée manquante ».",
+  },
+  {
     file: "audits/fournisseur-ia.test.ts",
     minChecks: 90,
     covers:
