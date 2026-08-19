@@ -745,8 +745,63 @@ function AuditPage() {
             </details>
           )}
 
+          {/*
+            PAR QUOI COMMENCER — avant l'inventaire, jamais à sa place.
+
+            L'ordre de lecture d'un rapport de conseil est : la note, ce qu'elle
+            veut dire, les causes, PUIS ce qu'on fait demain matin. Le marchand
+            tombait jusqu'ici sur la liste complète des constats et devait la
+            trier lui-même.
+
+            POURQUOI CE N'EST PAS UN ONGLET. La version précédente ouvrait le
+            rapport sur l'onglet « Plan d'action ». Rendue au navigateur, elle a
+            montré deux défauts que le code seul ne disait pas : la preuve et le
+            niveau de certitude disparaissaient du premier écran — ils vivent
+            dans les cartes de l'onglet « Problèmes » —, et un audit dont aucun
+            constat ne porte d'horizon ouvrait sur un onglet VIDE. Un bloc placé
+            au-dessus des onglets donne l'ordre voulu sans rien cacher : il
+            s'efface de lui-même quand il n'a rien à dire.
+
+            TROIS AU PLUS. Au-delà, une liste de priorités cesse d'en être une.
+          */}
+          {(() => {
+            const horizon = (tf: string) => findings.filter((f) => f.timeframe === tf);
+            const premieres = [...horizon("today"), ...horizon("this_week")].slice(0, 3);
+            if (premieres.length === 0) return null;
+            return (
+              <div className="mt-8 rounded-2xl border border-border bg-card p-5">
+                <div className="intitule">Par quoi commencer</div>
+                <ol className="mt-3 space-y-2">
+                  {premieres.map((f, i) => {
+                    const niveau = toEpistemicLevel(f.epistemic_level);
+                    return (
+                      <li key={f.id} className="flex min-w-0 items-baseline gap-3">
+                        <span className="chiffres shrink-0 text-lg">{i + 1}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="font-medium">{f.title}</span>
+                          {niveau && (
+                            <span
+                              className="ml-2 inline-flex rounded-md border border-border px-1.5 py-0.5 text-xs text-muted-foreground"
+                              title={EPISTEMIC_HINTS[niveau]}
+                            >
+                              {EPISTEMIC_LABELS[niveau]}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Le détail de chaque point, avec ce sur quoi nous nous appuyons, est juste en
+                  dessous.
+                </p>
+              </div>
+            );
+          })()}
+
           {/* Tabs */}
-          <Tabs defaultValue="plan" className="mt-8">
+          <Tabs defaultValue="problems" className="mt-8">
             {/* Les trois onglets mesurent 373 px : ils débordaient d'un cadre
                 de 320 px. Ils défilent désormais latéralement plutôt que de
                 pousser la page entière — un onglet reste atteignable, et rien
@@ -755,21 +810,10 @@ function AuditPage() {
               {/* Sans les constats, le compte vaudrait « (0) » — la seule
                   affirmation que cet écran ne doit pas faire quand il ne sait
                   pas. On retire le nombre plutôt que d'en inventer un. */}
-              {/*
-                LE PLAN PASSE DEVANT LES PROBLÈMES, et c'est un choix.
-
-                L'écran s'ouvrait sur la liste des constats : le marchand qui
-                venait de lire son score et ses causes racines tombait sur un
-                inventaire, et devait le trier lui-même pour savoir par quoi
-                commencer. L'ordre de lecture est maintenant celui d'un
-                entretien de conseil — la note, ce qu'elle veut dire, les causes,
-                PUIS ce qu'on fait demain matin. Le détail de chaque problème,
-                avec ses preuves, reste à un clic pour qui veut vérifier.
-              */}
-              <TabsTrigger value="plan">Plan d'action</TabsTrigger>
               <TabsTrigger value="problems">
                 Problèmes{constatsIllisibles ? "" : ` (${findings.length})`}
               </TabsTrigger>
+              <TabsTrigger value="plan">Plan d'action</TabsTrigger>
               <TabsTrigger value="corrections">Corrections auto</TabsTrigger>
             </TabsList>
 
@@ -1025,12 +1069,22 @@ function FindingCard({
             la couleur de l'argent, aligné d'une carte à l'autre pour que trois
             constats se comparent d'un coup d'œil.
           */}
-          <div className="mt-2 flex items-start justify-between gap-4">
+          {/*
+            LES DEUX SE CÔTOIENT SUR LARGE, ILS S'EMPILENT SUR TÉLÉPHONE.
+
+            Mesuré au navigateur à 390 px : côte à côte, le montant — qui ne se
+            coupe pas — prenait la moitié de la ligne et laissait au titre une
+            colonne de deux mots. « Les frais de livraison n'apparaissent qu'au
+            paiement » tombait sur sept lignes de deux mots, et cessait d'être
+            lisible comme un titre. Le montant garde sa taille et son
+            alignement dès qu'il y a la place pour les deux.
+          */}
+          <div className="mt-2 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <h2 className={`min-w-0 font-display text-lg font-bold ${done ? "line-through" : ""}`}>
               {finding.title}
             </h2>
             {(finding.estimated_gain_max ?? 0) > 0 && (
-              <div className="shrink-0 text-right">
+              <div className="shrink-0 sm:text-right">
                 <div className="montant text-base leading-tight sm:text-lg">
                   +{formatMoney(Number(finding.estimated_gain_min), storeCurrency)} –{" "}
                   {formatMoney(Number(finding.estimated_gain_max), storeCurrency)}

@@ -152,6 +152,7 @@ const findings = [
     time_minutes: 40,
     confidence: "high",
     epistemic_level: "fait",
+    timeframe: "today",
     auto_correction: null,
   },
   {
@@ -174,6 +175,7 @@ const findings = [
     time_minutes: 60,
     confidence: "medium",
     epistemic_level: "observe",
+    timeframe: "this_week",
     auto_correction: { kind: "email", body: "..." },
   },
   {
@@ -195,6 +197,7 @@ const findings = [
     time_minutes: 20,
     confidence: "high",
     epistemic_level: "hypothese",
+    timeframe: "this_month",
     auto_correction: { kind: "copy", body: "..." },
   },
 ];

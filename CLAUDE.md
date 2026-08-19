@@ -23,7 +23,7 @@ src/lib/               60 modules ; *.server.ts = serveur, *.functions.ts = serv
 src/lib/connectors/    23 modules ; par source : *-observe.ts (PUR) + *-observe.server.ts (réseau)
 src/components/        écrans ; ui/ = primitives shadcn
 supabase/migrations/   18 migrations, horodatées
-tests/                 64 suites, harnais maison (pas de Vitest — délibéré)
+tests/                 66 suites, harnais maison (pas de Vitest — délibéré)
 tests/navigateur/      sondes Playwright, hors `npm test`
 ```
 
@@ -33,7 +33,7 @@ ne font que chercher sur le réseau. C'est ce qui rend le moteur testable.
 ## Commandes
 
 ```
-npm test        # 64 suites, ~16 700 contrôles — DOIT être vert avant tout push
+npm test        # 66 suites, ~16 800 contrôles — DOIT être vert avant tout push
 npm run typecheck
 npm run lint
 npm run build
