@@ -307,6 +307,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Ce qu'un rapport n'a pas le droit d'affirmer. Le score était calculé sur des catégories jamais instruites — une catégorie sans constat valait 78, qu'elle ait été examinée et trouvée saine ou qu'aucune donnée n'ait permis de la regarder ; une boutique dont aucune source n'avait répondu obtenait donc une note honorable sur du vide. Couvre aussi la devise jamais inventée, les boutons qui ne promettent plus une correction automatique là où aucun outil ne sait écrire, et les manques de collecte enfin montrés sur un audit ABOUTI — avec les quatre questions dans l'ordre où elles se posent, au lieu de s'arrêter à « donnée manquante ».",
   },
   {
+    file: "audits/raisonnement.test.ts",
+    minChecks: 75,
+    covers:
+      "Le passage du symptôme au raisonnement. Les causes racines étaient calculées, justes, et ignorées par le classement — le plan pouvait proposer de corriger un effet avant la cause qui le produit. Couvre l'effet de dépendance et ses trois garde-fous (il multiplie la formule, donc il passe par le poids de preuve ; il est plafonné ; une donnée insuffisante ne peut pas en profiter), les diagnostics de convergence qui remplacent leurs constituants au lieu de s'y ajouter, les trois états de disponibilité — disponible, épuisé, illisible — jamais réduits à deux, le prix, les variantes et les métadonnées enfin lus, et la portée des preuves : aucun constat de vitrine ne prétend avoir inspecté le site entier.",
+  },
+  {
     file: "audits/expertise-vitrine.test.ts",
     minChecks: 60,
     covers:

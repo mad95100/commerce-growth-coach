@@ -1296,7 +1296,22 @@ function FindingCard({
               </p>
             </div>
           )}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          {/*
+            LES LIBELLÉS PEUVENT REVENIR À LA LIGNE À 320 PX.
+
+            Mesuré au navigateur : « Copier le texte proposé » fait 234 px, la
+            primitive de bouton porte `whitespace-nowrap`, et la carte n'en
+            offre pas autant sur un écran de 320 px. Le bouton poussait donc le
+            document à 323 px — le seul débordement horizontal du produit.
+            `flex-wrap` sur la rangée n'y pouvait rien : ce n'est pas la rangée
+            qui dépassait, c'est un bouton seul.
+
+            L'override est local à cette rangée : la primitive garde son
+            `nowrap` partout ailleurs, où il évite des boutons à deux lignes
+            sans raison. La hauteur devient libre pour que le texte replié ne
+            soit pas coupé.
+          */}
+          <div className="mt-4 flex flex-wrap items-center gap-2 [&>button]:h-auto [&>button]:min-h-8 [&>button]:max-w-full [&>button]:whitespace-normal [&>button]:py-1.5">
             {!applied && !proposal && !refus && (
               <Button
                 size="sm"

@@ -5,7 +5,12 @@ import { analyseFindings, applyTechnicalFrontier } from "@/lib/finding-graph";
 import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-history";
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
-import { analyse as analyseRules, rulesToPromptBlock } from "@/lib/audit-rules";
+import {
+  analyse as analyseRules,
+  buildActionPlan,
+  prioritise,
+  rulesToPromptBlock,
+} from "@/lib/audit-rules";
 import {
   audienceInputFrom,
   audienceToPromptBlock,
@@ -17,7 +22,12 @@ import {
   experienceToPromptBlock,
   extractExperience,
 } from "@/lib/storefront-experience";
-import { causesToPromptBlock, groupByCause, type Symptom } from "@/lib/root-cause";
+import {
+  causesToPromptBlock,
+  dependentsByFinding,
+  groupByCause,
+  type Symptom,
+} from "@/lib/root-cause";
 import { assessDiagnostics, diagnosticsToPromptBlock } from "@/lib/diagnostics";
 import { crossSignals, crossSignalsToPromptBlock } from "@/lib/cross-source";
 import { anchorGainsOnLeak, buildFunnel, funnelToPromptBlock } from "@/lib/funnel";
@@ -384,6 +394,27 @@ export async function executeAuditWork(input: {
   ];
   const { causes, isolated } = groupByCause(symptomes);
 
+  /*
+    LE CLASSEMENT APPREND CE QUE LES CAUSES SAVAIENT DÉJÀ.
+
+    Les causes racines étaient calculées ici, justes, et n'avaient AUCUN poids
+    sur l'ordre des actions : le plan pouvait donc proposer de corriger un
+    symptôme avant la cause qui le produit. C'est l'incohérence la plus visible
+    d'un audit — corriger l'effet laisse la cause reproduire l'effet.
+
+    Le second passage ne rejoue aucune règle : il reclasse les mêmes constats
+    avec, en plus, ce que chaque levier débloque. L'avantage passe par le poids
+    de preuve, donc une cause « à vérifier » ne dépasse pas un constat prouvé
+    du seul fait d'expliquer des choses.
+  */
+  const dependances = dependentsByFinding(causes);
+  const priorities = prioritise(ruleReport.findings, dependances);
+  const rapportPriorise = {
+    ...ruleReport,
+    priorities,
+    plan: buildActionPlan(priorities),
+  };
+
   const userPrompt = `Voici les infos de la boutique à auditer :
 
 - Nom : ${store.name}
@@ -406,7 +437,7 @@ ${observationsToPromptBlock(reports)}
 
 ${diagnosticsToPromptBlock(availability, allGaps(reports))}
 
-${rulesToPromptBlock(ruleReport)}
+${rulesToPromptBlock(rapportPriorise)}
 
 ${audienceToPromptBlock(audience, incoherences)}
 

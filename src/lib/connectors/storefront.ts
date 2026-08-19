@@ -43,6 +43,11 @@
  */
 
 import { observe, type Observation, type ObservationGap } from "@/lib/observations";
+// Le compte des appels à l'action et le titre de niveau 1 sont lus par le module
+// d'expérience. Les importer plutôt que de les recopier évite que deux
+// détecteurs du même objet ne finissent par répondre deux choses différentes.
+// Les deux modules sont purs ; il n'y a pas de cycle.
+import { litLeTitrePrincipal, litLesCliquables } from "@/lib/storefront-experience";
 
 /** Une page telle que le réseau l'a rendue. `null` partout = jamais atteinte. */
 export type FetchedPage = {
@@ -480,6 +485,53 @@ export function storefrontObservations(raw: StorefrontRaw): {
         sample: 1,
       }),
     );
+    /*
+      LES TROIS PIÈCES DU PARCOURS D'ENTRÉE, chacune mesurée séparément.
+
+      Elles existaient déjà, éparpillées : le titre et les boutons dans le
+      module d'expérience, qui produit ses propres constats sans passer par les
+      règles ; les liens de collection ici. Aucune règle ne pouvait donc les
+      RAPPROCHER — et c'est le rapprochement qui vaut quelque chose. Un titre
+      court est un détail ; un titre court, aucun bouton d'action et aucune
+      porte vers le catalogue, c'est une page d'accueil qui ne mène nulle part.
+    */
+    const titrePrincipal = litLeTitrePrincipal(home.html);
+    const motsDuTitre = titrePrincipal ? titrePrincipal.split(/\s+/).filter(Boolean).length : 0;
+    add(
+      observe({
+        id: "storefront.accueil_h1_mots",
+        source: "storefront",
+        domain: "boutique",
+        label: "Longueur de la promesse d'accueil",
+        value: motsDuTitre,
+        unit: "count",
+        text: titrePrincipal,
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: titrePrincipal
+          ? `Titre de niveau 1 relevé sur ${home.url} : « ${titrePrincipal} » (${motsDuTitre} mots)`
+          : `Aucun titre de niveau 1 dans le document de ${home.url}`,
+        sample: 1,
+      }),
+    );
+
+    const { labels, ctaCount } = litLesCliquables(home.html);
+    add(
+      observe({
+        id: "storefront.accueil_cta",
+        source: "storefront",
+        domain: "conversion",
+        label: "Appels à l'action sur l'accueil",
+        value: ctaCount,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence:
+          ctaCount > 0
+            ? `${ctaCount} lien(s) ou bouton(s) portant un verbe d'action sur ${labels.length} relevés dans le document de ${home.url}`
+            : `Aucun des ${labels.length} liens et boutons de ${home.url} ne porte de verbe d'achat ou de découverte`,
+        sample: 1,
+      }),
+    );
+
     add(
       observe({
         id: "storefront.accueil_recherche",

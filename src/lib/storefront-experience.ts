@@ -165,17 +165,44 @@ function countMatches(haystack: string, needles: string[]): number {
  * quelque part, et refuser de lire pour autant reviendrait à ne jamais rien
  * analyser.
  */
+/** Le corps du document, ou le document entier s'il n'en déclare pas. */
+function corps(html: string): string {
+  const start = html.search(/<body\b[^>]*>/i);
+  return start === -1 ? html : html.slice(start);
+}
+
+/**
+ * Les liens et boutons de la page, et ceux qui portent un verbe d'action.
+ *
+ * EXPORTÉE POUR ÊTRE PARTAGÉE, pas par commodité. Le scan de vitrine a besoin
+ * du même compte pour en faire une observation que les règles pourront croiser.
+ * Le recopier là-bas ferait diverger deux détecteurs qui doivent répondre la
+ * même chose — et une divergence entre deux comptes du même objet est
+ * exactement le genre d'écart que personne ne remarque avant qu'il ne produise
+ * un constat faux.
+ */
+export function litLesCliquables(html: string): { labels: string[]; ctaCount: number } {
+  const labels = (
+    corps(html).match(/<(?:a|button)\b[^>]*>([\s\S]{0,200}?)<\/(?:a|button)>/gi) ?? []
+  )
+    .map((c) => stripTags(c))
+    .filter((label) => label.length > 0);
+  return { labels, ctaCount: labels.filter((l) => countMatches(l, CTA_WORDS) > 0).length };
+}
+
+/** Le titre de niveau 1, tel qu'écrit. `null` si le document n'en porte aucun. */
+export function litLeTitrePrincipal(html: string): string | null {
+  const m = corps(html).match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
+  return m ? stripTags(m[1] ?? "") || null : null;
+}
+
 export function extractExperience(html: string): ExperienceFacts {
-  const body = (() => {
-    const start = html.search(/<body\b[^>]*>/i);
-    return start === -1 ? html : html.slice(start);
-  })();
+  const body = corps(html);
   const firstBlock = body.slice(0, FIRST_BLOCK_CHARS);
   const firstBlockText = stripTags(firstBlock);
   const pageText = stripTags(body);
 
-  const h1Match = body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
-  const h1 = h1Match ? stripTags(h1Match[1] ?? "") : null;
+  const h1 = litLeTitrePrincipal(html);
 
   // Les couleurs et les polices sont comptées sur les DÉCLARATIONS du document.
   // C'est un fait vérifiable ; ce n'est pas ce que l'œil perçoit après cascade,
@@ -192,10 +219,7 @@ export function extractExperience(html: string): ExperienceFacts {
     ),
   );
 
-  const cliquables = (body.match(/<(?:a|button)\b[^>]*>([\s\S]{0,200}?)<\/(?:a|button)>/gi) ?? [])
-    .map((c) => stripTags(c))
-    .filter((label) => label.length > 0);
-  const ctaCount = cliquables.filter((label) => countMatches(label, CTA_WORDS) > 0).length;
+  const { labels: cliquables, ctaCount } = litLesCliquables(html);
 
   return {
     h1,

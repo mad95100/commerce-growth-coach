@@ -27,7 +27,7 @@
  */
 
 import type { EvidenceLevel } from "@/lib/audit-rules";
-import { EVIDENCE_LEVELS } from "@/lib/audit-rules";
+import { EVIDENCE_LEVELS, EVIDENCE_WEIGHT, dependencyEffect } from "@/lib/audit-rules";
 
 // ---------------------------------------------------------------------------
 // Entrée commune
@@ -69,6 +69,22 @@ export type CauseDefinition = {
   correction: string;
   /** Identifiants de constats qui en relèvent. Préfixes acceptés. */
   matches: string[];
+  /**
+   * LE LEVIER : le constat dont la correction débloque les autres.
+   *
+   * POURQUOI IL EST NOMMÉ, ET PAS DEVINÉ. Une cause qui explique quatre
+   * symptômes doit passer devant eux dans le plan — mais « la cause » n'est pas
+   * une ligne que le marchand peut cocher : ce qu'il exécute, c'est un geste, et
+   * ce geste porte sur l'un des constats. Le désigner explicitement rend la
+   * dépendance vérifiable : à la question « pourquoi ce constat passe-t-il
+   * devant les trois autres ? », la réponse est écrite ici, pas déduite d'un
+   * score.
+   *
+   * Il doit figurer dans `matches`. S'il n'est pas présent dans l'audit du jour,
+   * le symptôme de plus fort impact reprend le rôle — une dépendance réelle ne
+   * disparaît pas parce que son levier habituel n'a pas été constaté.
+   */
+  lever: string;
 };
 
 /**
@@ -96,6 +112,9 @@ export const CAUSES: CauseDefinition[] = [
       "audience.premium_sans_argument",
       "merchandising.images_missing",
     ],
+    // Le texte s'écrit une fois et se décline. Les fiches sont l'endroit où il
+    // manque le plus souvent, et où il rapporte le plus vite.
+    lever: "merchandising.descriptions_missing",
   },
   {
     id: "cause.rien_ne_rassure",
@@ -115,6 +134,9 @@ export const CAUSES: CauseDefinition[] = [
       "audience.premium_sans_avis",
       "audience.premium_sans_politique",
     ],
+    // Les pages de politique conditionnent tout le reste : sans elles, aucun
+    // lien de réassurance n'a de destination.
+    lever: "trust.policy_pages_missing",
   },
   {
     id: "cause.chemin_absent",
@@ -132,6 +154,38 @@ export const CAUSES: CauseDefinition[] = [
       "experience.navigation_absente",
       "experience.navigation_surchargee",
     ],
+    // Un bouton d'action se pose en une minute et rend le parcours possible ;
+    // refaire un menu ne sert à rien tant qu'aucun geste n'est proposé.
+    lever: "experience.aucun_cta",
+  },
+  /**
+   * LA CAUSE QUE LES NOUVELLES LECTURES ONT RENDUE POSSIBLE.
+   *
+   * Elle n'aurait pas pu exister avant : prix, variantes et disponibilité
+   * partielle n'étaient mesurés nulle part. Ils décrivent ensemble un seul
+   * problème d'hygiène de catalogue — une part de ce qui est exposé ne peut pas
+   * être achetée en l'état — et il se corrige d'un seul passage, pas fiche par
+   * fiche selon trois listes différentes.
+   */
+  {
+    id: "cause.catalogue_pas_achetable",
+    title: "Une partie du catalogue exposé ne peut pas être achetée",
+    statement:
+      "Des fiches sont visibles en boutique alors qu'elles n'ont pas de prix, plus de stock, ou un choix dont la moitié est indisponible.",
+    why: "Prix absent, rupture totale, choix partiellement épuisé : le visiteur rencontre à chaque fois le même mur, à la même étape — celle où il a déjà décidé d'acheter. Ce ne sont pas trois chantiers, c'est un passage en revue du catalogue, à faire une fois.",
+    firstAction:
+      "Trier le catalogue par disponibilité et par prix, puis retirer du canal Boutique en ligne tout ce qui ne peut pas être acheté aujourd'hui.",
+    correction:
+      "Dans Shopify → Produits, filtrer sur « Rupture de stock » et dépublier ces fiches du canal Boutique en ligne plutôt que de les laisser en « épuisé ». Trier ensuite par prix croissant et renseigner celles à zéro. Enfin, sur les fiches à variantes, masquer les variantes épuisées au lieu de les afficher grisées : un choix refusé coûte plus qu'un choix non proposé.",
+    matches: [
+      "offre.prix_absent",
+      "merchandising.out_of_stock_share",
+      "merchandising.choix_partiellement_epuise",
+      "produit.achat_impossible",
+    ],
+    // Une fiche sans prix ne peut être achetée par personne, à aucune condition :
+    // c'est le seul des trois qui n'a pas de demi-mesure.
+    lever: "offre.prix_absent",
   },
   {
     id: "cause.boutique_non_mesuree",
@@ -148,6 +202,9 @@ export const CAUSES: CauseDefinition[] = [
       "data.attribution_coverage_low",
       "data.retention_non_evaluable",
     ],
+    // L'origine des commandes est la seule des trois qui ne demande aucun outil
+    // supplémentaire : elle se répare en marquant les liens.
+    lever: "data.attribution_coverage_low",
   },
   {
     id: "cause.identite_flottante",
@@ -167,6 +224,8 @@ export const CAUSES: CauseDefinition[] = [
       "merchandising.catalog_concentration",
       "offre.discount_dependency",
     ],
+    // Choisir le public se lit d'abord dans ce que la vitrine met en avant.
+    lever: "merchandising.catalog_concentration",
   },
 ];
 
@@ -196,6 +255,10 @@ export type RootCause = {
   impact: number;
   effort: number;
   priority: number;
+  /** Le constat qui porte le premier geste. Voir `CauseDefinition.lever`. */
+  lever: string;
+  /** Constats que le levier débloque. `symptoms.length - 1`. */
+  dependents: number;
 };
 
 function weakest(levels: EvidenceLevel[]): EvidenceLevel {
@@ -246,14 +309,62 @@ export function groupByCause(symptoms: Symptom[]): {
       correction: def.correction,
       impact,
       effort,
-      // Même formule que la priorisation des constats : l'effort divise, pour
-      // qu'un geste court passe très loin devant un chantier à impact égal.
-      priority: Math.round((impact * 100) / Math.max(1, effort)),
+      // LE POIDS DE PREUVE MANQUAIT ICI, et c'était un vrai défaut.
+      //
+      // La priorité d'une cause valait `impact × 100 ÷ effort` : le niveau de
+      // preuve n'y entrait pas. Une cause faite de trois constats « à vérifier »
+      // sortait donc au même rang qu'une cause faite de trois constats prouvés,
+      // à impact égal. La formule est maintenant celle des constats — impact ×
+      // preuve × dépendance ÷ effort —, ce qui rend les deux listes
+      // comparables et empêche une hypothèse bien accompagnée de doubler un
+      // fait.
+      //
+      // `level` est déjà celui du MOINS certain des membres : le regroupement
+      // ne peut pas se promouvoir en s'élargissant.
+      priority: Math.round(
+        (impact * EVIDENCE_WEIGHT[level] * dependencyEffect(membres.length - 1) * 100) /
+          Math.max(1, effort),
+      ),
+      lever: leverOf(def, membres),
+      dependents: membres.length - 1,
     });
   }
 
   causes.sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id));
   return { causes, isolated: symptoms.filter((s) => !pris.has(s.id)) };
+}
+
+/**
+ * Le constat qui porte le premier geste de cette cause.
+ *
+ * Le levier déclaré s'il a été constaté ; sinon celui de plus fort impact parmi
+ * les membres. Une dépendance réelle ne disparaît pas parce que son levier
+ * habituel n'a pas été relevé ce jour-là — mais elle change alors de porteur, et
+ * cela se lit.
+ */
+function leverOf(def: CauseDefinition, membres: Symptom[]): string {
+  const declare = membres.find((m) => m.id === def.lever);
+  if (declare) return declare.id;
+  return [...membres].sort((a, b) => b.impact - a.impact || a.id.localeCompare(b.id))[0].id;
+}
+
+/**
+ * Ce que chaque constat DÉBLOQUE, prêt pour la priorisation.
+ *
+ * LE CHAÎNON QUI MANQUAIT. Les causes racines étaient calculées, justes, et
+ * n'avaient aucun poids sur l'ordre des actions : le rapport pouvait donc
+ * proposer de corriger un symptôme avant la cause qui le produit — exactement
+ * ce qu'un audit existe pour éviter.
+ *
+ * Seul le LEVIER de chaque cause reçoit le compte. Distribuer l'avantage à tous
+ * les membres reviendrait à faire remonter le groupe entier, ce qui ne dit plus
+ * par quoi commencer ; et l'accorder à un membre non désigné rendrait l'ordre
+ * indéfendable. Le compte exclut le levier lui-même : il vaut ce qu'il débloque.
+ */
+export function dependentsByFinding(causes: RootCause[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const c of causes) out.set(c.lever, c.symptoms.length - 1);
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -289,6 +400,7 @@ export function causesToPromptBlock(causes: RootCause[], isolated: Symptom[]): s
         `  Premier geste : ${c.firstAction}`,
         `  Correction : ${c.correction}`,
         `  Impact ${c.impact}/5, effort ${c.effort}/5`,
+        `  Levier : ${c.lever} — sa correction en débloque ${c.dependents} autre(s), ce qui lui donne son avantage de priorité.`,
       );
     }
   }
