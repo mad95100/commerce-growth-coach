@@ -304,24 +304,6 @@ function confidenceOf(f: { confidence?: string | null }): "low" | "medium" | "hi
 }
 
 /**
- * Classe une conclusion selon ce qui la soutient.
- *
- * La table complète, six cas, sans exception :
- *
- * | Base citée | Hypothèses | Confiance | Niveau           |
- * | ---------- | ---------- | --------- | ---------------- |
- * | non        | —          | —         | Donnée manquante |
- * | oui        | —          | faible    | Hypothèse        |
- * | oui        | non        | élevée    | Fait             |
- * | oui        | non        | moyenne   | Déduction forte  |
- * | oui        | oui        | élevée    | Déduction forte  |
- * | oui        | oui        | moyenne   | Hypothèse        |
- *
- * La première ligne prime sur tout le reste : sans base citée, une confiance
- * « élevée » annoncée par le modèle ne vaut rien. C'est exactement le cas qu'on
- * veut voir écrit « Donnée manquante » dans le rapport plutôt que « Fait ».
- */
-/**
  * La preuve citée est-elle une MESURE, ou une constatation ?
  *
  * C'est la distinction qui manquait, et elle change ce qu'on a le droit

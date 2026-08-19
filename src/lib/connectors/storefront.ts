@@ -387,8 +387,18 @@ export function storefrontObservations(raw: StorefrontRaw): {
   const add = (o: Observation) => observations.push(o);
 
   const home = pageOf(raw, "accueil");
-  const product = pageOf(raw, "produit");
   const collection = pageOf(raw, "collection");
+  /*
+    TOUTES LES FICHES LUES, PAS LA PREMIÈRE.
+
+    `product` reste la première : les observations de structure et les
+    croisements qui parlent d'UNE page gardent exactement leur sens. Ce qui
+    change, c'est que le moteur dispose désormais de l'ensemble, avec son
+    dénominateur — de quoi distinguer un défaut isolé d'un défaut systématique,
+    ce qu'une fiche unique ne permettait pas même en principe.
+  */
+  const productPages = raw.pages.filter((p) => p.role === "produit" && isOk(p) && p.html);
+  const product = productPages[0] ?? pageOf(raw, "produit");
 
   // --- Disponibilité et temps de réponse -----------------------------------
   const reachable = raw.pages.filter((p) => isOk(p));
@@ -678,6 +688,110 @@ export function storefrontObservations(raw: StorefrontRaw): {
       wouldEnable:
         "Vérifier que la page que le visiteur ouvre porte bien un prix, un ajout au panier et de quoi décider.",
     });
+  }
+
+  /*
+    L'ÉCHANTILLON, ET SON DÉNOMINATEUR.
+
+    CE QUE CE BLOC EMPÊCHE. Jusqu'ici, une seule fiche était lue et les constats
+    parlaient du catalogue : « les fiches produit n'ont pas de description ».
+    Une boutique dont la fiche mise en avant est soignée passait pour
+    irréprochable, une boutique dont la première fiche est un brouillon oublié
+    était condamnée sur cet unique exemplaire, et personne ne pouvait faire la
+    différence entre les deux en lisant le rapport.
+
+    Chaque observation ci-dessous porte donc DEUX nombres : combien de fiches
+    présentent le défaut, et combien ont été inspectées. Le second n'est pas un
+    détail de méthode — c'est lui qui autorise ou interdit de généraliser, et
+    les règles s'en servent pour choisir entre « sur la seule fiche inspectée »,
+    « sur k des n inspectées » et « sur les n inspectées, toutes ».
+
+    AUCUN CONSTAT NE PARLE DU CATALOGUE. Cinq fiches sur trois cents restent
+    cinq fiches ; le dénombrement le dit, et les règles ne l'oublient pas.
+  */
+  if (productPages.length > 0) {
+    const echantillon = productPages.map((p) => ({
+      page: p,
+      facts: analysePage(p.html!, raw.origin),
+    }));
+    const n = echantillon.length;
+    const adresses = echantillon.map((e) => e.page.url).join(", ");
+
+    add(
+      observe({
+        id: "storefront.produits_inspectes",
+        source: "storefront",
+        domain: "produit",
+        label: "Fiches produit inspectées",
+        value: n,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: `${n} fiche(s) produit ouverte(s) pendant le diagnostic, dans l'ordre où la boutique les présente : ${adresses}`,
+        sample: n,
+      }),
+    );
+
+    const compte = (
+      id: string,
+      domain: "conversion" | "produit" | "boutique" | "offre",
+      label: string,
+      manque: (f: PageFacts) => boolean,
+      quoi: string,
+    ) => {
+      const touchees = echantillon.filter((e) => manque(e.facts));
+      add(
+        observe({
+          id,
+          source: "storefront",
+          domain,
+          label,
+          value: touchees.length,
+          unit: "count",
+          periodDays: STOREFRONT_WINDOW_DAYS,
+          evidence:
+            touchees.length === 0
+              ? `Aucune des ${n} fiche(s) inspectée(s) ne présente ce manque : ${quoi}`
+              : `${touchees.length} des ${n} fiche(s) inspectée(s) ${quoi} — ${touchees.map((e) => e.page.url).join(", ")}`,
+          sample: n,
+        }),
+      );
+    };
+
+    compte(
+      "storefront.produits_sans_ajout_panier",
+      "conversion",
+      "Fiches sans formulaire d'ajout au panier",
+      (f) => !f.hasAddToCart,
+      "ne contiennent aucun formulaire d'ajout au panier dans le document servi",
+    );
+    compte(
+      "storefront.produits_sans_livraison",
+      "conversion",
+      "Fiches n'évoquant pas la livraison",
+      (f) => !f.mentionsShipping,
+      "n'évoquent ni livraison ni frais de port",
+    );
+    compte(
+      "storefront.produits_sans_avis",
+      "boutique",
+      "Fiches sans note client déclarée",
+      (f) => !f.hasAggregateRating,
+      "ne déclarent aucune note ni aucun avis",
+    );
+    compte(
+      "storefront.produits_sans_donnees_structurees",
+      "produit",
+      "Fiches sans données structurées produit",
+      (f) => !f.structuredDataTypes.includes("Product"),
+      "ne déclarent aucune donnée structurée de type Produit",
+    );
+    compte(
+      "storefront.produits_sans_prix",
+      "offre",
+      "Fiches sans prix en donnée structurée",
+      (f) => f.declaredPrice == null,
+      "n'exposent aucun prix en donnée structurée",
+    );
   }
 
   // --- Confiance : pages de politique réellement servies --------------------

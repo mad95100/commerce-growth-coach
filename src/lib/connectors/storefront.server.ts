@@ -58,6 +58,53 @@ export const MAX_LINK_CHECKS = 8;
 /** Pages d'arrivée vérifiées au plus, les plus utilisées d'abord. */
 export const MAX_LANDING_CHECKS = 5;
 
+/**
+ * FICHES PRODUIT INSPECTÉES AU PLUS, ET POURQUOI CE NOMBRE.
+ *
+ * LE DÉFAUT QUE CELA CORRIGE. Le scan ouvrait UNE fiche — la première adresse
+ * `/products/` rencontrée sur la page d'accueil — et tous les constats produit
+ * du moteur en découlaient. Une boutique dont la fiche mise en avant est
+ * soignée passait pour irréprochable ; une boutique dont la première fiche est
+ * un brouillon oublié était condamnée sur cet unique exemplaire. Dans les deux
+ * cas, le rapport parlait du catalogue en n'ayant regardé qu'une page.
+ *
+ * CINQ, ET PAS DAVANTAGE. Cinq fiches suffisent à distinguer un défaut isolé
+ * d'un défaut systématique — c'est la seule question à laquelle l'échantillon
+ * doit répondre. Au-delà, chaque page coûte une requête sur la boutique du
+ * marchand sans changer la conclusion, et le budget du scan la paierait en
+ * abandonnant d'autres contrôles.
+ *
+ * Un catalogue plus petit est inspecté ENTIÈREMENT : l'échantillon est alors
+ * le catalogue, et le constat peut le dire.
+ */
+export const MAX_PRODUCT_PAGES = 5;
+
+/**
+ * L'échantillon de fiches, déterministe.
+ *
+ * DANS L'ORDRE OÙ LA BOUTIQUE LES MONTRE. La page de collection d'abord, puis
+ * la page d'accueil pour compléter. Ce n'est pas un tirage au sort : c'est
+ * exactement ce qu'un visiteur rencontre en premier, donc l'échantillon dont
+ * les défauts coûtent le plus. Un tri alphabétique aurait été tout aussi
+ * reproductible et aurait décrit une boutique que personne ne parcourt.
+ *
+ * Deux fois le même produit ne compte qu'une fois : `?variant=` mène à la même
+ * fiche, et la lire deux fois gonflerait le dénominateur sans rien apprendre.
+ */
+export function productSample(homeLinks: string[], collectionLinks: string[]): string[] {
+  const vus = new Set<string>();
+  const echantillon: string[] = [];
+  for (const lien of [...collectionLinks, ...homeLinks]) {
+    if (!lien.startsWith("/products/")) continue;
+    const chemin = lien.split(/[?#]/)[0].replace(/\/$/, "");
+    if (vus.has(chemin)) continue;
+    vus.add(chemin);
+    echantillon.push(chemin);
+    if (echantillon.length >= MAX_PRODUCT_PAGES) break;
+  }
+  return echantillon;
+}
+
 /** Pages de politique dont l'absence est un fait de confiance vérifiable. */
 const POLICY_PATHS = [
   "/policies/refund-policy",
@@ -230,10 +277,8 @@ export async function scanStorefront(
 
   // Les pages du parcours, de front. Elles sont peu nombreuses et leur intérêt
   // est le même : les enchaîner en série ne servirait qu'à consommer le budget.
-  const productPath = homeFacts?.internalLinks.find((link) => link.startsWith("/products/"));
   const collectionPath = homeFacts?.internalLinks.find((link) => link.startsWith("/collections/"));
   const journey: Array<{ path: string; role: PageRole }> = [
-    ...(productPath ? [{ path: productPath, role: "produit" as PageRole }] : []),
     ...(collectionPath ? [{ path: collectionPath, role: "collection" as PageRole }] : []),
     // Le panier est la dernière page publique du parcours. Au-delà commence le
     // tunnel, qu'on n'ouvre pas.
@@ -244,6 +289,31 @@ export async function scanStorefront(
   );
   pages.push(...journeyRun.done);
   if (journeyRun.skipped > 0) unchecked.push(`${journeyRun.skipped} page(s) du parcours`);
+
+  /*
+    L'ÉCHANTILLON DE FICHES, APRÈS LA COLLECTION ET GRÂCE À ELLE.
+
+    La collection est demandée AVANT les fiches — ce n'était pas le cas — parce
+    qu'elle est la meilleure source d'adresses produit : elle en liste une
+    vingtaine là où l'accueil en met deux ou trois en avant. Le passage
+    supplémentaire coûte un aller-retour ; il achète un échantillon
+    représentatif de ce que la boutique montre, au lieu d'une fiche unique.
+
+    Ce qui n'a pas pu être lu faute de budget est DÉCLARÉ, comme le reste : un
+    échantillon écourté n'est pas un échantillon sain, et le dénominateur des
+    constats le dira.
+  */
+  const collectionPage = journeyRun.done.find((p) => p.role === "collection");
+  const collectionFacts = collectionPage?.html ? analysePage(collectionPage.html, origin) : null;
+  const echantillon = productSample(
+    homeFacts?.internalLinks ?? [],
+    collectionFacts?.internalLinks ?? [],
+  );
+  const productRun = await withinBudget(echantillon, clock, (path) =>
+    getPage(fetcher, `${origin}${path}`, "produit"),
+  );
+  pages.push(...productRun.done);
+  if (productRun.skipped > 0) unchecked.push(`${productRun.skipped} fiche(s) produit`);
 
   const policyRun = await withinBudget(POLICY_PATHS, clock, async (path) => ({
     url: `${origin}${path}`,

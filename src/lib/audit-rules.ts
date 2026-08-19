@@ -214,6 +214,22 @@ export const THRESHOLDS = {
   TITLE_MIN_WORDS: 2,
   /** Même raisonnement pour le titre de niveau 1 de la page d'accueil. */
   PROMISE_MIN_WORDS: 3,
+  /**
+   * Part de l'ÉCHANTILLON de fiches au-delà de laquelle un manque cesse d'être
+   * un accident de page.
+   *
+   * La moitié, et le raisonnement tient en une phrase : une fiche sur cinq sans
+   * mention de livraison est un oubli à corriger sur cette fiche ; trois sur
+   * cinq décrivent une façon de tenir le catalogue. La distinction ne se fait
+   * pas sur le catalogue entier — nous n'en lisons qu'un échantillon — mais sur
+   * ce que nous avons réellement ouvert, et le constat le dit.
+   *
+   * Une exception assumée : l'ajout au panier absent se signale dès UNE fiche.
+   * C'est le seul manque de cette famille qui ne se dilue pas — la page
+   * concernée ne peut produire aucune commande, quel que soit l'état des
+   * autres.
+   */
+  PRODUCT_SAMPLE_SHARE: 0.5,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -340,6 +356,97 @@ function trace(ctx: RuleContext, ids: string[]) {
     evidence: used.map((o) => o.evidence),
     sample: samples.length > 0 ? Math.min(...samples) : null,
     periodDays: periods.length > 0 ? Math.max(...periods) : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Portée d'un constat d'échantillon
+// ---------------------------------------------------------------------------
+
+/**
+ * CE QU'UN ÉCHANTILLON AUTORISE À DIRE, ET RIEN DE PLUS.
+ *
+ * LE DÉFAUT QUE CE TYPE FERME. Le scan ouvrait une seule fiche produit, et les
+ * constats parlaient du catalogue : « les fiches produit n'ont pas de
+ * description ». Une phrase vraie de la page lue, fausse de la boutique, et que
+ * rien dans le rapport ne permettait de distinguer de l'autre.
+ *
+ * Quatre portées, et une seule est jamais atteinte par extrapolation : chacune
+ * se calcule sur deux nombres réellement comptés — combien de fiches présentent
+ * le défaut, combien ont été ouvertes.
+ */
+export type Portee = "aucune" | "une_fiche" | "plusieurs_fiches" | "toutes_les_inspectees";
+
+export type ScopeReading = {
+  portee: Portee;
+  /** Fiches présentant le défaut. */
+  touchees: number;
+  /** Fiches réellement ouvertes. Le dénominateur, jamais implicite. */
+  inspectees: number;
+  /** La phrase de portée, telle qu'elle entre dans un constat. */
+  phrase: string;
+  /**
+   * Plafond de preuve imposé par la taille de l'échantillon.
+   *
+   * Une fiche unique ne prouve rien du catalogue : le constat reste « à
+   * vérifier », quelle que soit la netteté de ce qui a été lu sur cette page.
+   */
+  plafond: EvidenceLevel;
+};
+
+/**
+ * Lit un couple (touchées, inspectées) et rend ce qu'il est permis d'en dire.
+ *
+ * `total` est le catalogue déclaré par l'API, quand il est connu. Il n'entre
+ * jamais dans la conclusion — il sert uniquement à rappeler, dans la phrase,
+ * que l'échantillon EST un échantillon. Cinq fiches sur trois cents restent
+ * cinq fiches.
+ */
+export function lirePortee(
+  touchees: number | null,
+  inspectees: number | null,
+  total?: number | null,
+): ScopeReading {
+  const n = inspectees ?? 0;
+  const k = touchees ?? 0;
+  if (n <= 0 || k <= 0) {
+    return {
+      portee: "aucune",
+      touchees: 0,
+      inspectees: n,
+      phrase:
+        n <= 0 ? "aucune fiche produit n'a pu être ouverte" : `aucune des ${n} fiches inspectées`,
+      plafond: "donnee_insuffisante",
+    };
+  }
+  const surCatalogue =
+    typeof total === "number" && total > n ? `, sur un catalogue de ${total} produits` : "";
+  if (n === 1) {
+    return {
+      portee: "une_fiche",
+      touchees: 1,
+      inspectees: 1,
+      phrase: `sur la seule fiche produit inspectée${surCatalogue}`,
+      // UNE PAGE NE PROUVE PAS UN CATALOGUE. Le plafond est ici, mécanisé, et
+      // non laissé à la vigilance de chaque règle.
+      plafond: "a_verifier",
+    };
+  }
+  if (k === n) {
+    return {
+      portee: "toutes_les_inspectees",
+      touchees: k,
+      inspectees: n,
+      phrase: `sur les ${n} fiches produit inspectées, toutes${surCatalogue}`,
+      plafond: "prouve",
+    };
+  }
+  return {
+    portee: "plusieurs_fiches",
+    touchees: k,
+    inspectees: n,
+    phrase: `sur ${k} des ${n} fiches produit inspectées${surCatalogue}`,
+    plafond: "prouve",
   };
 }
 
@@ -794,23 +901,30 @@ export const RULES: Rule[] = [
   {
     id: "trust.avis_absents_fiche",
     axis: "trust",
-    requires: ["storefront.product_reviews_declared"],
+    requires: ["storefront.produits_sans_avis", "storefront.produits_inspectes"],
     technical: true,
     evaluate: (ctx) => {
-      const avis = num(ctx, "storefront.product_reviews_declared");
-      if (avis === null || avis > 0) return null;
-      const t = trace(ctx, ["storefront.product_reviews_declared"]);
+      const p = lirePortee(
+        num(ctx, "storefront.produits_sans_avis"),
+        num(ctx, "storefront.produits_inspectes"),
+        num(ctx, "shopify.product_count"),
+      );
+      if (p.portee === "aucune") return null;
+      if (p.touchees / p.inspectees < THRESHOLDS.PRODUCT_SAMPLE_SHARE) return null;
+      const t = trace(ctx, ["storefront.produits_sans_avis", "storefront.produits_inspectes"]);
       return emit(RULES_BY_ID["trust.avis_absents_fiche"], {
-        title: "Aucune note client sur la fiche inspectée",
-        statement:
-          "La fiche produit ouverte pendant le diagnostic ne déclare aucune note ni aucun avis dans le document servi.",
-        why: "C'est la seule objection qu'un vendeur ne peut pas lever avec ses propres mots. Une application d'avis qui affiche sa note après le chargement resterait invisible pour nous : à vérifier en ouvrant la fiche vous-même.",
-        level: "prouve",
+        title:
+          p.portee === "une_fiche"
+            ? "Aucune note client sur la fiche inspectée"
+            : "Aucune note client sur les fiches inspectées",
+        statement: `Aucune note ni avis n'est déclaré dans le document servi ${p.phrase}.`,
+        why: "C'est la seule objection qu'un vendeur ne peut pas lever avec ses propres mots. Une application d'avis qui affiche sa note après le chargement resterait invisible pour nous : à vérifier en ouvrant l'une de ces fiches vous-même.",
+        level: capLevel("prouve", p.plafond),
         ...t,
         impact: 3,
         effort: 2,
         recommendation:
-          "Ouvrir la fiche citée dans la preuve et regarder si une note apparaît. Si elle n'apparaît pas, installer une application d'avis et importer ceux déjà reçus par message ou par e-mail.",
+          "Ouvrir l'une des fiches citées dans la preuve et regarder si une note apparaît. Si elle n'apparaît pas, installer une application d'avis et importer ceux déjà reçus par message ou par e-mail.",
       });
     },
   },
@@ -828,18 +942,27 @@ export const RULES: Rule[] = [
   {
     id: "produit.achat_impossible",
     axis: "conversion",
-    requires: ["storefront.product_add_to_cart"],
+    requires: ["storefront.produits_sans_ajout_panier", "storefront.produits_inspectes"],
     technical: true,
     evaluate: (ctx) => {
-      const panier = num(ctx, "storefront.product_add_to_cart");
-      if (panier === null || panier > 0) return null;
-      const t = trace(ctx, ["storefront.product_add_to_cart"]);
+      // UNE SEULE FICHE INACHETABLE SUFFIT — c'est le seul défaut de cette
+      // famille qui ne se dilue pas : la page concernée ne peut pas produire de
+      // commande, quel que soit l'état des autres. La portée dit combien.
+      const p = lirePortee(
+        num(ctx, "storefront.produits_sans_ajout_panier"),
+        num(ctx, "storefront.produits_inspectes"),
+        num(ctx, "shopify.product_count"),
+      );
+      if (p.portee === "aucune") return null;
+      const t = trace(ctx, [
+        "storefront.produits_sans_ajout_panier",
+        "storefront.produits_inspectes",
+      ]);
       return emit(RULES_BY_ID["produit.achat_impossible"], {
-        title: "Aucun ajout au panier trouvé sur la fiche inspectée",
-        statement:
-          "Le document servi par la fiche produit ouverte pendant le diagnostic ne contient aucun formulaire d'ajout au panier.",
-        why: "Si le bouton manque réellement, la fiche ne peut pas être achetée et tout le trafic qui l'atteint est perdu. Certains thèmes construisent ce bouton après l'affichage : nous lisons le document servi, pas la page finie, et ne pouvons pas trancher seuls.",
-        level: "prouve",
+        title: "Aucun ajout au panier trouvé sur des fiches inspectées",
+        statement: `Aucun formulaire d'ajout au panier n'apparaît dans le document servi ${p.phrase}.`,
+        why: "Si le bouton manque réellement, ces fiches ne peuvent pas être achetées et tout le trafic qui les atteint est perdu. Certains thèmes construisent ce bouton après l'affichage : nous lisons le document servi, pas la page finie, et ne pouvons pas trancher seuls.",
+        level: capLevel("prouve", p.plafond),
         ...t,
         impact: 5,
         effort: 2,
@@ -861,10 +984,15 @@ export const RULES: Rule[] = [
   {
     id: "conversion.livraison_absente_fiche",
     axis: "conversion",
-    requires: ["storefront.product_shipping_mentioned"],
+    requires: ["storefront.produits_sans_livraison", "storefront.produits_inspectes"],
     evaluate: (ctx) => {
-      const mentionnee = num(ctx, "storefront.product_shipping_mentioned");
-      if (mentionnee === null || mentionnee > 0) return null;
+      const p = lirePortee(
+        num(ctx, "storefront.produits_sans_livraison"),
+        num(ctx, "storefront.produits_inspectes"),
+        num(ctx, "shopify.product_count"),
+      );
+      if (p.portee === "aucune") return null;
+      if (p.touchees / p.inspectees < THRESHOLDS.PRODUCT_SAMPLE_SHARE) return null;
 
       const abandon = ratio(num(ctx, "shopify.cart_abandonment_rate"));
       const commandes = num(ctx, "shopify.orders_30d");
@@ -874,27 +1002,25 @@ export const RULES: Rule[] = [
         commandes !== null &&
         commandes >= THRESHOLDS.MIN_ORDERS_FOR_RATES;
 
+      const socle = ["storefront.produits_sans_livraison", "storefront.produits_inspectes"];
       const t = trace(
         ctx,
-        corrobore
-          ? [
-              "storefront.product_shipping_mentioned",
-              "shopify.cart_abandonment_rate",
-              "shopify.orders_30d",
-            ]
-          : ["storefront.product_shipping_mentioned"],
+        corrobore ? [...socle, "shopify.cart_abandonment_rate", "shopify.orders_30d"] : socle,
       );
       return emit(RULES_BY_ID["conversion.livraison_absente_fiche"], {
         title: corrobore
           ? "Les frais de livraison se découvrent en caisse, et le panier s'y vide"
-          : "La fiche inspectée n'annonce ni livraison ni frais de port",
+          : "Les fiches inspectées n'annoncent ni livraison ni frais de port",
         statement: corrobore
-          ? `La fiche produit inspectée n'évoque ni livraison ni frais de port, et ${Math.round((abandon ?? 0) * 100)} % des paniers ouverts n'aboutissent pas, sur ${commandes} commandes.`
-          : "La fiche produit inspectée n'évoque ni livraison ni frais de port dans le document servi.",
+          ? `Ni livraison ni frais de port ne sont évoqués ${p.phrase}, et ${Math.round((abandon ?? 0) * 100)} % des paniers ouverts n'aboutissent pas, sur ${commandes} commandes.`
+          : `Ni livraison ni frais de port ne sont évoqués dans le document servi ${p.phrase}.`,
         why: corrobore
           ? "Ces deux constats n'en font qu'un : l'acheteur choisit son produit sans connaître le coût final, puis le découvre au moment de payer. Traiter l'abandon de panier sans annoncer les frais plus tôt ne donnera rien — c'est la même perte, prise par l'autre bout."
           : "L'acheteur décide sans connaître le coût final, et le découvre en caisse. Sans mesure d'abandon sur cette boutique, cela reste un fait de page : nous ne pouvons pas dire ce qu'il coûte ici.",
-        level: corrobore ? "fortement_suggere" : "a_verifier",
+        // La corroboration commerciale ne fait jamais oublier la taille de
+        // l'échantillon : une fiche unique reste une fiche unique, même quand
+        // l'abandon de panier est mesuré et massif.
+        level: capLevel(corrobore ? "fortement_suggere" : "a_verifier", p.plafond),
         ...t,
         impact: corrobore ? 4 : 3,
         effort: 1,
@@ -1261,13 +1387,18 @@ export const RULES: Rule[] = [
 
       const manques: string[] = [];
       const ids = ["shopify.sessions_30d"];
-      if (num(ctx, "storefront.product_shipping_mentioned") === 0) {
+      const inspectees = num(ctx, "storefront.produits_inspectes") ?? 0;
+      const majorite = (id: string) => {
+        const k = num(ctx, id);
+        return inspectees > 0 && k !== null && k / inspectees >= THRESHOLDS.PRODUCT_SAMPLE_SHARE;
+      };
+      if (majorite("storefront.produits_sans_livraison")) {
         manques.push("ni le coût ni le délai de livraison");
-        ids.push("storefront.product_shipping_mentioned");
+        ids.push("storefront.produits_sans_livraison");
       }
-      if (num(ctx, "storefront.product_reviews_declared") === 0) {
+      if (majorite("storefront.produits_sans_avis")) {
         manques.push("aucune note ni avis");
-        ids.push("storefront.product_reviews_declared");
+        ids.push("storefront.produits_sans_avis");
       }
       const sansTexte = num(ctx, "shopify.products_without_description");
       const total = num(ctx, "shopify.product_count");
@@ -1281,11 +1412,12 @@ export const RULES: Rule[] = [
         ids.push("shopify.products_without_description");
       }
       if (manques.length < 2) return null;
+      ids.push("storefront.produits_inspectes");
 
       const t = trace(ctx, ids);
       return emit(RULES_BY_ID["conversion.fiche_sans_reponse_avec_trafic"], {
         title: "Du trafic arrive sur des fiches qui ne lèvent aucune objection",
-        statement: `${sessions} sessions mesurées sur la période, et la fiche produit inspectée n'expose ${manques.join(", ni ")}.`,
+        statement: `${sessions} sessions mesurées sur la période, et les ${inspectees} fiche(s) produit inspectée(s) n'exposent ${manques.join(", ni ")}.`,
         why: "Le trafic est acquis — c'est une mesure, pas une lecture de page. Ce qu'il rencontre ensuite ne répond à aucune des trois questions qu'un acheteur se pose avant de payer : combien ça coûte au total, est-ce que d'autres l'ont acheté, qu'est-ce que c'est exactement. Ces éléments sont cohérents avec une perte située après l'arrivée ; localiser cette perte exactement demanderait la mesure du tunnel.",
         level: "fortement_suggere",
         ...t,
@@ -1385,17 +1517,25 @@ export const RULES: Rule[] = [
   {
     id: "seo.structured_data_missing",
     axis: "seo",
-    requires: ["storefront.product_structured_data"],
+    requires: ["storefront.produits_sans_donnees_structurees", "storefront.produits_inspectes"],
     technical: true,
     evaluate: (ctx) => {
-      const present = num(ctx, "storefront.product_structured_data");
-      if (present === null || present > 0) return null;
-      const t = trace(ctx, ["storefront.product_structured_data"]);
+      const p = lirePortee(
+        num(ctx, "storefront.produits_sans_donnees_structurees"),
+        num(ctx, "storefront.produits_inspectes"),
+        num(ctx, "shopify.product_count"),
+      );
+      if (p.portee === "aucune") return null;
+      if (p.touchees / p.inspectees < THRESHOLDS.PRODUCT_SAMPLE_SHARE) return null;
+      const t = trace(ctx, [
+        "storefront.produits_sans_donnees_structurees",
+        "storefront.produits_inspectes",
+      ]);
       return emit(RULES_BY_ID["seo.structured_data_missing"], {
-        title: "Les fiches produit n'exposent pas de données structurées",
-        statement: "Aucune donnée structurée produit n'a été trouvée sur la page produit examinée.",
+        title: "Des fiches produit n'exposent pas de données structurées",
+        statement: `Aucune donnée structurée de type Produit n'a été trouvée ${p.phrase}.`,
         why: "Sans elles, les résultats de recherche n'affichent ni prix ni disponibilité : la ligne est moins cliquée à position égale.",
-        level: "prouve",
+        level: capLevel("prouve", p.plafond),
         ...t,
         impact: 2,
         effort: 2,

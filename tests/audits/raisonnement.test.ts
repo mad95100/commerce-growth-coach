@@ -315,8 +315,9 @@ export default defineSuite("Raisonnement — dépendances, convergence, données
   const fiches = constat(
     ctxDe({
       "shopify.sessions_30d": 4200,
-      "storefront.product_shipping_mentioned": 0,
-      "storefront.product_reviews_declared": 0,
+      "storefront.produits_sans_livraison": 3,
+      "storefront.produits_sans_avis": 3,
+      "storefront.produits_inspectes": 3,
     }),
     "conversion.fiche_sans_reponse_avec_trafic",
   );
@@ -338,8 +339,9 @@ export default defineSuite("Raisonnement — dépendances, convergence, données
     "sans trafic, pas de diagnostic croisé",
     constat(
       ctxDe({
-        "storefront.product_shipping_mentioned": 0,
-        "storefront.product_reviews_declared": 0,
+        "storefront.produits_sans_livraison": 3,
+        "storefront.produits_sans_avis": 3,
+        "storefront.produits_inspectes": 3,
       }),
       "conversion.fiche_sans_reponse_avec_trafic",
     ),
@@ -542,14 +544,15 @@ export default defineSuite("Raisonnement — dépendances, convergence, données
   const tous = runRules(
     ctxDe({
       "storefront.policy_pages": 0,
-      "storefront.product_add_to_cart": 0,
-      "storefront.product_reviews_declared": 0,
+      "storefront.produits_sans_ajout_panier": 2,
+      "storefront.produits_sans_avis": 3,
+      "storefront.produits_inspectes": 3,
       "storefront.collection_produits_listes": 1,
       "storefront.accueil_collection_links": 0,
       "storefront.accueil_h1_mots": 8,
       "storefront.accueil_cta": 3,
       "storefront.response_ms": 3400,
-      "storefront.product_shipping_mentioned": 0,
+      "storefront.produits_sans_livraison": 3,
     }),
   );
   t.check("il y a bien des constats de vitrine à contrôler", tous.length > 0, true);

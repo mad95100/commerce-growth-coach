@@ -307,6 +307,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Ce qu'un rapport n'a pas le droit d'affirmer. Le score était calculé sur des catégories jamais instruites — une catégorie sans constat valait 78, qu'elle ait été examinée et trouvée saine ou qu'aucune donnée n'ait permis de la regarder ; une boutique dont aucune source n'avait répondu obtenait donc une note honorable sur du vide. Couvre aussi la devise jamais inventée, les boutons qui ne promettent plus une correction automatique là où aucun outil ne sait écrire, et les manques de collecte enfin montrés sur un audit ABOUTI — avec les quatre questions dans l'ordre où elles se posent, au lieu de s'arrêter à « donnée manquante ».",
   },
   {
+    file: "audits/echantillon.test.ts",
+    minChecks: 80,
+    covers:
+      "Un catalogue ne se juge pas sur une fiche. Le scan ouvrait UNE page produit et tous les constats produit en découlaient : une boutique dont la fiche mise en avant est soignée passait pour irréprochable, une boutique dont la première fiche est un brouillon oublié était condamnée sur cet exemplaire, et le rapport écrivait « les fiches produit n'ont pas de description » sans que rien ne distingue les deux cas. Couvre l'échantillon déterministe et borné, les observations agrégées et leur dénominateur explicite, les quatre portées — aucune, une fiche, plusieurs, toutes les inspectées —, l'interdiction d'extrapoler au catalogue, et le contrat de classification épistémique : les cinq niveaux, et le fait qu'une réponse ambiguë du modèle retombe sur « Déduit » et jamais sur « Observé », qui est un niveau confiant.",
+  },
+  {
     file: "audits/raisonnement.test.ts",
     minChecks: 75,
     covers:

@@ -175,9 +175,9 @@ export default defineSuite("Vitrine — le moteur parle de CETTE boutique", (t) 
   const requis = new Set(RULES.flatMap((r) => r.requires));
   const source = RULES.map((r) => r.evaluate.toString()).join("\n");
   for (const id of [
-    "storefront.product_add_to_cart",
-    "storefront.product_shipping_mentioned",
-    "storefront.product_reviews_declared",
+    "storefront.produits_sans_ajout_panier",
+    "storefront.produits_sans_livraison",
+    "storefront.produits_sans_avis",
     "storefront.policy_pages",
     "storefront.collection_produits_listes",
     "storefront.collection_filtres",
@@ -228,7 +228,7 @@ export default defineSuite("Vitrine — le moteur parle de CETTE boutique", (t) 
     absolue du module décrit.
   */
   const seul = constat(
-    ctxDe({ "storefront.product_shipping_mentioned": 0 }),
+    ctxDe({ "storefront.produits_sans_livraison": 3, "storefront.produits_inspectes": 3 }),
     "conversion.livraison_absente_fiche",
   );
   t.check("sans mesure d'abandon, le constat reste à vérifier", seul?.level, "a_verifier");
@@ -240,13 +240,29 @@ export default defineSuite("Vitrine — le moteur parle de CETTE boutique", (t) 
 
   const croise = constat(
     ctxDe({
-      "storefront.product_shipping_mentioned": 0,
+      "storefront.produits_sans_livraison": 3,
+      "storefront.produits_inspectes": 3,
       "shopify.cart_abandonment_rate": 0.82,
       "shopify.orders_30d": 140,
     }),
     "conversion.livraison_absente_fiche",
   );
   t.check("avec un abandon mesuré, le constat monte d'un cran", croise?.level, "fortement_suggere");
+  // …mais jamais sur une fiche unique : la corroboration commerciale ne
+  // remplace pas l'échantillon.
+  t.check(
+    "une seule fiche plafonne le constat, abandon mesuré ou non",
+    constat(
+      ctxDe({
+        "storefront.produits_sans_livraison": 1,
+        "storefront.produits_inspectes": 1,
+        "shopify.cart_abandonment_rate": 0.82,
+        "shopify.orders_30d": 140,
+      }),
+      "conversion.livraison_absente_fiche",
+    )?.level,
+    "a_verifier",
+  );
   t.check(
     "…et il dit que les deux ne se corrigent pas séparément",
     /ne donnera rien/.test(croise?.why ?? ""),
@@ -257,7 +273,8 @@ export default defineSuite("Vitrine — le moteur parle de CETTE boutique", (t) 
   // Un abandon mesuré sur trop peu de commandes ne corrobore rien.
   const mince = constat(
     ctxDe({
-      "storefront.product_shipping_mentioned": 0,
+      "storefront.produits_sans_livraison": 3,
+      "storefront.produits_inspectes": 3,
       "shopify.cart_abandonment_rate": 0.82,
       "shopify.orders_30d": THRESHOLDS.MIN_ORDERS_FOR_RATES - 1,
     }),
@@ -272,14 +289,14 @@ export default defineSuite("Vitrine — le moteur parle de CETTE boutique", (t) 
     [
       "une fiche sans ajout au panier",
       "produit.achat_impossible",
-      { "storefront.product_add_to_cart": 0 },
-      { "storefront.product_add_to_cart": 1 },
+      { "storefront.produits_sans_ajout_panier": 1, "storefront.produits_inspectes": 3 },
+      { "storefront.produits_sans_ajout_panier": 0, "storefront.produits_inspectes": 3 },
     ],
     [
       "une fiche sans avis",
       "trust.avis_absents_fiche",
-      { "storefront.product_reviews_declared": 0 },
-      { "storefront.product_reviews_declared": 1 },
+      { "storefront.produits_sans_avis": 3, "storefront.produits_inspectes": 3 },
+      { "storefront.produits_sans_avis": 0, "storefront.produits_inspectes": 3 },
     ],
     [
       "des politiques incomplètes",
@@ -385,8 +402,9 @@ export default defineSuite("Vitrine — le moteur parle de CETTE boutique", (t) 
     ...experience.flatMap((f) => f.evidence),
     ...runRules(
       ctxDe({
-        "storefront.product_add_to_cart": 0,
-        "storefront.product_reviews_declared": 0,
+        "storefront.produits_sans_ajout_panier": 2,
+        "storefront.produits_sans_avis": 3,
+        "storefront.produits_inspectes": 3,
         "storefront.policy_pages": 1,
         "storefront.collection_produits_listes": 2,
         "storefront.accueil_collection_links": 0,
