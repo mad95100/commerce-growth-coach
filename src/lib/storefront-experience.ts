@@ -101,10 +101,32 @@ export type ExperienceFacts = {
   ctaInFirstBlock: boolean;
   /** Appels à l'action sur toute la page. */
   ctaCount: number;
+  /**
+   * Libellés RÉELLEMENT RELEVÉS sur la page — les premiers, tels qu'écrits.
+   *
+   * POURQUOI CE CHAMP EXISTE. Les constats de ce module disaient « aucun lien
+   * ni bouton portant un verbe d'action », et cette phrase est vraie de
+   * n'importe quelle boutique dont on l'écrirait. Un lecteur ne pouvait ni la
+   * vérifier, ni reconnaître la boutique dont on parlait, ni savoir ce qui
+   * avait été cherché. Citer les libellés lus règle les trois d'un coup : la
+   * preuve devient reconnaissable, et un faux détecteur devient visible.
+   */
+  linkLabels: string[];
+  /** Nombre TOTAL de liens et boutons inspectés. Le dénominateur du constat. */
+  clickableCount: number;
   /** Texte lisible du premier bloc, balises retirées. */
   firstBlockText: string;
   /** Mots lisibles dans le premier bloc. */
   firstBlockWords: number;
+  /**
+   * Mots lisibles sur TOUTE la page.
+   *
+   * C'est le dénominateur des constats d'absence. « Aucune mention de retour »
+   * ne veut pas dire la même chose sur une page de trente mots — où presque
+   * rien n'est écrit — et sur une page de deux mille, où le sujet a réellement
+   * été évité. Sans ce nombre, les deux se lisaient à l'identique.
+   */
+  pageWords: number;
   /** Liens de navigation principale trouvés. */
   navLinks: number;
   /** Couleurs distinctes déclarées dans le document. */
@@ -170,18 +192,23 @@ export function extractExperience(html: string): ExperienceFacts {
     ),
   );
 
-  const ctaCount = (() => {
-    const cibles = body.match(/<(?:a|button)\b[^>]*>([\s\S]{0,200}?)<\/(?:a|button)>/gi) ?? [];
-    return cibles.filter((c) => countMatches(stripTags(c), CTA_WORDS) > 0).length;
-  })();
+  const cliquables = (body.match(/<(?:a|button)\b[^>]*>([\s\S]{0,200}?)<\/(?:a|button)>/gi) ?? [])
+    .map((c) => stripTags(c))
+    .filter((label) => label.length > 0);
+  const ctaCount = cliquables.filter((label) => countMatches(label, CTA_WORDS) > 0).length;
 
   return {
     h1,
     h1Words: h1 ? h1.split(/\s+/).filter(Boolean).length : 0,
     ctaInFirstBlock: countMatches(firstBlockText, CTA_WORDS) > 0,
     ctaCount,
+    // Bornés à huit et à soixante caractères : une preuve doit tenir dans une
+    // phrase lisible, et un menu entier recopié cesse d'être une preuve.
+    linkLabels: [...new Set(cliquables.map((l) => l.slice(0, 60)))].slice(0, 8),
+    clickableCount: cliquables.length,
     firstBlockText,
     firstBlockWords: firstBlockText.split(/\s+/).filter(Boolean).length,
+    pageWords: pageText.split(/\s+/).filter(Boolean).length,
     navLinks: (body.match(/<nav\b[\s\S]*?<\/nav>/i)?.[0].match(/<a\b/gi) ?? []).length,
     distinctColors: colors.size,
     distinctFonts: fonts.size,
@@ -346,10 +373,15 @@ export function experienceFindings(
   if (facts.ctaCount === 0) {
     out.push({
       id: "experience.aucun_cta",
-      observation: `Aucun appel à l'action n'a été trouvé sur la page${pour}.`,
+      observation: `Aucun des ${facts.clickableCount} liens et boutons de la page d'accueil ne porte de verbe d'action${pour}.`,
       problem:
         "La page ne propose aucun geste. Un visiteur intéressé doit chercher lui-même comment acheter, et cette recherche est exactement ce qu'une page d'accueil existe pour éviter.",
-      evidence: ["Aucun lien ni bouton portant un verbe d'action sur la page d'accueil"],
+      evidence: [
+        `${facts.clickableCount} lien(s) et bouton(s) relevés sur la page d'accueil, aucun ne portant de verbe d'achat ou de découverte`,
+        facts.linkLabels.length > 0
+          ? `Libellés relevés : ${facts.linkLabels.map((l) => `« ${l} »`).join(", ")}`
+          : "Aucun libellé lisible relevé sur la page d'accueil",
+      ],
       impact: "Toute intention d'achat née sur cette page se perd faute d'un chemin évident.",
       recommendation: "Ajouter un bouton d'action visible en haut de la page d'accueil.",
       correction:
@@ -364,15 +396,24 @@ export function experienceFindings(
   if (facts.navLinks === 0) {
     out.push({
       id: "experience.navigation_absente",
-      observation: `Aucun menu de navigation n'a été trouvé dans le document${pour}.`,
+      observation: `Aucun lien n'a été trouvé à l'intérieur d'une balise de navigation du document${pour}.`,
       problem:
         "Sans menu, le visiteur ne peut ni explorer le catalogue, ni retrouver les pages de confiance. Le parcours dépend entièrement des liens de la page d'accueil.",
-      evidence: ["Aucun lien à l'intérieur d'une balise de navigation"],
+      // CE QUE CETTE PREUVE DIT EXACTEMENT, et pourquoi elle ne dit pas plus.
+      // Un thème qui construit son menu sans balise `<nav>` — ou qui l'injecte
+      // après le chargement — produit ici un compte à zéro alors que le menu
+      // existe. Le constat porte donc sur ce qui a été LU, avec le total des
+      // liens de la page à côté : c'est ce qui permet au lecteur de voir tout
+      // de suite si c'est le menu qui manque ou notre lecture qui l'a raté.
+      evidence: [
+        `Aucun lien à l'intérieur d'une balise <nav> du document d'accueil, sur ${facts.clickableCount} lien(s) et bouton(s) relevés au total sur la page`,
+      ],
       impact: "L'exploration du catalogue s'arrête à ce que la page d'accueil met en avant.",
-      recommendation: "Publier un menu principal avec les collections et les pages de confiance.",
+      recommendation:
+        "Ouvrir la page d'accueil et vérifier qu'un menu principal s'affiche. S'il s'affiche, ce point est clos : le thème le construit autrement que nous ne savons le lire.",
       correction:
-        "Shopify → Boutique en ligne → Navigation → menu principal. Y placer au plus cinq entrées : les collections qui vendent, puis « Livraison » et « Retours ».",
-      level: "prouve",
+        "Si le menu manque réellement : Shopify → Boutique en ligne → Navigation → menu principal. Y placer au plus cinq entrées : les collections qui vendent, puis « Livraison » et « Retours ».",
+      level: "a_verifier",
       impactScore: 3,
       effort: 1,
     });
@@ -403,7 +444,9 @@ export function experienceFindings(
       observation: `${facts.distinctFonts} familles de police différentes sont déclarées dans le document${pour}.`,
       problem:
         "Une multiplication des typographies produit une page qui paraît assemblée plutôt que conçue. Sur une gamme où l'acheteur juge le sérieux du vendeur avant de payer, cette impression coûte directement.",
-      evidence: [`${facts.distinctFonts} familles de police distinctes déclarées dans le document`],
+      evidence: [
+        `${facts.distinctFonts} familles de police distinctes déclarées dans le document d'accueil — DÉCLARÉES, y compris celles que la page n'applique peut-être jamais : ce compte se lit dans le code, il ne dit pas ce que l'œil reçoit`,
+      ],
       impact:
         "L'effet porte sur la confiance, pas sur un taux directement mesurable : il se constate à l'échelle de la décision, pas de la statistique.",
       recommendation:
@@ -421,7 +464,9 @@ export function experienceFindings(
       observation: `${facts.distinctColors} couleurs distinctes sont déclarées dans le document${pour}.`,
       problem:
         "Une palette dispersée efface la hiérarchie : quand tout est coloré, plus rien ne ressort, et le bouton d'achat cesse d'être l'élément le plus visible de la page.",
-      evidence: [`${facts.distinctColors} valeurs de couleur distinctes déclarées`],
+      evidence: [
+        `${facts.distinctColors} valeurs de couleur distinctes déclarées dans le document d'accueil — DÉCLARÉES dans le code, y compris celles qu'aucun élément visible n'emploie : ce compte ne dit pas ce que la page montre`,
+      ],
       impact:
         "Le bouton d'action perd son avantage visuel sur le reste de la page, au moment précis où il devrait le tenir.",
       recommendation:
@@ -442,7 +487,9 @@ export function experienceFindings(
       problem: exigeant
         ? "Ce public engage un montant qu'il ne veut pas risquer. La question « et si ça se passe mal ? » se pose avant le prix, et une page qui n'y répond pas laisse l'objection intacte jusqu'au moment de payer."
         : "Le visiteur qui hésite cherche ce qui se passe en cas de problème. L'absence de réponse ne bloque pas tout le monde, mais elle bloque exactement ceux qui hésitent.",
-      evidence: ["Aucune mention de retour, remboursement ou garantie sur la page d'accueil"],
+      evidence: [
+        `Aucune occurrence de « retour », « remboursement », « garantie », « satisfait ou remboursé » ni « paiement sécurisé » dans les ${facts.pageWords} mots lisibles de la page d'accueil`,
+      ],
       impact:
         "L'objection reste ouverte jusqu'au paiement, là où elle est la plus coûteuse à lever.",
       recommendation:
@@ -462,7 +509,9 @@ export function experienceFindings(
       observation: `La page d'accueil ne fait aucune mention d'avis ou de témoignages${pour}.`,
       problem:
         "Sur cette gamme, le visiteur cherche la trace que quelqu'un a acheté avant lui. C'est la seule objection que le vendeur ne peut pas lever avec ses propres mots.",
-      evidence: ["Aucune mention d'avis, de témoignage ou de note sur la page d'accueil"],
+      evidence: [
+        `Aucune occurrence de « avis », « témoignage », « étoiles » ni « notée » dans les ${facts.pageWords} mots lisibles de la page d'accueil`,
+      ],
       impact:
         "Le visiteur reporte sa décision et compare ailleurs. La vente n'est pas refusée, elle est différée — puis prise par un concurrent qui, lui, affiche des avis.",
       recommendation: "Faire remonter deux ou trois avis réels sur la page d'accueil.",
@@ -481,7 +530,9 @@ export function experienceFindings(
       observation: `Aucun moyen de contact n'est exposé sur la page${pour}.`,
       problem:
         "Plus le montant est élevé, plus l'acheteur veut savoir qu'il existe quelqu'un derrière la boutique. Une adresse de contact visible ne sert pas qu'à recevoir des messages : elle sert à être vue.",
-      evidence: ["Aucun lien de contact, adresse électronique ou numéro trouvé sur la page"],
+      evidence: [
+        `Aucun lien « mailto: », « tel: » ni « /pages/contact » parmi les ${facts.clickableCount} liens et boutons de la page d'accueil, et aucune mention de « nous contacter »`,
+      ],
       impact: "Le doute sur l'existence réelle du vendeur reste entier au moment de payer.",
       recommendation: "Exposer un moyen de contact en pied de page et sur la fiche produit.",
       correction:

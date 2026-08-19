@@ -307,6 +307,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Ce qu'un rapport n'a pas le droit d'affirmer. Le score était calculé sur des catégories jamais instruites — une catégorie sans constat valait 78, qu'elle ait été examinée et trouvée saine ou qu'aucune donnée n'ait permis de la regarder ; une boutique dont aucune source n'avait répondu obtenait donc une note honorable sur du vide. Couvre aussi la devise jamais inventée, les boutons qui ne promettent plus une correction automatique là où aucun outil ne sait écrire, et les manques de collecte enfin montrés sur un audit ABOUTI — avec les quatre questions dans l'ordre où elles se posent, au lieu de s'arrêter à « donnée manquante ».",
   },
   {
+    file: "audits/expertise-vitrine.test.ts",
+    minChecks: 60,
+    covers:
+      "Le moteur parle de CETTE boutique, pas d'une boutique en général. La page de collection était téléchargée à chaque scan puis jetée sans être analysée, le titre d'onglet extrait et jamais rapporté, et la grande majorité des observations de vitrine n'était lue par AUCUNE règle : mesurées, transmises au modèle, et interdites d'emploi par le même prompt. Couvre la lecture de la collection, les règles qui consomment enfin ces observations, le viewport constaté même quand le scan mobile a été écourté, la corroboration qui seule autorise à relier l'absence de mention de livraison à un abandon mesuré, et l'exigence qui les tient toutes : une preuve porte un chiffre, une adresse ou une citation — jamais une phrase vraie de n'importe quel site.",
+  },
+  {
     file: "audits/fournisseur-ia.test.ts",
     minChecks: 90,
     covers:

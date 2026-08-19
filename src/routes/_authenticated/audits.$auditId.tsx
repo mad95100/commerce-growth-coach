@@ -746,7 +746,7 @@ function AuditPage() {
           )}
 
           {/* Tabs */}
-          <Tabs defaultValue="problems" className="mt-8">
+          <Tabs defaultValue="plan" className="mt-8">
             {/* Les trois onglets mesurent 373 px : ils débordaient d'un cadre
                 de 320 px. Ils défilent désormais latéralement plutôt que de
                 pousser la page entière — un onglet reste atteignable, et rien
@@ -755,10 +755,21 @@ function AuditPage() {
               {/* Sans les constats, le compte vaudrait « (0) » — la seule
                   affirmation que cet écran ne doit pas faire quand il ne sait
                   pas. On retire le nombre plutôt que d'en inventer un. */}
+              {/*
+                LE PLAN PASSE DEVANT LES PROBLÈMES, et c'est un choix.
+
+                L'écran s'ouvrait sur la liste des constats : le marchand qui
+                venait de lire son score et ses causes racines tombait sur un
+                inventaire, et devait le trier lui-même pour savoir par quoi
+                commencer. L'ordre de lecture est maintenant celui d'un
+                entretien de conseil — la note, ce qu'elle veut dire, les causes,
+                PUIS ce qu'on fait demain matin. Le détail de chaque problème,
+                avec ses preuves, reste à un clic pour qui veut vérifier.
+              */}
+              <TabsTrigger value="plan">Plan d'action</TabsTrigger>
               <TabsTrigger value="problems">
                 Problèmes{constatsIllisibles ? "" : ` (${findings.length})`}
               </TabsTrigger>
-              <TabsTrigger value="plan">Plan d'action</TabsTrigger>
               <TabsTrigger value="corrections">Corrections auto</TabsTrigger>
             </TabsList>
 

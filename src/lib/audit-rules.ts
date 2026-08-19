@@ -34,6 +34,10 @@
  */
 
 import type { Observation, ObservationGap } from "@/lib/observations";
+// Le seuil de lenteur appartient au module qui la mesure. L'importer plutôt
+// que le recopier évite qu'un jour la règle et la mesure ne parlent plus du
+// même nombre — le connecteur est pur, cet import n'introduit aucune I/O.
+import { SLOW_RESPONSE_MS } from "@/lib/connectors/storefront";
 
 // ---------------------------------------------------------------------------
 // Axes
@@ -160,6 +164,29 @@ export const THRESHOLDS = {
   RETURNING_RATE_LOW: 0.15,
   /** Part de commandes remisées au-delà de laquelle la marge est menacée. */
   DISCOUNTED_SHARE_HIGH: 0.5,
+  /**
+   * Produits en dessous duquel une page de collection ne fait plus choisir.
+   *
+   * Ce n'est pas une taille de catalogue idéale : c'est le point où la page
+   * cesse de remplir sa fonction. À trois articles, il n'y a pas de choix à
+   * faire, et le visiteur a autant vite fait d'ouvrir chaque fiche.
+   */
+  MIN_PRODUCTS_IN_COLLECTION: 4,
+  /**
+   * Catalogue au-delà duquel naviguer sans filtre devient un défilement.
+   *
+   * Le compte vient de l'API Admin, pas de la page : une collection paginée
+   * affiche vingt-quatre articles quel que soit le catalogue derrière.
+   */
+  CATALOG_NEEDS_FILTERS: 24,
+  /**
+   * Pages de politique attendues : remboursement, livraison, conditions.
+   *
+   * Exactement les trois que le scan interroge. Le seuil n'est donc pas une
+   * opinion sur ce qu'il faudrait publier : c'est le nombre de pages dont
+   * l'absence a été réellement constatée.
+   */
+  EXPECTED_POLICY_PAGES: 3,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -363,7 +390,7 @@ export const RULES: Rule[] = [
         impact: 4,
         effort: 2,
         recommendation:
-          "Afficher les frais de livraison et le délai sur la page produit, avant le panier : la découverte tardive des frais est la première cause d'abandon mesurée.",
+          "Afficher les frais de livraison et le délai sur la page produit, avant le panier : l'acheteur qui découvre le coût final en caisse a déjà décidé sur un autre prix.",
       });
     },
   },
@@ -671,8 +698,287 @@ export const RULES: Rule[] = [
       });
     },
   },
+  /**
+   * UNE PAGE SUR TROIS N'EST PAS « DES PAGES DE POLITIQUE ».
+   *
+   * La règle voisine ne se déclenchait qu'à zéro. Une boutique servant les
+   * conditions générales mais ni la livraison ni les retours passait donc pour
+   * pourvue — alors que les deux manquantes sont précisément celles que
+   * l'acheteur hésitant va chercher. Les conditions générales, personne ne les
+   * lit avant d'acheter.
+   */
+  {
+    id: "trust.policy_pages_incomplete",
+    axis: "trust",
+    requires: ["storefront.policy_pages"],
+    technical: true,
+    evaluate: (ctx) => {
+      const pages = num(ctx, "storefront.policy_pages");
+      if (pages === null || pages <= 0 || pages >= THRESHOLDS.EXPECTED_POLICY_PAGES) return null;
+      const t = trace(ctx, ["storefront.policy_pages"]);
+      return emit(RULES_BY_ID["trust.policy_pages_incomplete"], {
+        title: "Il manque des pages que l'acheteur va chercher",
+        statement: `${pages} page(s) de politique répondent sur les ${THRESHOLDS.EXPECTED_POLICY_PAGES} vérifiées.`,
+        why: "Les pages manquantes se lisent dans la preuve ci-dessous, avec le code renvoyé par chacune. Celle des retours et celle de la livraison sont les deux que l'acheteur ouvre avant de payer ; les conditions générales, elles, ne se lisent qu'après un litige.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 1,
+        recommendation:
+          "Publier les pages absentes depuis Boutique en ligne → Pages, puis les lier depuis le pied de page. Y écrire un délai et un montant réels : une page vide fait plus de dégâts qu'une page absente.",
+      });
+    },
+  },
+  /**
+   * AUCUN AVIS SUR LA FICHE INSPECTÉE.
+   *
+   * Le fait était mesuré depuis toujours et n'était lu par aucune règle. Il
+   * reste plafonné : une application d'avis qui injecte sa note après le
+   * chargement laisse le document servi muet, et nous ne saurions pas la voir.
+   */
+  {
+    id: "trust.avis_absents_fiche",
+    axis: "trust",
+    requires: ["storefront.product_reviews_declared"],
+    technical: true,
+    evaluate: (ctx) => {
+      const avis = num(ctx, "storefront.product_reviews_declared");
+      if (avis === null || avis > 0) return null;
+      const t = trace(ctx, ["storefront.product_reviews_declared"]);
+      return emit(RULES_BY_ID["trust.avis_absents_fiche"], {
+        title: "Aucune note client sur la fiche inspectée",
+        statement:
+          "La fiche produit ouverte pendant le diagnostic ne déclare aucune note ni aucun avis dans le document servi.",
+        why: "C'est la seule objection qu'un vendeur ne peut pas lever avec ses propres mots. Une application d'avis qui affiche sa note après le chargement resterait invisible pour nous : à vérifier en ouvrant la fiche vous-même.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 2,
+        recommendation:
+          "Ouvrir la fiche citée dans la preuve et regarder si une note apparaît. Si elle n'apparaît pas, installer une application d'avis et importer ceux déjà reçus par message ou par e-mail.",
+      });
+    },
+  },
+
+  // --- Fiche produit : ce que la page permet, et ce qu'elle annonce ---------
+  /**
+   * LA FICHE NE PROPOSE PAS D'ACHETER.
+   *
+   * Plafonné volontairement. Un thème qui construit son formulaire en
+   * JavaScript sert un document sans `/cart/add` et déclencherait ici un
+   * constat faux — c'est le mode de défaillance le plus coûteux, celui qui
+   * produit un conseil confiant et erroné. Le constat dit donc ce qu'il a lu,
+   * et demande une vérification d'un geste.
+   */
+  {
+    id: "produit.achat_impossible",
+    axis: "conversion",
+    requires: ["storefront.product_add_to_cart"],
+    technical: true,
+    evaluate: (ctx) => {
+      const panier = num(ctx, "storefront.product_add_to_cart");
+      if (panier === null || panier > 0) return null;
+      const t = trace(ctx, ["storefront.product_add_to_cart"]);
+      return emit(RULES_BY_ID["produit.achat_impossible"], {
+        title: "Aucun ajout au panier trouvé sur la fiche inspectée",
+        statement:
+          "Le document servi par la fiche produit ouverte pendant le diagnostic ne contient aucun formulaire d'ajout au panier.",
+        why: "Si le bouton manque réellement, la fiche ne peut pas être achetée et tout le trafic qui l'atteint est perdu. Certains thèmes construisent ce bouton après l'affichage : nous lisons le document servi, pas la page finie, et ne pouvons pas trancher seuls.",
+        level: "prouve",
+        ...t,
+        impact: 5,
+        effort: 2,
+        recommendation:
+          "Ouvrir l'adresse citée dans la preuve en navigation privée, sur un téléphone. Si le bouton d'ajout au panier est absent ou inactif, vérifier dans Shopify que le produit est publié sur le canal Boutique en ligne et qu'il lui reste une variante disponible.",
+      });
+    },
+  },
+  /**
+   * LES FRAIS DÉCOUVERTS EN CAISSE — et la seule règle qui les relie.
+   *
+   * Le module plafonne les faits techniques tant qu'aucune observation
+   * commerciale ne corrobore. Cette règle est l'endroit où ce plafond se lève :
+   * l'absence de mention de livraison sur la fiche est un fait de page, et elle
+   * ne devient une explication de perte que si un abandon de panier a été
+   * MESURÉ, sur assez de commandes pour vouloir dire quelque chose. Les deux
+   * ensemble décrivent une chaîne ; l'un des deux seul décrit un détail.
+   */
+  {
+    id: "conversion.livraison_absente_fiche",
+    axis: "conversion",
+    requires: ["storefront.product_shipping_mentioned"],
+    evaluate: (ctx) => {
+      const mentionnee = num(ctx, "storefront.product_shipping_mentioned");
+      if (mentionnee === null || mentionnee > 0) return null;
+
+      const abandon = ratio(num(ctx, "shopify.cart_abandonment_rate"));
+      const commandes = num(ctx, "shopify.orders_30d");
+      const corrobore =
+        abandon !== null &&
+        abandon >= THRESHOLDS.CART_ABANDONMENT &&
+        commandes !== null &&
+        commandes >= THRESHOLDS.MIN_ORDERS_FOR_RATES;
+
+      const t = trace(
+        ctx,
+        corrobore
+          ? [
+              "storefront.product_shipping_mentioned",
+              "shopify.cart_abandonment_rate",
+              "shopify.orders_30d",
+            ]
+          : ["storefront.product_shipping_mentioned"],
+      );
+      return emit(RULES_BY_ID["conversion.livraison_absente_fiche"], {
+        title: corrobore
+          ? "Les frais de livraison se découvrent en caisse, et le panier s'y vide"
+          : "La fiche inspectée n'annonce ni livraison ni frais de port",
+        statement: corrobore
+          ? `La fiche produit inspectée n'évoque ni livraison ni frais de port, et ${Math.round((abandon ?? 0) * 100)} % des paniers ouverts n'aboutissent pas, sur ${commandes} commandes.`
+          : "La fiche produit inspectée n'évoque ni livraison ni frais de port dans le document servi.",
+        why: corrobore
+          ? "Ces deux constats n'en font qu'un : l'acheteur choisit son produit sans connaître le coût final, puis le découvre au moment de payer. Traiter l'abandon de panier sans annoncer les frais plus tôt ne donnera rien — c'est la même perte, prise par l'autre bout."
+          : "L'acheteur décide sans connaître le coût final, et le découvre en caisse. Sans mesure d'abandon sur cette boutique, cela reste un fait de page : nous ne pouvons pas dire ce qu'il coûte ici.",
+        level: corrobore ? "fortement_suggere" : "a_verifier",
+        ...t,
+        impact: corrobore ? 4 : 3,
+        effort: 1,
+        recommendation:
+          "Afficher le montant de la livraison et le délai sur la fiche produit, sous le prix — ou annoncer le seuil de livraison offerte s'il existe. Dans Shopify : Paramètres → Livraison, puis reporter le montant dans la section de la fiche.",
+      });
+    },
+  },
+
+  // --- Découverte du catalogue ---------------------------------------------
+  /**
+   * LA PAGE OÙ LE VISITEUR CHOISIT.
+   *
+   * Elle était téléchargée à chaque scan et jetée sans être lue. C'est pourtant
+   * elle, et non la fiche, qui décide de ce qui sera comparé : la fiche ne fait
+   * que confirmer un choix déjà fait ailleurs.
+   */
+  {
+    id: "merchandising.collection_maigre",
+    axis: "merchandising",
+    requires: ["storefront.collection_produits_listes"],
+    evaluate: (ctx) => {
+      const listes = num(ctx, "storefront.collection_produits_listes");
+      if (listes === null || listes >= THRESHOLDS.MIN_PRODUCTS_IN_COLLECTION) return null;
+      const total = num(ctx, "shopify.product_count");
+      const t = trace(
+        ctx,
+        total === null
+          ? ["storefront.collection_produits_listes"]
+          : ["storefront.collection_produits_listes", "shopify.product_count"],
+      );
+      return emit(RULES_BY_ID["merchandising.collection_maigre"], {
+        title: "La collection inspectée ne fait rien choisir",
+        statement:
+          total === null
+            ? `La page de collection ouverte pendant le diagnostic ne mène qu'à ${listes} fiche(s) produit.`
+            : `La page de collection ouverte pendant le diagnostic ne mène qu'à ${listes} fiche(s) produit, alors que le catalogue en compte ${total}.`,
+        why:
+          total !== null && total > listes
+            ? "Le catalogue existe, mais cette porte d'entrée n'en montre presque rien : le reste n'est atteignable que par la recherche ou par un lien direct, c'est-à-dire par quelqu'un qui sait déjà ce qu'il cherche."
+            : "Une page qui présente moins de quatre articles ne fait pas comparer : elle demande au visiteur de décider sans point de comparaison, ce qu'il fait rarement au premier passage.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 2,
+        recommendation:
+          "Ouvrir Boutique en ligne → Navigation et vérifier que le menu pointe vers une collection réellement remplie. Dans Produits → Collections, contrôler les conditions automatiques : une condition trop étroite vide une collection sans prévenir.",
+      });
+    },
+  },
+  /**
+   * UN CATALOGUE QUI DEMANDE DES FILTRES, ET UNE PAGE QUI N'EN A PAS.
+   *
+   * Le compte de produits vient de l'API Admin, l'absence de filtres du
+   * document servi. Aucun des deux ne suffit : c'est leur rencontre qui fait le
+   * constat, et c'est pourquoi la règle exige les deux.
+   */
+  {
+    id: "merchandising.collection_sans_filtres",
+    axis: "merchandising",
+    requires: ["storefront.collection_filtres", "shopify.product_count"],
+    evaluate: (ctx) => {
+      const filtres = num(ctx, "storefront.collection_filtres");
+      const total = num(ctx, "shopify.product_count");
+      if (filtres === null || filtres > 0) return null;
+      if (total === null || total < THRESHOLDS.CATALOG_NEEDS_FILTERS) return null;
+      const t = trace(ctx, ["storefront.collection_filtres", "shopify.product_count"]);
+      return emit(RULES_BY_ID["merchandising.collection_sans_filtres"], {
+        title: "Un catalogue de cette taille se parcourt sans aucun filtre",
+        statement: `${total} produits au catalogue, et la page de collection inspectée n'expose aucun filtre.`,
+        why: "Passé quelques dizaines d'articles, parcourir sans filtre revient à faire défiler. Le visiteur qui cherche une taille, une couleur ou une gamme de prix abandonne avant de trouver — et ce n'est pas le produit qu'il rejette, c'est la recherche.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 2,
+        recommendation:
+          "Ajouter le filtrage sur les collections : dans l'éditeur de thème, section Collection, activer les filtres, puis choisir dans Boutique en ligne → Navigation → Filtres les critères que vos clients emploient réellement (taille, couleur, prix).",
+      });
+    },
+  },
+  {
+    id: "ux.catalogue_invisible_depuis_accueil",
+    axis: "ux",
+    requires: ["storefront.accueil_collection_links"],
+    technical: true,
+    evaluate: (ctx) => {
+      const collections = num(ctx, "storefront.accueil_collection_links");
+      if (collections === null || collections > 0) return null;
+      const t = trace(ctx, ["storefront.accueil_collection_links"]);
+      return emit(RULES_BY_ID["ux.catalogue_invisible_depuis_accueil"], {
+        title: "L'accueil ne mène à aucune collection",
+        statement:
+          "Aucun lien vers une collection n'a été trouvé dans le document de la page d'accueil.",
+        why: "Le visiteur qui arrive sans savoir ce qu'il veut n'a alors aucune porte d'entrée dans le catalogue : il doit ouvrir un menu, ou deviner. La preuve porte aussi le nombre de fiches produit atteignables en un clic, qui dit si l'accueil compense par des mises en avant.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 1,
+        recommendation:
+          "Ajouter à la page d'accueil une section de collections mises en avant, et vérifier dans Boutique en ligne → Navigation que le menu principal pointe bien vers des collections et non vers des pages.",
+      });
+    },
+  },
 
   // --- SEO -----------------------------------------------------------------
+  /**
+   * UNE PAGE QUI DEMANDE À NE PAS ÊTRE RÉFÉRENCÉE.
+   *
+   * Le fait était mesuré sur chaque page lue et n'était consommé par aucune
+   * règle. Il est pourtant sans ambiguïté : une directive `noindex` dans le
+   * document servi retire la page des résultats de recherche, quel que soit le
+   * reste. C'est fréquemment un reste de mise en ligne que personne n'a retiré.
+   */
+  {
+    id: "seo.noindex_declare",
+    axis: "seo",
+    requires: [],
+    technical: true,
+    evaluate: (ctx) => {
+      const pages = ["accueil", "produit", "collection"] as const;
+      const bloquees = pages.filter((role) => num(ctx, `storefront.${role}_noindex`) === 1);
+      if (bloquees.length === 0) return null;
+      const t = trace(
+        ctx,
+        bloquees.map((role) => `storefront.${role}_noindex`),
+      );
+      return emit(RULES_BY_ID["seo.noindex_declare"], {
+        title: "Une page demande à ne pas être référencée",
+        statement: `${bloquees.length} des pages lues portent une directive « noindex » : ${bloquees.join(", ")}.`,
+        why: "Cette directive retire explicitement la page des résultats de recherche. Elle survit régulièrement à une mise en ligne — le site est ouvert au public, mais continue de demander à ne pas être trouvé.",
+        level: "prouve",
+        ...t,
+        impact: 4,
+        effort: 1,
+        recommendation:
+          "Dans l'éditeur de thème, ouvrir le code du fichier d'en-tête et retirer la balise `meta name=\"robots\"` qui porte « noindex », puis demander une réindexation dans la Search Console. Vérifier aussi qu'aucune application de maintenance n'est restée active.",
+      });
+    },
+  },
   {
     id: "seo.robots_blocks_all",
     axis: "seo",
@@ -741,15 +1047,65 @@ export const RULES: Rule[] = [
       });
     },
   },
+  /**
+   * LA LENTEUR EST UNE MESURE ; CE QU'ELLE COÛTE EST D'UN AUTRE ORDRE.
+   *
+   * C'est l'exemple que l'en-tête de ce module donne de sa règle absolue, et
+   * c'est ici qu'il est mécanisé. Le temps de réponse était mesuré à chaque
+   * scan et lu par aucune règle. Il le devient — en disant une chose quand du
+   * commerce est mesuré sur cette boutique, et une autre quand rien ne l'est.
+   * `hasBusinessCorroboration` ne change pas le niveau de preuve, qui reste
+   * plafonné : il change ce que le constat a le droit d'affirmer.
+   */
+  {
+    id: "technique.reponse_lente",
+    axis: "technique",
+    requires: ["storefront.response_ms"],
+    technical: true,
+    evaluate: (ctx) => {
+      const ms = num(ctx, "storefront.response_ms");
+      if (ms === null || ms < SLOW_RESPONSE_MS) return null;
+      const corrobore = hasBusinessCorroboration(ctx, BUSINESS_SIGNALS);
+      const t = trace(ctx, ["storefront.response_ms"]);
+      return emit(RULES_BY_ID["technique.reponse_lente"], {
+        title: "Le serveur met plus de deux secondes à répondre",
+        statement: `${Math.round(ms)} ms pour recevoir le document le plus lent, mesurés par requête serveur.`,
+        why: corrobore
+          ? "Ce délai s'ajoute avant que le navigateur n'ait commencé à afficher quoi que ce soit, et il précède chaque visite de cette boutique — dont l'activité est par ailleurs mesurée ici. Ce qu'il coûte exactement demanderait une mesure dans un vrai navigateur, sur du vrai trafic ; nous mesurons le serveur, pas l'affichage."
+          : "C'est un temps de réponse serveur, et rien de plus à ce stade : aucune donnée commerciale n'a été mesurée sur cette boutique, donc rien ne permet de dire ce que ce délai lui coûte.",
+        level: "prouve",
+        ...t,
+        impact: corrobore ? 3 : 2,
+        effort: 3,
+        recommendation:
+          "Désactiver une à une les applications récemment installées et remesurer entre chaque : ce sont elles, et non le thème, qui allongent le plus souvent la réponse. Si le délai persiste sans application, il vient du thème.",
+      });
+    },
+  },
+  /**
+   * VIEWPORT ABSENT — lu sur la version mobile, ou à défaut sur l'accueil.
+   *
+   * La règle n'exigeait que `storefront.mobile_viewport`, qui n'existe que si
+   * la requête en agent mobile a abouti ET que les deux poids étaient
+   * lisibles. Sur un site lent, ce contrôle est le premier sauté par le budget
+   * du scan : une boutique réellement dépourvue de balise viewport ne
+   * produisait alors aucun constat, alors que `storefront.accueil_viewport`
+   * portait déjà la réponse. Un contrôle sauté se lisait comme un contrôle
+   * réussi — exactement ce que le scan déclare vouloir éviter.
+   */
   {
     id: "ux.mobile_viewport_missing",
     axis: "ux",
-    requires: ["storefront.mobile_viewport"],
+    requires: [],
     technical: true,
     evaluate: (ctx) => {
-      const viewport = num(ctx, "storefront.mobile_viewport");
+      const source =
+        num(ctx, "storefront.mobile_viewport") !== null
+          ? "storefront.mobile_viewport"
+          : "storefront.accueil_viewport";
+      const viewport = num(ctx, source);
       if (viewport === null || viewport > 0) return null;
-      const t = trace(ctx, ["storefront.mobile_viewport"]);
+      const t = trace(ctx, [source]);
       return emit(RULES_BY_ID["ux.mobile_viewport_missing"], {
         title: "La page n'est pas déclarée adaptée au mobile",
         statement: "La balise viewport est absente de la page d'accueil.",
@@ -1001,11 +1357,23 @@ export function axisOfObservation(id: string): AuditAxis | null {
   if (id.startsWith("meta.") || id.startsWith("google.")) return "acquisition";
   if (id.startsWith("organic.")) return "data";
   if (id.startsWith("storefront.")) {
-    if (id.includes("robots") || id.includes("sitemap") || id.includes("structured_data")) {
+    if (
+      id.includes("robots") ||
+      id.includes("sitemap") ||
+      id.includes("structured_data") ||
+      // Le titre d'onglet, la description et les titres de niveau 1 sont ce
+      // qu'un moteur affiche et indexe : les ranger en « technique » laissait
+      // l'axe SEO non mesuré alors qu'il avait bel et bien été regardé.
+      id.includes("_title") ||
+      id.includes("meta_description") ||
+      id.includes("_h1_count") ||
+      id.includes("noindex")
+    ) {
       return "seo";
     }
-    if (id.includes("mobile")) return "ux";
+    if (id.includes("mobile") || id.includes("recherche")) return "ux";
     if (id.includes("policy") || id.includes("reviews")) return "trust";
+    if (id.includes("collection")) return "merchandising";
     return "technique";
   }
   if (id.startsWith("shopify.")) {

@@ -496,8 +496,24 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
                   type: "object",
                   additionalProperties: false,
                   properties: {
-                    based_on: { type: "string" },
-                    assumptions: { type: "string" },
+                    // LA PREUVE SE RECOPIE, ELLE NE SE RÉSUME PAS.
+                    //
+                    // Sans cette consigne, le modèle reformulait : « la page
+                    // d'accueil manque de clarté » remplaçait « 34 liens
+                    // relevés, aucun ne portant de verbe d'action ». Le constat
+                    // devenait alors vrai de n'importe quelle boutique, et le
+                    // classement de certitude, qui lit cette phrase, n'avait
+                    // plus rien à quoi se raccrocher.
+                    based_on: {
+                      type: "string",
+                      description:
+                        "La ou les phrases de preuve du moteur, RECOPIÉES MOT POUR MOT depuis les blocs « Preuve : » ci-dessus, avec leurs chiffres, leurs adresses et leurs libellés cités. Ne reformule pas, ne résume pas, n'ajoute aucun chiffre absent de ces phrases. Si un constat ne s'appuie sur aucune preuve du moteur, laisse ce champ vide.",
+                    },
+                    assumptions: {
+                      type: "string",
+                      description:
+                        "Ce que le constat suppose sans l'avoir observé. Vide si le constat ne suppose rien.",
+                    },
                   },
                   required: ["based_on", "assumptions"],
                 },
