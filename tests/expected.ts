@@ -308,9 +308,9 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/echantillon.test.ts",
-    minChecks: 80,
+    minChecks: 110,
     covers:
-      "Un catalogue ne se juge pas sur une fiche. Le scan ouvrait UNE page produit et tous les constats produit en découlaient : une boutique dont la fiche mise en avant est soignée passait pour irréprochable, une boutique dont la première fiche est un brouillon oublié était condamnée sur cet exemplaire, et le rapport écrivait « les fiches produit n'ont pas de description » sans que rien ne distingue les deux cas. Couvre l'échantillon déterministe et borné, les observations agrégées et leur dénominateur explicite, les quatre portées — aucune, une fiche, plusieurs, toutes les inspectées —, l'interdiction d'extrapoler au catalogue, et le contrat de classification épistémique : les cinq niveaux, et le fait qu'une réponse ambiguë du modèle retombe sur « Déduit » et jamais sur « Observé », qui est un niveau confiant.",
+      "Un catalogue ne se juge pas sur une fiche. Le scan ouvrait UNE page produit et tous les constats produit en découlaient : une boutique dont la fiche mise en avant est soignée passait pour irréprochable, une boutique dont la première fiche est un brouillon oublié était condamnée sur cet exemplaire, et le rapport écrivait « les fiches produit n'ont pas de description » sans que rien ne distingue les deux cas. Couvre l'échantillon déterministe et borné, les observations agrégées et leur dénominateur explicite, les quatre portées — aucune, une fiche, plusieurs, toutes les inspectées —, l'interdiction d'extrapoler au catalogue, et le contrat de classification épistémique : les cinq niveaux, et le fait qu'une réponse ambiguë du modèle retombe sur « Déduit » et jamais sur « Observé », qui est un niveau confiant. Couvre aussi l'échantillon HYBRIDE : deux fiches du parcours visible, le reste réparti à pas régulier sur le catalogue complet lu par l'API Admin, parce qu'un échantillon tiré de la seule vitrine ne montre que ce que la boutique met en avant et surestime sa qualité moyenne par construction — le biais est démontré sur une même boutique. La provenance de l'échantillon entre dans la preuve, et la couverture du catalogue plafonne ce qu'un constat a le droit de prouver.",
   },
   {
     file: "audits/raisonnement.test.ts",

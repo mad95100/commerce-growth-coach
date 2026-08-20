@@ -5,8 +5,19 @@ import {
   type PageRole,
   type StorefrontRaw,
 } from "@/lib/connectors/storefront";
-import { MAX_PRODUCT_PAGES, productSample } from "@/lib/connectors/storefront.server";
-import { RULES, lirePortee, runRules, type RuleContext } from "@/lib/audit-rules";
+import {
+  MAX_PRODUCT_PAGES,
+  VITRINE_SLOTS,
+  productSample,
+} from "@/lib/connectors/storefront.server";
+import {
+  EVIDENCE_WEIGHT,
+  RULES,
+  capLevel,
+  lirePortee,
+  runRules,
+  type RuleContext,
+} from "@/lib/audit-rules";
 import {
   EPISTEMIC_LABELS,
   EPISTEMIC_LEVELS,
@@ -108,7 +119,9 @@ export default defineSuite("Échantillon et certitude — ce qu'une page autoris
   ];
   const depuisAccueil = ["/products/nouveaute", "/products/besace", "/collections/tout"];
 
-  const e = productSample(depuisAccueil, depuisCollection);
+  // Sans catalogue connu, l'échantillon reste celui de la vitrine : c'est le
+  // comportement de repli, et il doit rester intact.
+  const e = productSample(depuisAccueil, depuisCollection).chemins;
   t.check("la collection passe avant l'accueil", e[0], "/products/besace");
   t.check("…puis l'accueil complète", e.includes("/products/nouveaute"), true);
   t.check(
@@ -125,17 +138,72 @@ export default defineSuite("Échantillon et certitude — ce qu'une page autoris
   // échantillon. Sans cela, deux audits successifs ne seraient pas comparables.
   t.check(
     "deux passages rendent le même échantillon",
-    productSample(depuisAccueil, depuisCollection),
+    productSample(depuisAccueil, depuisCollection).chemins,
     e,
   );
 
   const beaucoup = Array.from({ length: 40 }, (_, i) => `/products/p${i}`);
-  t.check("l'échantillon est borné", productSample([], beaucoup).length, MAX_PRODUCT_PAGES);
+  t.check("l'échantillon est borné", productSample([], beaucoup).chemins.length, MAX_PRODUCT_PAGES);
   t.check("…et la borne reste raisonnable pour la boutique", MAX_PRODUCT_PAGES <= 8, true);
   // Un petit catalogue est inspecté ENTIÈREMENT : l'échantillon est alors le
   // catalogue, et le constat a le droit de le dire.
-  t.check("un petit catalogue passe en entier", productSample([], depuisCollection).length, 3);
-  t.check("aucune fiche, aucun échantillon", productSample([], []), []);
+  t.check(
+    "un petit catalogue passe en entier",
+    productSample([], depuisCollection).chemins.length,
+    3,
+  );
+  t.check("aucune fiche, aucun échantillon", productSample([], []).chemins, []);
+
+  // =========================================================================
+  // 1 bis. L'ÉCHANTILLON HYBRIDE — LE BIAIS DE VITRINE
+  // =========================================================================
+  /*
+    LE DÉFAUT QUE CECI CORRIGE. Ne suivre que les liens de l'accueil et de la
+    collection revient à n'inspecter que ce que la boutique MET EN AVANT — ses
+    meilleures pages. Un tel échantillon surestime la qualité moyenne du
+    catalogue par construction, et rien dans le rapport ne le signalait.
+
+    Les identifiants de catalogue viennent de l'API Admin, du même appel qui
+    alimente déjà les observations de catalogue : aucun appel de plus, aucune
+    permission de plus.
+  */
+  const catalogue = Array.from({ length: 100 }, (_, i) => `article-${i}`);
+  const hybride = productSample(depuisAccueil, depuisCollection, catalogue);
+  t.check("l'échantillon reste borné", hybride.chemins.length, MAX_PRODUCT_PAGES);
+  t.check("la vitrine garde ses places réservées", hybride.vitrine, VITRINE_SLOTS);
+  t.check("…et le catalogue occupe le reste", hybride.catalogue, MAX_PRODUCT_PAGES - VITRINE_SLOTS);
+  t.check(
+    "les deux premières viennent bien de la vitrine",
+    hybride.chemins.slice(0, VITRINE_SLOTS).every((p) => !p.includes("article-")),
+    true,
+  );
+  // LE PAS EST RÉGULIER : prendre les premiers du catalogue ne lirait que les
+  // fiches les plus anciennes, et un tirage au sort rendrait deux audits
+  // successifs incomparables.
+  const indices = hybride.chemins
+    .filter((p) => p.includes("article-"))
+    .map((p) => Number(p.split("article-")[1]));
+  t.check("le catalogue est balayé de bout en bout", Math.max(...indices) >= 60, true);
+  t.check("…et pas seulement au début", new Set(indices).size, indices.length);
+  t.check(
+    "deux passages rendent le même échantillon hybride",
+    productSample(depuisAccueil, depuisCollection, catalogue).chemins,
+    hybride.chemins,
+  );
+
+  // Sans vitrine, le catalogue prend toutes les places.
+  const sansVitrine = productSample([], [], catalogue);
+  t.check("sans vitrine, tout vient du catalogue", sansVitrine.catalogue, MAX_PRODUCT_PAGES);
+  t.check("…et rien de la vitrine", sansVitrine.vitrine, 0);
+
+  // Un petit catalogue est lu entièrement, sans doublon avec la vitrine.
+  const petit = productSample([], ["/products/article-0"], ["article-0", "article-1", "article-2"]);
+  t.check(
+    "un petit catalogue ne produit pas de doublon",
+    new Set(petit.chemins).size,
+    petit.chemins.length,
+  );
+  t.check("…et il est lu en entier", petit.chemins.length, 3);
 
   // =========================================================================
   // 2. PLUSIEURS FICHES PRODUISENT UNE OBSERVATION AGRÉGÉE, AVEC SON DÉNOMINATEUR
@@ -232,7 +300,31 @@ export default defineSuite("Échantillon et certitude — ce qu'une page autoris
   const plusieurs = lirePortee(3, 5, 300);
   t.check("plusieurs fiches", plusieurs.portee, "plusieurs_fiches");
   t.check("…avec les deux nombres dans la phrase", /3 des 5 fiches/.test(plusieurs.phrase), true);
-  t.check("…et une preuve possible", plusieurs.plafond, "prouve");
+  /*
+    LA COUVERTURE DÉCIDE DU POIDS, PAS DE LA VÉRITÉ. « 3 des 5 fiches
+    inspectées » reste exact sur un catalogue de trois cents. Mais le marchand
+    agit sur son catalogue, et cinq fiches sur trois cents ne soutiennent pas la
+    même décision que cinq fiches sur douze. Le constat garde sa formulation et
+    perd du poids — donc il descend dans le classement sans rien dire de faux.
+  */
+  t.check("…et une couverture calculée", plusieurs.couverture, 5 / 300);
+  t.check("…qui empêche de PROUVER sur un catalogue mince", plusieurs.plafond, "fortement_suggere");
+  const bienCouvert = lirePortee(3, 5, 12);
+  t.check("une couverture large autorise la preuve", bienCouvert.plafond, "prouve");
+  t.check("…et la couverture est lisible", bienCouvert.couverture, 5 / 12);
+  t.check("sans catalogue connu, aucune couverture", lirePortee(3, 5).couverture, null);
+  t.check("…et rien ne vient rabaisser le constat", lirePortee(3, 5).plafond, "prouve");
+
+  // Le catalogue entièrement inspecté est la SEULE portée où parler du
+  // catalogue n'est pas une extrapolation.
+  const complet = lirePortee(4, 6, 6);
+  t.check("catalogue complet", complet.portee, "catalogue_complet");
+  t.check(
+    "…et la phrase le dit",
+    /fiches du catalogue, toutes inspectées/.test(complet.phrase),
+    true,
+  );
+  t.check("…et elle prouve", complet.plafond, "prouve");
 
   const toutes = lirePortee(5, 5, 300);
   t.check("toutes les inspectées", toutes.portee, "toutes_les_inspectees");
@@ -386,6 +478,135 @@ export default defineSuite("Échantillon et certitude — ce qu'une page autoris
         r.requires.includes("storefront.produits_inspectes"),
         true,
       );
+    }
+  }
+
+  // =========================================================================
+  // 4 bis. LA PROVENANCE DE L'ÉCHANTILLON ENTRE DANS LA PREUVE
+  // =========================================================================
+  /*
+    « 5 fiches inspectées » ne dit pas la même chose selon qu'elles viennent de
+    la page d'accueil — donc des fiches que le marchand a choisi de mettre en
+    avant — ou d'un balayage du catalogue. Le premier échantillon surestime la
+    qualité moyenne par construction. Un lecteur qui ne peut pas faire la
+    différence lit le second alors qu'on lui montre le premier.
+  */
+  const avecProvenance = (origin: { vitrine: number; catalogue: number }, connu: number) =>
+    storefrontObservations({
+      ...scan([
+        ["a", ""],
+        ["b", ""],
+      ]),
+      sampleOrigin: origin,
+      catalogueKnown: connu,
+    }).observations.find((o) => o.id === "storefront.produits_inspectes")?.evidence ?? "";
+
+  const vitrineSeule = avecProvenance({ vitrine: 2, catalogue: 0 }, 0);
+  t.check(
+    "un échantillon de vitrine le dit",
+    /parcours visible/.test(vitrineSeule) &&
+      /catalogue complet n'ayant pas été consulté/.test(vitrineSeule),
+    true,
+  );
+  t.check(
+    "…et il avertit de ce que cela signifie",
+    /met en avant, pas sa moyenne/.test(vitrineSeule),
+    true,
+  );
+  const hybrideProuve = avecProvenance({ vitrine: 1, catalogue: 1 }, 100);
+  t.check(
+    "un échantillon hybride compte ses deux moitiés",
+    /1 issues? du parcours visible et 1 réparties? à pas régulier sur les 100/.test(hybrideProuve),
+    true,
+  );
+  t.check(
+    "une provenance inconnue ne s'invente pas",
+    /provenance de l'échantillon non renseignée/.test(
+      avecProvenance({ vitrine: 0, catalogue: 0 }, 0),
+    ),
+    true,
+  );
+
+  // LE BIAIS, DÉMONTRÉ. Sur la même boutique, l'échantillon de vitrine ne voit
+  // que les fiches soignées ; l'hybride voit le catalogue tel qu'il est.
+  const soignee: [string, string] = ["vedette", AVEC_TOUT];
+  const brouillon = (h: string): [string, string] => [h, ""];
+  const vitrineOnly = storefrontObservations(scan([soignee, ["autre-vedette", AVEC_TOUT]]));
+  const hybrideScan = storefrontObservations(
+    scan([soignee, ["autre-vedette", AVEC_TOUT], brouillon("a"), brouillon("b"), brouillon("c")]),
+  );
+  const manquants = (o: ReturnType<typeof storefrontObservations>) =>
+    o.observations.find((x) => x.id === "storefront.produits_sans_ajout_panier")?.value;
+  t.check("la vitrine seule ne voit aucun défaut", manquants(vitrineOnly), 0);
+  t.check("…l'échantillon élargi en voit trois", manquants(hybrideScan), 3);
+
+  // =========================================================================
+  // 4 ter. LA COUVERTURE PÈSE SUR LA PRIORITÉ, PAS SUR LA VÉRITÉ
+  // =========================================================================
+  /*
+    Une observation issue de 5 fiches sur un catalogue de 100 ne doit pas être
+    traitée comme une observation portant sur 100. Le constat reste vrai — il
+    porte sur l'échantillon — mais il pèse moins dans le classement.
+  */
+  const base = {
+    "storefront.produits_sans_livraison": 4,
+    "storefront.produits_inspectes": 5,
+    "shopify.cart_abandonment_rate": 0.82,
+    "shopify.orders_30d": 140,
+  };
+  const mince = constat(
+    ctxDe({ ...base, "shopify.product_count": 300 }),
+    "conversion.livraison_absente_fiche",
+  );
+  const large = constat(
+    ctxDe({ ...base, "shopify.product_count": 12 }),
+    "conversion.livraison_absente_fiche",
+  );
+  t.check("couverture mince : le constat sort quand même", Boolean(mince), true);
+  t.check("couverture large : le constat sort aussi", Boolean(large), true);
+  t.check(
+    "les deux disent la même chose de l'échantillon",
+    /4 des 5 fiches produit inspectées/.test(mince?.statement ?? "") &&
+      /4 des 5 fiches produit inspectées/.test(large?.statement ?? ""),
+    true,
+  );
+  /*
+    CE QUE LE PLAFOND DE COUVERTURE FAIT, ET CE QU'IL NE FAIT PAS.
+
+    C'est un PLAFOND, pas une pénalité : il abaisse un constat qui prétendrait
+    prouver, il ne fait pas descendre un constat déjà plus bas. Sur les règles
+    produit d'aujourd'hui, un autre plafond mord toujours en premier — le
+    plafond technique pour celles qui lisent un document servi, la corroboration
+    commerciale pour celle des frais de livraison. Le plafond de couverture est
+    donc un garde-fou en attente, et le contrôle porte sur la composition
+    elle-même plutôt que sur un effet qu'aucune règle ne produit encore.
+  */
+  t.check(
+    "le plafond mince abaisse un constat qui prouverait",
+    lirePortee(4, 5, 300).plafond,
+    "fortement_suggere",
+  );
+  t.check(
+    "…et n'abaisse rien de plus bas",
+    capLevel("a_verifier", lirePortee(4, 5, 300).plafond),
+    "a_verifier",
+  );
+  t.check(
+    "une couverture large laisse prouver",
+    capLevel("prouve", lirePortee(4, 5, 12).plafond),
+    "prouve",
+  );
+  t.check(
+    "…et le poids de priorité suit ce plafond",
+    EVIDENCE_WEIGHT["fortement_suggere"] < EVIDENCE_WEIGHT["prouve"],
+    true,
+  );
+  // Toute règle qui lit une portée doit la composer avec `capLevel` : c'est le
+  // seul endroit où le plafond d'échantillon peut être oublié.
+  for (const r of RULES) {
+    const src = r.evaluate.toString();
+    if (src.includes("lirePortee(")) {
+      t.check(`${r.id} compose son niveau avec la portée`, src.includes("capLevel("), true);
     }
   }
 

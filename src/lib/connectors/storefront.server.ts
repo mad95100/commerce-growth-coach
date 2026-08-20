@@ -80,29 +80,93 @@ export const MAX_LANDING_CHECKS = 5;
 export const MAX_PRODUCT_PAGES = 5;
 
 /**
- * L'échantillon de fiches, déterministe.
+ * Places réservées à ce que la boutique MET EN AVANT.
  *
- * DANS L'ORDRE OÙ LA BOUTIQUE LES MONTRE. La page de collection d'abord, puis
- * la page d'accueil pour compléter. Ce n'est pas un tirage au sort : c'est
- * exactement ce qu'un visiteur rencontre en premier, donc l'échantillon dont
- * les défauts coûtent le plus. Un tri alphabétique aurait été tout aussi
- * reproductible et aurait décrit une boutique que personne ne parcourt.
+ * Les deux premières fiches viennent de la vitrine, le reste du catalogue. Ce
+ * partage n'est pas arbitraire : les deux moitiés répondent à deux questions
+ * différentes, et se remplacer l'une l'autre les rendrait toutes deux fausses.
+ *
+ * La vitrine dit ce que le visiteur RENCONTRE — un défaut y coûte le plus cher,
+ * puisque c'est la page qui reçoit le trafic. Le catalogue dit ce que la
+ * boutique EST — et lui seul évite le biais de vitrine, celui qui fait
+ * surestimer la qualité moyenne parce qu'on n'a regardé que les meilleures
+ * pages, celles que le marchand a choisi d'exposer.
+ */
+export const VITRINE_SLOTS = 2;
+
+/** D'où vient chaque fiche de l'échantillon. La preuve le dira. */
+export type Echantillon = {
+  chemins: string[];
+  /** Fiches venues de l'accueil ou de la collection. */
+  vitrine: number;
+  /** Fiches réparties sur le catalogue complet. */
+  catalogue: number;
+};
+
+/**
+ * L'échantillon de fiches, déterministe et hybride.
+ *
+ * LE BIAIS QUE CETTE FONCTION CORRIGE. La version précédente ne suivait que les
+ * liens de l'accueil et de la collection : elle n'inspectait donc que ce que la
+ * boutique met en avant, c'est-à-dire ses meilleures pages. Un échantillon tiré
+ * de la vitrine surestime structurellement la qualité moyenne du catalogue —
+ * et le rapport concluait sur cette surestimation sans que rien ne le signale.
+ *
+ * Les identifiants de catalogue viennent de l'API Admin, du MÊME appel qui
+ * alimente déjà les observations de catalogue, sous une permission déjà
+ * accordée. Aucun appel de plus, aucune autorisation de plus.
+ *
+ * LE PAS EST RÉGULIER, PAS ALÉATOIRE. Prendre les cinq premiers du catalogue
+ * reviendrait à ne lire que les plus anciennes fiches ; un tirage au sort
+ * rendrait deux audits successifs incomparables. Un pas régulier balaie la
+ * liste de bout en bout et rend exactement le même échantillon deux fois.
  *
  * Deux fois le même produit ne compte qu'une fois : `?variant=` mène à la même
  * fiche, et la lire deux fois gonflerait le dénominateur sans rien apprendre.
  */
-export function productSample(homeLinks: string[], collectionLinks: string[]): string[] {
+export function productSample(
+  homeLinks: string[],
+  collectionLinks: string[],
+  catalogueHandles: string[] = [],
+): Echantillon {
   const vus = new Set<string>();
-  const echantillon: string[] = [];
-  for (const lien of [...collectionLinks, ...homeLinks]) {
-    if (!lien.startsWith("/products/")) continue;
-    const chemin = lien.split(/[?#]/)[0].replace(/\/$/, "");
-    if (vus.has(chemin)) continue;
+  const chemins: string[] = [];
+  const prendre = (chemin: string) => {
+    if (vus.has(chemin) || chemins.length >= MAX_PRODUCT_PAGES) return false;
     vus.add(chemin);
-    echantillon.push(chemin);
-    if (echantillon.length >= MAX_PRODUCT_PAGES) break;
+    chemins.push(chemin);
+    return true;
+  };
+
+  // 1. La vitrine, dans l'ordre où la boutique la présente : collection
+  //    d'abord — elle en liste une vingtaine —, accueil pour compléter.
+  //    Bornée, pour laisser la place au catalogue.
+  let vitrine = 0;
+  const placesVitrine = catalogueHandles.length > 0 ? VITRINE_SLOTS : MAX_PRODUCT_PAGES;
+  for (const lien of [...collectionLinks, ...homeLinks]) {
+    if (vitrine >= placesVitrine) break;
+    if (!lien.startsWith("/products/")) continue;
+    if (prendre(lien.split(/[?#]/)[0].replace(/\/$/, ""))) vitrine++;
   }
-  return echantillon;
+
+  // 2. Le catalogue, à pas régulier sur toute la liste.
+  let catalogue = 0;
+  const restant = MAX_PRODUCT_PAGES - chemins.length;
+  if (catalogueHandles.length > 0 && restant > 0) {
+    const pas = Math.max(1, Math.floor(catalogueHandles.length / restant));
+    for (let i = 0; i < catalogueHandles.length && chemins.length < MAX_PRODUCT_PAGES; i += pas) {
+      if (prendre(`/products/${catalogueHandles[i]}`)) catalogue++;
+    }
+    // Le pas a pu tomber sur des fiches déjà prises par la vitrine : on
+    // complète alors dans l'ordre, plutôt que de rendre un échantillon plus
+    // maigre que ce que le catalogue permettait.
+    for (const handle of catalogueHandles) {
+      if (chemins.length >= MAX_PRODUCT_PAGES) break;
+      if (prendre(`/products/${handle}`)) catalogue++;
+    }
+  }
+
+  return { chemins, vitrine, catalogue };
 }
 
 /** Pages de politique dont l'absence est un fait de confiance vérifiable. */
@@ -239,6 +303,7 @@ export type StorefrontScan = SourceReport & { homeHtml: string | null };
 export async function scanStorefront(
   storeUrl: string | null,
   landingPaths: Array<{ path: string; orders: number }> = [],
+  catalogueHandles: string[] = [],
   fetcher: Fetcher = fetch,
 ): Promise<StorefrontScan> {
   const origin = toOrigin(storeUrl);
@@ -308,8 +373,9 @@ export async function scanStorefront(
   const echantillon = productSample(
     homeFacts?.internalLinks ?? [],
     collectionFacts?.internalLinks ?? [],
+    catalogueHandles,
   );
-  const productRun = await withinBudget(echantillon, clock, (path) =>
+  const productRun = await withinBudget(echantillon.chemins, clock, (path) =>
     getPage(fetcher, `${origin}${path}`, "produit"),
   );
   pages.push(...productRun.done);
@@ -373,6 +439,10 @@ export async function scanStorefront(
 
   const { observations, gaps } = storefrontObservations({
     origin,
+    // D'où vient l'échantillon : la preuve le dira, parce que la réponse change
+    // ce que le constat a le droit d'affirmer.
+    sampleOrigin: { vitrine: echantillon.vitrine, catalogue: echantillon.catalogue },
+    catalogueKnown: catalogueHandles.length,
     // `robots.txt` n'est pas une page du parcours : il ne doit pas peser dans
     // les temps de réponse ni dans les poids de document.
     pages,

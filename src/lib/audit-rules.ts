@@ -375,7 +375,25 @@ function trace(ctx: RuleContext, ids: string[]) {
  * se calcule sur deux nombres réellement comptés — combien de fiches présentent
  * le défaut, combien ont été ouvertes.
  */
-export type Portee = "aucune" | "une_fiche" | "plusieurs_fiches" | "toutes_les_inspectees";
+export type Portee =
+  "aucune" | "une_fiche" | "plusieurs_fiches" | "toutes_les_inspectees" | "catalogue_complet";
+
+/**
+ * Couverture en dessous de laquelle un échantillon ne peut plus PROUVER.
+ *
+ * POURQUOI CE SEUIL EXISTE, ET CE QU'IL NE DIT PAS. « 3 des 5 fiches
+ * inspectées » reste vrai quel que soit le catalogue : la phrase porte sur
+ * l'échantillon, et elle est démontrée. Mais le marchand, lui, agit sur son
+ * catalogue — et cinq fiches sur trois cents ne soutiennent pas la même
+ * décision que cinq fiches sur douze.
+ *
+ * Le constat n'est donc pas rendu faux : il est rendu MOINS PESANT. Son niveau
+ * plafonne à « fortement suggéré », dont le poids de priorité vaut 0,6 au lieu
+ * de 1. C'est la traduction mécanique d'une évidence : une observation issue
+ * de 5 fiches sur 100 ne doit pas être traitée comme une observation portant
+ * sur 100.
+ */
+export const COUVERTURE_MIN_POUR_PROUVER = 0.2;
 
 export type ScopeReading = {
   portee: Portee;
@@ -383,6 +401,12 @@ export type ScopeReading = {
   touchees: number;
   /** Fiches réellement ouvertes. Le dénominateur, jamais implicite. */
   inspectees: number;
+  /**
+   * Part du catalogue réellement ouverte. `null` quand le catalogue est inconnu.
+   *
+   * Elle ne change pas ce qui est vrai — elle change ce que le constat pèse.
+   */
+  couverture: number | null;
   /** La phrase de portée, telle qu'elle entre dans un constat. */
   phrase: string;
   /**
@@ -414,39 +438,77 @@ export function lirePortee(
       portee: "aucune",
       touchees: 0,
       inspectees: n,
+      couverture: null,
       phrase:
         n <= 0 ? "aucune fiche produit n'a pu être ouverte" : `aucune des ${n} fiches inspectées`,
       plafond: "donnee_insuffisante",
     };
   }
+  const catalogueConnu = typeof total === "number" && total > 0;
+  const couverture = catalogueConnu ? n / total! : null;
   const surCatalogue =
-    typeof total === "number" && total > n ? `, sur un catalogue de ${total} produits` : "";
+    catalogueConnu && total! > n ? `, sur un catalogue de ${total} produits` : "";
   if (n === 1) {
     return {
       portee: "une_fiche",
       touchees: 1,
       inspectees: 1,
+      couverture,
       phrase: `sur la seule fiche produit inspectée${surCatalogue}`,
       // UNE PAGE NE PROUVE PAS UN CATALOGUE. Le plafond est ici, mécanisé, et
       // non laissé à la vigilance de chaque règle.
       plafond: "a_verifier",
     };
   }
+
+  /*
+    LA COUVERTURE DÉCIDE DU POIDS, PAS DE LA VÉRITÉ.
+
+    « 3 des 5 fiches inspectées » est démontré, que le catalogue en compte
+    douze ou trois cents. Mais ce n'est pas la même information : dans le
+    premier cas l'échantillon EST presque le catalogue, dans le second il en
+    montre un vingtième. Le constat garde donc sa formulation exacte et perd du
+    poids — « fortement suggéré » plutôt que « prouvé » — ce qui le fait
+    descendre dans le classement sans rien lui faire dire de faux.
+  */
+  const plafond: EvidenceLevel =
+    couverture !== null && couverture < COUVERTURE_MIN_POUR_PROUVER
+      ? "fortement_suggere"
+      : "prouve";
+
+  // L'échantillon couvre tout le catalogue connu : c'est le seul cas où parler
+  // du catalogue n'est pas une extrapolation.
+  if (catalogueConnu && n >= total!) {
+    return {
+      portee: "catalogue_complet",
+      touchees: k,
+      inspectees: n,
+      couverture,
+      phrase:
+        k === n
+          ? `sur les ${n} fiches du catalogue, toutes inspectées`
+          : `sur ${k} des ${n} fiches du catalogue, toutes inspectées`,
+      plafond: "prouve",
+    };
+  }
+
   if (k === n) {
     return {
       portee: "toutes_les_inspectees",
       touchees: k,
       inspectees: n,
+      couverture,
       phrase: `sur les ${n} fiches produit inspectées, toutes${surCatalogue}`,
-      plafond: "prouve",
+      plafond,
     };
   }
   return {
     portee: "plusieurs_fiches",
     touchees: k,
     inspectees: n,
+    couverture,
     phrase: `sur ${k} des ${n} fiches produit inspectées${surCatalogue}`,
-    plafond: "prouve",
+    plafond,
   };
 }
 

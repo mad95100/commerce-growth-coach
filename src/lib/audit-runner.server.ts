@@ -99,6 +99,8 @@ export async function executeAuditWork(input: {
   let landings: Array<{ path: string; orders: number }> = [];
   /** Titres et descriptions, pour lire le vocabulaire adressé au client. */
   let productTexts: string[] = [];
+  /** Adresses des fiches publiées, pour un échantillon non biaisé par la vitrine. */
+  let catalogueHandles: string[] = [];
   /*
     UNE COLLECTE EN ÉCHEC DOIT LAISSER UNE TRACE QUE LE MARCHAND PEUT LIRE.
 
@@ -156,6 +158,11 @@ export async function executeAuditWork(input: {
       reports.push(shopifyReports.shopify, shopifyReports.organic);
       landings = shopifyReports.landings;
       productTexts = shopifyReports.productTexts;
+      // LE CATALOGUE COMPLET, POUR QUE LE SCAN NE LISE PLUS QUE LA VITRINE.
+      // Ces identifiants viennent du même appel, sous la même permission déjà
+      // accordée. Sans eux, le scan ne découvre des fiches qu'en suivant les
+      // liens de l'accueil — donc uniquement ce que la boutique met en avant.
+      catalogueHandles = shopifyReports.productHandles;
     } catch (err) {
       console.error("[audit] collecte Shopify impossible :", err);
       reports.push(
@@ -221,7 +228,7 @@ export async function executeAuditWork(input: {
   let homeHtml: string | null = null;
   try {
     const { scanStorefront } = await import("@/lib/connectors/storefront.server");
-    const storefrontScan = await scanStorefront(store.url, landings);
+    const storefrontScan = await scanStorefront(store.url, landings, catalogueHandles);
     reports.push(storefrontScan);
     homeHtml = storefrontScan.homeHtml;
   } catch (err) {

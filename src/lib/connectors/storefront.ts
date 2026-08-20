@@ -92,6 +92,19 @@ export type StorefrontRaw = {
    * différemment selon le CSS, et aucune requête serveur ne le dira.
    */
   mobileHome?: FetchedPage | null;
+  /**
+   * D'où viennent les fiches inspectées : de la vitrine, du catalogue, ou des
+   * deux.
+   *
+   * CE QUE CE CHAMP EMPÊCHE. Un échantillon tiré de la seule vitrine décrit ce
+   * que la boutique met en avant — ses meilleures pages — et surestime donc la
+   * qualité moyenne du catalogue. Un échantillon réparti sur le catalogue n'a
+   * pas ce biais. Les deux produisent les mêmes chiffres et n'autorisent pas les
+   * mêmes phrases : la preuve doit dire lequel a été lu.
+   */
+  sampleOrigin?: { vitrine: number; catalogue: number };
+  /** Fiches publiées connues par l'API. `0` = catalogue non consulté. */
+  catalogueKnown?: number;
 };
 
 /** Fenêtre : un scan est un instantané, pas une moyenne. */
@@ -716,6 +729,28 @@ export function storefrontObservations(raw: StorefrontRaw): {
     }));
     const n = echantillon.length;
     const adresses = echantillon.map((e) => e.page.url).join(", ");
+    /*
+      LA PROVENANCE ENTRE DANS LA PREUVE, et ce n'est pas un détail de méthode.
+
+      « 5 fiches inspectées » ne dit pas la même chose selon qu'elles viennent
+      de la page d'accueil — donc des fiches que le marchand a choisi de mettre
+      en avant — ou d'un balayage régulier du catalogue. Le premier échantillon
+      surestime la qualité moyenne par construction. Un lecteur qui ne peut pas
+      faire la différence lit le second alors qu'on lui montre le premier.
+    */
+    const o = raw.sampleOrigin;
+    const provenance = (() => {
+      if (!o || (o.vitrine === 0 && o.catalogue === 0)) {
+        return "provenance de l'échantillon non renseignée";
+      }
+      if (o.catalogue === 0) {
+        return `toutes issues du parcours visible (accueil et collection), le catalogue complet n'ayant pas été consulté — un tel échantillon montre ce que la boutique met en avant, pas sa moyenne`;
+      }
+      if (o.vitrine === 0) {
+        return `réparties à pas régulier sur les ${raw.catalogueKnown ?? "?"} fiches publiées du catalogue`;
+      }
+      return `${o.vitrine} issues du parcours visible et ${o.catalogue} réparties à pas régulier sur les ${raw.catalogueKnown ?? "?"} fiches publiées du catalogue`;
+    })();
 
     add(
       observe({
@@ -726,7 +761,7 @@ export function storefrontObservations(raw: StorefrontRaw): {
         value: n,
         unit: "count",
         periodDays: STOREFRONT_WINDOW_DAYS,
-        evidence: `${n} fiche(s) produit ouverte(s) pendant le diagnostic, dans l'ordre où la boutique les présente : ${adresses}`,
+        evidence: `${n} fiche(s) produit ouverte(s) pendant le diagnostic — ${provenance} : ${adresses}`,
         sample: n,
       }),
     );

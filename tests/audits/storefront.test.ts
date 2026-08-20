@@ -506,6 +506,7 @@ export default defineSuite("Site public — faits techniques et frontière", asy
   const cut = await scanStorefront(
     "boutique.fr",
     [{ path: "/products/a", orders: 12 }],
+    [],
     slowFetcher as never,
   );
   t.check("un scan reste borné en nombre de requêtes", calls <= 25, true);
@@ -518,7 +519,10 @@ export default defineSuite("Site public — faits techniques et frontière", asy
   const runner = read("src/lib/audit-runner.server.ts");
   t.check(
     "l'audit lance bien le scan",
-    runner.includes("scanStorefront(store.url, landings)"),
+    // Le contrôle vise la RÈGLE — l'audit lance le scan avec l'adresse de la
+    // boutique — et non la liste exacte des arguments, qui s'allonge à mesure
+    // que le scan reçoit de quoi ne plus lire que la vitrine.
+    /scanStorefront\(store\.url, landings/.test(runner),
     true,
   );
   t.check(

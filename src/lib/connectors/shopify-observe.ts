@@ -31,6 +31,16 @@ export type RawVariant = {
 
 export type RawProduct = {
   id?: number | string;
+  /**
+   * Le segment d'URL de la fiche : `/products/{handle}`.
+   *
+   * POURQUOI IL EST LU. Sans lui, le scan du site public ne peut découvrir des
+   * fiches qu'en suivant les liens de l'accueil et de la collection — donc
+   * uniquement ce que la boutique MET EN AVANT. Le champ appartient à la même
+   * ressource, sous la même permission déjà accordée : le demander ne change
+   * rien à ce que le marchand a autorisé.
+   */
+  handle?: string | null;
   title?: string | null;
   body_html?: string | null;
   status?: string | null;

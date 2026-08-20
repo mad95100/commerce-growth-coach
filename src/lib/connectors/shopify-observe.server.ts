@@ -36,6 +36,24 @@ export type ShopifyReports = {
    */
   landings: Array<{ path: string; orders: number }>;
   /**
+   * Les segments d'URL des fiches PUBLIÉES, dans l'ordre du catalogue.
+   *
+   * POURQUOI ILS SORTENT D'ICI. Le scan du site public ne découvrait des fiches
+   * qu'en suivant les liens de l'accueil et d'une collection : il n'inspectait
+   * donc que ce que la boutique met en avant, c'est-à-dire ses meilleures
+   * pages. Un échantillon tiré de la vitrine surestime structurellement la
+   * qualité moyenne du catalogue.
+   *
+   * Ces identifiants viennent du MÊME appel qui alimente déjà les observations
+   * de catalogue, sous la MÊME permission déjà accordée. Aucun appel de plus,
+   * aucune autorisation de plus.
+   *
+   * Seules les fiches actives y figurent : une fiche en brouillon n'a pas
+   * d'adresse publique, et l'ouvrir renverrait une erreur qui se lirait comme
+   * une page cassée.
+   */
+  productHandles: string[];
+  /**
    * L'entonnoir brut, conservé pour localiser la fuite.
    *
    * Il ne passe pas par les observations : localiser une fuite demande de
@@ -60,6 +78,7 @@ function unreachable(error: string, cause: SourceFailureCause = "injoignable"): 
     shopify: { ...shopifyUnreachable(error), cause },
     organic: { source: "organic", observations: [], gaps: [], reachable: false, error, cause },
     landings: [],
+    productHandles: [],
     productTexts: [],
     funnel: {
       sessions: null,
@@ -181,7 +200,7 @@ export async function fetchShopifyObservations(
   const [countJson, productsJson, ordersJson, checkoutsJson] = await Promise.all([
     get<{ count?: number }>("products/count.json"),
     get<{ products?: RawProduct[] }>(
-      `products.json?limit=${MAX_PRODUCTS}&fields=id,title,body_html,status,images,variants`,
+      `products.json?limit=${MAX_PRODUCTS}&fields=id,handle,title,body_html,status,images,variants`,
     ),
     get<{ orders?: RawOrder[] }>(
       `orders.json?status=any&limit=${MAX_ORDERS}&created_at_min=${since}` +
@@ -251,6 +270,10 @@ export async function fetchShopifyObservations(
     },
     organic: organicReport(raw),
     landings: topLandingPaths(raw.orders),
+    productHandles: products
+      .filter((p) => p.status == null || p.status === "active")
+      .map((p) => (typeof p.handle === "string" ? p.handle.trim() : ""))
+      .filter((h) => h.length > 0),
     funnel,
     productTexts: products.flatMap((p) =>
       [p.title ?? "", stripHtml(p.body_html ?? "")].filter((x) => x.trim().length > 0),

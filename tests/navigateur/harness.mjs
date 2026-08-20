@@ -192,7 +192,7 @@ const findings = [
     severity: "medium",
     evidence: {
       based_on:
-        "Titre principal relevé sur la page d'accueil : « Collection ». 4 des 5 fiches produit inspectées n'exposent aucun prix en donnée structurée, sur un catalogue de 48 produits.",
+        "Titre principal relevé sur la page d'accueil : « Collection ». 4 des 5 fiches produit inspectées n'exposent aucun prix en donnée structurée, sur un catalogue de 48 produits — 2 issues du parcours visible et 3 réparties à pas régulier sur les 48 fiches publiées du catalogue.",
       assumptions: "Nous n'avons pas mesuré le taux de rebond par source de trafic.",
     },
     impact_description: "Un visiteur ne peut pas savoir ce qu'il achète.",
