@@ -31,6 +31,16 @@ export type RawVariant = {
 
 export type RawProduct = {
   id?: number | string;
+  /**
+   * Le segment d'URL de la fiche : `/products/{handle}`.
+   *
+   * POURQUOI IL EST LU. Sans lui, le scan du site public ne peut découvrir des
+   * fiches qu'en suivant les liens de l'accueil et de la collection — donc
+   * uniquement ce que la boutique MET EN AVANT. Le champ appartient à la même
+   * ressource, sous la même permission déjà accordée : le demander ne change
+   * rien à ce que le marchand a autorisé.
+   */
+  handle?: string | null;
   title?: string | null;
   body_html?: string | null;
   status?: string | null;
@@ -139,6 +149,65 @@ export function isOutOfStock(product: RawProduct): boolean {
   return tracked.every((v) => v.inventory_quantity! <= 0);
 }
 
+/**
+ * TROIS ÉTATS DE DISPONIBILITÉ, ET JAMAIS DEUX.
+ *
+ * « Disponible » et « en rupture » ne couvrent pas le catalogue : il existe un
+ * troisième cas, majoritaire chez les marchands qui ne suivent pas leur stock,
+ * et c'est « nous ne savons pas ». Le confondre avec l'un des deux autres
+ * produit un mensonge dans les deux sens — annoncer des ruptures qui n'existent
+ * pas, ou promettre une disponibilité qu'on n'a pas lue.
+ *
+ * `isOutOfStock` tient déjà le premier bord de cette ligne. Ces deux fonctions
+ * tiennent le second : elles nomment ce qui n'est PAS mesurable, pour que le
+ * moteur puisse le déclarer manquant au lieu de le compter comme sain.
+ */
+export function stockIsUnknowable(product: RawProduct): boolean {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  if (variants.length === 0) return true;
+  const tracked = variants.filter((v) => v.inventory_management != null);
+  // Aucun suivi de stock : Shopify vend sans compter, donc rien ne se lit.
+  if (tracked.length === 0) return true;
+  // Suivi déclaré mais quantité illisible : la mesure existe et ne nous parvient
+  // pas. Le résultat est le même — nous ne savons pas.
+  return tracked.some((v) => typeof v.inventory_quantity !== "number");
+}
+
+/**
+ * Un produit dont CERTAINES variantes seulement sont épuisées.
+ *
+ * POURQUOI CE CAS MÉRITE SON PROPRE CONSTAT. « En rupture » et « disponible »
+ * décrivent tous deux une page cohérente. Celui-ci décrit une page qui propose
+ * un choix — une taille, une couleur — dont une partie ne peut pas être
+ * achetée. Le visiteur choisit, découvre que son choix est indisponible, et
+ * repart : la fiche a fait son travail de conviction pour rien.
+ *
+ * Exige de savoir lire l'état de TOUTES les variantes suivies : un produit dont
+ * une quantité est illisible ne peut pas être déclaré partiellement épuisé.
+ */
+export function isPartiallyOutOfStock(product: RawProduct): boolean {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const tracked = variants.filter((v) => v.inventory_management != null);
+  if (tracked.length < 2) return false;
+  if (tracked.some((v) => typeof v.inventory_quantity !== "number")) return false;
+  const epuisees = tracked.filter((v) => v.inventory_quantity! <= 0).length;
+  return epuisees > 0 && epuisees < tracked.length;
+}
+
+/** Une fiche expose-t-elle au moins un prix utilisable ? */
+export function hasUsablePrice(product: RawProduct): boolean {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  return variants.some((v) => {
+    const p = money(v.price);
+    return p !== null && p > 0;
+  });
+}
+
+/** Nombre de variantes déclarées. Un choix existe à partir de deux. */
+export function variantCount(product: RawProduct): number {
+  return Array.isArray(product.variants) ? product.variants.length : 0;
+}
+
 function imageCount(product: RawProduct): number {
   if (Array.isArray(product.images)) return product.images.length;
   return product.image ? 1 : 0;
@@ -215,6 +284,77 @@ export function shopifyObservations(raw: ShopifyRaw): SourceReport {
       unit: "count",
       periodDays: 0,
       evidence: `${outOfStock} produits sur ${scope} ont toutes leurs variantes suivies à zéro (Shopify /products.json)`,
+      sample: products.length,
+    });
+
+    /*
+      PRIX, VARIANTES, DISPONIBILITÉ — trois familles lues depuis toujours dans
+      le même appel, et dont rien ne sortait.
+
+      Les variantes servaient uniquement à décider si un produit était en
+      rupture ; leur nombre, leur prix et leur disponibilité PARTIELLE
+      n'existaient nulle part. C'est pourtant là que se joue une bonne part du
+      merchandising : une fiche sans prix ne se vend pas, et une fiche qui
+      propose un choix dont la moitié est épuisée fait travailler la conviction
+      pour rien.
+    */
+    const sansPrix = products.filter((p) => !hasUsablePrice(p)).length;
+    const multiVariante = products.filter((p) => variantCount(p) > 1).length;
+    const partiellementEpuises = products.filter(isPartiallyOutOfStock).length;
+    const stockInconnu = products.filter(stockIsUnknowable).length;
+
+    add({
+      id: "shopify.products_without_price",
+      source: "shopify",
+      domain: "offre",
+      label: "Fiches sans prix utilisable",
+      value: sansPrix,
+      unit: "count",
+      periodDays: 0,
+      evidence: `${sansPrix} fiches sur ${scope} n'exposent aucune variante à un prix strictement positif (Shopify /products.json)`,
+      sample: products.length,
+    });
+    add({
+      id: "shopify.products_multi_variant",
+      source: "shopify",
+      domain: "produit",
+      label: "Fiches proposant un choix",
+      value: multiVariante,
+      unit: "count",
+      periodDays: 0,
+      evidence: `${multiVariante} fiches sur ${scope} déclarent plus d'une variante (Shopify /products.json)`,
+      sample: products.length,
+    });
+    add({
+      id: "shopify.products_partially_out_of_stock",
+      source: "shopify",
+      domain: "operations",
+      label: "Fiches partiellement épuisées",
+      value: partiellementEpuises,
+      unit: "count",
+      periodDays: 0,
+      evidence: `${partiellementEpuises} fiches sur ${scope} ont une partie de leurs variantes suivies à zéro, l'autre partie disponible (Shopify /products.json)`,
+      sample: products.length,
+    });
+    /*
+      LE TROISIÈME ÉTAT, celui qui manquait.
+
+      « Disponible » et « en rupture » ne couvrent pas le catalogue. Un produit
+      dont le stock n'est pas suivi, ou dont la quantité ne nous parvient pas,
+      n'est ni l'un ni l'autre : il est illisible. Le ranger dans l'une des deux
+      cases produirait soit une rupture inventée, soit une disponibilité
+      promise sans l'avoir lue. Cette observation le compte pour ce qu'il est,
+      et une règle en fait un manque de donnée nommé — pas un problème.
+    */
+    add({
+      id: "shopify.products_stock_inconnu",
+      source: "shopify",
+      domain: "operations",
+      label: "Fiches dont la disponibilité n'est pas lisible",
+      value: stockInconnu,
+      unit: "count",
+      periodDays: 0,
+      evidence: `${stockInconnu} fiches sur ${scope} ne permettent pas d'établir la disponibilité : stock non suivi, ou quantité non renvoyée par Shopify (Shopify /products.json)`,
       sample: products.length,
     });
 

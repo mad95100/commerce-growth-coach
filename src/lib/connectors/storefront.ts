@@ -43,6 +43,11 @@
  */
 
 import { observe, type Observation, type ObservationGap } from "@/lib/observations";
+// Le compte des appels à l'action et le titre de niveau 1 sont lus par le module
+// d'expérience. Les importer plutôt que de les recopier évite que deux
+// détecteurs du même objet ne finissent par répondre deux choses différentes.
+// Les deux modules sont purs ; il n'y a pas de cycle.
+import { litLeTitrePrincipal, litLesCliquables } from "@/lib/storefront-experience";
 
 /** Une page telle que le réseau l'a rendue. `null` partout = jamais atteinte. */
 export type FetchedPage = {
@@ -87,6 +92,19 @@ export type StorefrontRaw = {
    * différemment selon le CSS, et aucune requête serveur ne le dira.
    */
   mobileHome?: FetchedPage | null;
+  /**
+   * D'où viennent les fiches inspectées : de la vitrine, du catalogue, ou des
+   * deux.
+   *
+   * CE QUE CE CHAMP EMPÊCHE. Un échantillon tiré de la seule vitrine décrit ce
+   * que la boutique met en avant — ses meilleures pages — et surestime donc la
+   * qualité moyenne du catalogue. Un échantillon réparti sur le catalogue n'a
+   * pas ce biais. Les deux produisent les mêmes chiffres et n'autorisent pas les
+   * mêmes phrases : la preuve doit dire lequel a été lu.
+   */
+  sampleOrigin?: { vitrine: number; catalogue: number };
+  /** Fiches publiées connues par l'API. `0` = catalogue non consulté. */
+  catalogueKnown?: number;
 };
 
 /** Fenêtre : un scan est un instantané, pas une moyenne. */
@@ -151,6 +169,29 @@ export type PageFacts = {
   internalLinks: string[];
   /** Le document est-il servi en `noindex` ? Fait technique majeur. */
   isNoindex: boolean;
+  /**
+   * Fiches produit ATTEIGNABLES depuis cette page, dédoublonnées.
+   *
+   * Sur une page de collection, c'est le nombre de choix réellement offerts au
+   * visiteur. Sur l'accueil, c'est le nombre de produits qu'il peut ouvrir sans
+   * chercher. Un compte de liens n'est pas un compte de produits en catalogue —
+   * l'API Admin donne le second, et les deux ensemble disent si le catalogue
+   * est visible ou seulement existant.
+   */
+  productLinks: number;
+  /** Collections atteignables depuis cette page, dédoublonnées. */
+  collectionLinks: number;
+  /** Un formulaire de recherche est-il exposé ? */
+  hasSearchForm: boolean;
+  /**
+   * Des filtres de collection sont-ils exposés ?
+   *
+   * Shopify sert ses facettes par des paramètres `filter.` et un formulaire
+   * nommé. Les deux formes se lisent dans le document servi ; leur ABSENCE au
+   * delà d'un certain nombre d'articles est ce qui rend une collection
+   * impraticable.
+   */
+  hasFacetFilters: boolean;
 };
 
 const TAG = (name: string) => new RegExp(`<${name}\\b[^>]*>`, "gi");
@@ -313,6 +354,22 @@ export function analysePage(html: string, origin: string): PageFacts {
     mentionsShipping: SHIPPING_WORDS.some((word) => html.toLowerCase().includes(word)),
     internalLinks: [...links],
     isNoindex: /noindex/i.test(attr(robotsTag?.[0] ?? "", "content") ?? ""),
+    // Dédoublonnage par la fiche, pas par l'URL : `/products/x` et
+    // `/products/x?variant=42` mènent au même produit, et les compter deux fois
+    // gonflerait artificiellement la richesse d'une collection.
+    productLinks: new Set(
+      [...links]
+        .filter((l) => l.startsWith("/products/"))
+        .map((l) => l.split(/[?#]/)[0].replace(/\/$/, "")),
+    ).size,
+    collectionLinks: new Set(
+      [...links]
+        .filter((l) => l.startsWith("/collections/"))
+        .map((l) => l.split(/[?#]/)[0].replace(/\/$/, "")),
+    ).size,
+    hasSearchForm:
+      /action\s*=\s*["'][^"']*\/search/i.test(html) || /name\s*=\s*["']q["']/i.test(html),
+    hasFacetFilters: /filter\.[vp]\./i.test(html) || /facetfiltersform/i.test(html),
   };
 }
 
@@ -343,7 +400,18 @@ export function storefrontObservations(raw: StorefrontRaw): {
   const add = (o: Observation) => observations.push(o);
 
   const home = pageOf(raw, "accueil");
-  const product = pageOf(raw, "produit");
+  const collection = pageOf(raw, "collection");
+  /*
+    TOUTES LES FICHES LUES, PAS LA PREMIÈRE.
+
+    `product` reste la première : les observations de structure et les
+    croisements qui parlent d'UNE page gardent exactement leur sens. Ce qui
+    change, c'est que le moteur dispose désormais de l'ensemble, avec son
+    dénominateur — de quoi distinguer un défaut isolé d'un défaut systématique,
+    ce qu'une fiche unique ne permettait pas même en principe.
+  */
+  const productPages = raw.pages.filter((p) => p.role === "produit" && isOk(p) && p.html);
+  const product = productPages[0] ?? pageOf(raw, "produit");
 
   // --- Disponibilité et temps de réponse -----------------------------------
   const reachable = raw.pages.filter((p) => isOk(p));
@@ -421,6 +489,125 @@ export function storefrontObservations(raw: StorefrontRaw): {
   if (isOk(home) && home?.html) {
     const facts = analysePage(home.html, raw.origin);
     addStructureObservations(add, facts, "accueil", raw.origin);
+
+    // COMMENT ON ENTRE DANS LE CATALOGUE. Le scan savait déjà ouvrir une
+    // collection — il s'en servait pour choisir une page à télécharger, puis
+    // jetait le compte. Or c'est le compte qui dit quelque chose : une page
+    // d'accueil qui ne mène à aucune collection oblige chaque visiteur à passer
+    // par le menu, et une qui n'expose aucun produit ne montre rien à acheter.
+    add(
+      observe({
+        id: "storefront.accueil_collection_links",
+        source: "storefront",
+        domain: "boutique",
+        label: "Collections atteignables depuis l'accueil",
+        value: facts.collectionLinks,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: `${facts.collectionLinks} collection(s) distincte(s) et ${facts.productLinks} fiche(s) produit distincte(s) atteignables en un clic depuis ${home.url}`,
+        sample: 1,
+      }),
+    );
+    /*
+      LES TROIS PIÈCES DU PARCOURS D'ENTRÉE, chacune mesurée séparément.
+
+      Elles existaient déjà, éparpillées : le titre et les boutons dans le
+      module d'expérience, qui produit ses propres constats sans passer par les
+      règles ; les liens de collection ici. Aucune règle ne pouvait donc les
+      RAPPROCHER — et c'est le rapprochement qui vaut quelque chose. Un titre
+      court est un détail ; un titre court, aucun bouton d'action et aucune
+      porte vers le catalogue, c'est une page d'accueil qui ne mène nulle part.
+    */
+    const titrePrincipal = litLeTitrePrincipal(home.html);
+    const motsDuTitre = titrePrincipal ? titrePrincipal.split(/\s+/).filter(Boolean).length : 0;
+    add(
+      observe({
+        id: "storefront.accueil_h1_mots",
+        source: "storefront",
+        domain: "boutique",
+        label: "Longueur de la promesse d'accueil",
+        value: motsDuTitre,
+        unit: "count",
+        text: titrePrincipal,
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: titrePrincipal
+          ? `Titre de niveau 1 relevé sur ${home.url} : « ${titrePrincipal} » (${motsDuTitre} mots)`
+          : `Aucun titre de niveau 1 dans le document de ${home.url}`,
+        sample: 1,
+      }),
+    );
+
+    const { labels, ctaCount } = litLesCliquables(home.html);
+    add(
+      observe({
+        id: "storefront.accueil_cta",
+        source: "storefront",
+        domain: "conversion",
+        label: "Appels à l'action sur l'accueil",
+        value: ctaCount,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence:
+          ctaCount > 0
+            ? `${ctaCount} lien(s) ou bouton(s) portant un verbe d'action sur ${labels.length} relevés dans le document de ${home.url}`
+            : `Aucun des ${labels.length} liens et boutons de ${home.url} ne porte de verbe d'achat ou de découverte`,
+        sample: 1,
+      }),
+    );
+
+    add(
+      observe({
+        id: "storefront.accueil_recherche",
+        source: "storefront",
+        domain: "boutique",
+        label: "Recherche exposée sur l'accueil",
+        value: facts.hasSearchForm ? 1 : 0,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: facts.hasSearchForm
+          ? `Un formulaire de recherche est présent dans le document de ${home.url}`
+          : `Aucun formulaire de recherche dans le document de ${home.url}`,
+        sample: 1,
+      }),
+    );
+  }
+
+  // --- La page de collection, enfin lue -------------------------------------
+  // Elle était téléchargée depuis toujours, comptée dans les temps de réponse
+  // et dans les poids, puis jetée sans être analysée. C'est pourtant la page où
+  // le visiteur CHOISIT : la fiche ne fait que confirmer un choix déjà fait.
+  if (isOk(collection) && collection?.html) {
+    const facts = analysePage(collection.html, raw.origin);
+    addStructureObservations(add, facts, "collection", raw.origin);
+
+    add(
+      observe({
+        id: "storefront.collection_produits_listes",
+        source: "storefront",
+        domain: "produit",
+        label: "Produits listés sur la collection inspectée",
+        value: facts.productLinks,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: `${facts.productLinks} fiche(s) produit distincte(s) listée(s) sur ${collection.url}`,
+        sample: 1,
+      }),
+    );
+    add(
+      observe({
+        id: "storefront.collection_filtres",
+        source: "storefront",
+        domain: "produit",
+        label: "Filtres sur la collection inspectée",
+        value: facts.hasFacetFilters ? 1 : 0,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: facts.hasFacetFilters
+          ? `Des filtres de collection sont exposés sur ${collection.url}`
+          : `Aucun filtre de collection exposé sur ${collection.url} (${facts.productLinks} produit(s) listé(s))`,
+        sample: 1,
+      }),
+    );
   }
   if (isOk(product) && product?.html) {
     const facts = analysePage(product.html, raw.origin);
@@ -514,6 +701,132 @@ export function storefrontObservations(raw: StorefrontRaw): {
       wouldEnable:
         "Vérifier que la page que le visiteur ouvre porte bien un prix, un ajout au panier et de quoi décider.",
     });
+  }
+
+  /*
+    L'ÉCHANTILLON, ET SON DÉNOMINATEUR.
+
+    CE QUE CE BLOC EMPÊCHE. Jusqu'ici, une seule fiche était lue et les constats
+    parlaient du catalogue : « les fiches produit n'ont pas de description ».
+    Une boutique dont la fiche mise en avant est soignée passait pour
+    irréprochable, une boutique dont la première fiche est un brouillon oublié
+    était condamnée sur cet unique exemplaire, et personne ne pouvait faire la
+    différence entre les deux en lisant le rapport.
+
+    Chaque observation ci-dessous porte donc DEUX nombres : combien de fiches
+    présentent le défaut, et combien ont été inspectées. Le second n'est pas un
+    détail de méthode — c'est lui qui autorise ou interdit de généraliser, et
+    les règles s'en servent pour choisir entre « sur la seule fiche inspectée »,
+    « sur k des n inspectées » et « sur les n inspectées, toutes ».
+
+    AUCUN CONSTAT NE PARLE DU CATALOGUE. Cinq fiches sur trois cents restent
+    cinq fiches ; le dénombrement le dit, et les règles ne l'oublient pas.
+  */
+  if (productPages.length > 0) {
+    const echantillon = productPages.map((p) => ({
+      page: p,
+      facts: analysePage(p.html!, raw.origin),
+    }));
+    const n = echantillon.length;
+    const adresses = echantillon.map((e) => e.page.url).join(", ");
+    /*
+      LA PROVENANCE ENTRE DANS LA PREUVE, et ce n'est pas un détail de méthode.
+
+      « 5 fiches inspectées » ne dit pas la même chose selon qu'elles viennent
+      de la page d'accueil — donc des fiches que le marchand a choisi de mettre
+      en avant — ou d'un balayage régulier du catalogue. Le premier échantillon
+      surestime la qualité moyenne par construction. Un lecteur qui ne peut pas
+      faire la différence lit le second alors qu'on lui montre le premier.
+    */
+    const o = raw.sampleOrigin;
+    const provenance = (() => {
+      if (!o || (o.vitrine === 0 && o.catalogue === 0)) {
+        return "provenance de l'échantillon non renseignée";
+      }
+      if (o.catalogue === 0) {
+        return `toutes issues du parcours visible (accueil et collection), le catalogue complet n'ayant pas été consulté — un tel échantillon montre ce que la boutique met en avant, pas sa moyenne`;
+      }
+      if (o.vitrine === 0) {
+        return `réparties à pas régulier sur les ${raw.catalogueKnown ?? "?"} fiches publiées du catalogue`;
+      }
+      return `${o.vitrine} issues du parcours visible et ${o.catalogue} réparties à pas régulier sur les ${raw.catalogueKnown ?? "?"} fiches publiées du catalogue`;
+    })();
+
+    add(
+      observe({
+        id: "storefront.produits_inspectes",
+        source: "storefront",
+        domain: "produit",
+        label: "Fiches produit inspectées",
+        value: n,
+        unit: "count",
+        periodDays: STOREFRONT_WINDOW_DAYS,
+        evidence: `${n} fiche(s) produit ouverte(s) pendant le diagnostic — ${provenance} : ${adresses}`,
+        sample: n,
+      }),
+    );
+
+    const compte = (
+      id: string,
+      domain: "conversion" | "produit" | "boutique" | "offre",
+      label: string,
+      manque: (f: PageFacts) => boolean,
+      quoi: string,
+    ) => {
+      const touchees = echantillon.filter((e) => manque(e.facts));
+      add(
+        observe({
+          id,
+          source: "storefront",
+          domain,
+          label,
+          value: touchees.length,
+          unit: "count",
+          periodDays: STOREFRONT_WINDOW_DAYS,
+          evidence:
+            touchees.length === 0
+              ? `Aucune des ${n} fiche(s) inspectée(s) ne présente ce manque : ${quoi}`
+              : `${touchees.length} des ${n} fiche(s) inspectée(s) ${quoi} — ${touchees.map((e) => e.page.url).join(", ")}`,
+          sample: n,
+        }),
+      );
+    };
+
+    compte(
+      "storefront.produits_sans_ajout_panier",
+      "conversion",
+      "Fiches sans formulaire d'ajout au panier",
+      (f) => !f.hasAddToCart,
+      "ne contiennent aucun formulaire d'ajout au panier dans le document servi",
+    );
+    compte(
+      "storefront.produits_sans_livraison",
+      "conversion",
+      "Fiches n'évoquant pas la livraison",
+      (f) => !f.mentionsShipping,
+      "n'évoquent ni livraison ni frais de port",
+    );
+    compte(
+      "storefront.produits_sans_avis",
+      "boutique",
+      "Fiches sans note client déclarée",
+      (f) => !f.hasAggregateRating,
+      "ne déclarent aucune note ni aucun avis",
+    );
+    compte(
+      "storefront.produits_sans_donnees_structurees",
+      "produit",
+      "Fiches sans données structurées produit",
+      (f) => !f.structuredDataTypes.includes("Product"),
+      "ne déclarent aucune donnée structurée de type Produit",
+    );
+    compte(
+      "storefront.produits_sans_prix",
+      "offre",
+      "Fiches sans prix en donnée structurée",
+      (f) => f.declaredPrice == null,
+      "n'exposent aucun prix en donnée structurée",
+    );
   }
 
   // --- Confiance : pages de politique réellement servies --------------------
@@ -779,6 +1092,29 @@ function addStructureObservations(
       evidence: facts.metaDescription
         ? `La page ${url} déclare une description de ${facts.metaDescription.length} caractères`
         : `La page ${url} ne déclare aucune description : les moteurs composent alors eux-mêmes l'extrait affiché`,
+      sample: 1,
+    }),
+  );
+
+  // LE TITRE DE L'ONGLET, lu depuis toujours et jamais rapporté.
+  //
+  // C'est la ligne bleue d'un résultat de recherche et le nom de l'onglet : la
+  // seule phrase que le visiteur lit AVANT d'ouvrir la page. La citer mot pour
+  // mot est aussi ce qui rend un constat reconnaissable — un lecteur du rapport
+  // doit pouvoir retrouver la page dont on parle.
+  add(
+    observe({
+      id: `storefront.${role}_title`,
+      source: "storefront",
+      domain: "acquisition",
+      label: `Titre de la page — ${role}`,
+      value: facts.title ? facts.title.length : 0,
+      unit: "count",
+      text: facts.title,
+      periodDays: STOREFRONT_WINDOW_DAYS,
+      evidence: facts.title
+        ? `Titre servi par ${url} : « ${facts.title} » (${facts.title.length} caractères)`
+        : `La page ${url} ne sert aucun titre : les moteurs et les onglets affichent alors l'adresse`,
       sample: 1,
     }),
   );

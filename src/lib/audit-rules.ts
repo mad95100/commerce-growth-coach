@@ -34,6 +34,10 @@
  */
 
 import type { Observation, ObservationGap } from "@/lib/observations";
+// Le seuil de lenteur appartient au module qui la mesure. L'importer plutôt
+// que le recopier évite qu'un jour la règle et la mesure ne parlent plus du
+// même nombre — le connecteur est pur, cet import n'introduit aucune I/O.
+import { SLOW_RESPONSE_MS } from "@/lib/connectors/storefront";
 
 // ---------------------------------------------------------------------------
 // Axes
@@ -160,6 +164,72 @@ export const THRESHOLDS = {
   RETURNING_RATE_LOW: 0.15,
   /** Part de commandes remisées au-delà de laquelle la marge est menacée. */
   DISCOUNTED_SHARE_HIGH: 0.5,
+  /**
+   * Produits en dessous duquel une page de collection ne fait plus choisir.
+   *
+   * Ce n'est pas une taille de catalogue idéale : c'est le point où la page
+   * cesse de remplir sa fonction. À trois articles, il n'y a pas de choix à
+   * faire, et le visiteur a autant vite fait d'ouvrir chaque fiche.
+   */
+  MIN_PRODUCTS_IN_COLLECTION: 4,
+  /**
+   * Catalogue au-delà duquel naviguer sans filtre devient un défilement.
+   *
+   * Le compte vient de l'API Admin, pas de la page : une collection paginée
+   * affiche vingt-quatre articles quel que soit le catalogue derrière.
+   */
+  CATALOG_NEEDS_FILTERS: 24,
+  /**
+   * Pages de politique attendues : remboursement, livraison, conditions.
+   *
+   * Exactement les trois que le scan interroge. Le seuil n'est donc pas une
+   * opinion sur ce qu'il faudrait publier : c'est le nombre de pages dont
+   * l'absence a été réellement constatée.
+   */
+  EXPECTED_POLICY_PAGES: 3,
+  /**
+   * Part de fiches À CHOIX dont une partie des variantes est épuisée.
+   *
+   * Le dénominateur est le nombre de fiches qui proposent réellement un choix,
+   * pas le catalogue : une boutique de mille produits à variante unique ne peut
+   * pas avoir de problème de choix, et le rapporter au catalogue produirait une
+   * part minuscule qui masquerait le défaut là où il existe.
+   */
+  PARTIAL_STOCK_SHARE: 0.25,
+  /**
+   * Part de fiches dont la disponibilité n'est pas lisible au-delà de laquelle
+   * le diagnostic doit le déclarer.
+   *
+   * En dessous, quelques fiches non suivies ne changent rien à ce qu'on peut
+   * conclure. Au-delà, c'est le catalogue entier dont l'état est inconnu, et le
+   * taire laisserait croire qu'il a été vérifié.
+   */
+  STOCK_UNKNOWN_SHARE: 0.3,
+  /**
+   * Mots au-delà desquels un titre d'onglet dit autre chose que le nom de la
+   * boutique. « Atelier Vela » en fait deux ; « Sacs en toile cirée » en fait
+   * quatre. Le seuil ne juge pas la qualité du titre — il sépare un nom d'une
+   * phrase.
+   */
+  TITLE_MIN_WORDS: 2,
+  /** Même raisonnement pour le titre de niveau 1 de la page d'accueil. */
+  PROMISE_MIN_WORDS: 3,
+  /**
+   * Part de l'ÉCHANTILLON de fiches au-delà de laquelle un manque cesse d'être
+   * un accident de page.
+   *
+   * La moitié, et le raisonnement tient en une phrase : une fiche sur cinq sans
+   * mention de livraison est un oubli à corriger sur cette fiche ; trois sur
+   * cinq décrivent une façon de tenir le catalogue. La distinction ne se fait
+   * pas sur le catalogue entier — nous n'en lisons qu'un échantillon — mais sur
+   * ce que nous avons réellement ouvert, et le constat le dit.
+   *
+   * Une exception assumée : l'ajout au panier absent se signale dès UNE fiche.
+   * C'est le seul manque de cette famille qui ne se dilue pas — la page
+   * concernée ne peut produire aucune commande, quel que soit l'état des
+   * autres.
+   */
+  PRODUCT_SAMPLE_SHARE: 0.5,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -225,6 +295,20 @@ export type Rule = {
    * qu'aucune observation commerciale ne corrobore.
    */
   technical?: boolean;
+  /**
+   * Règles que celle-ci REMPLACE lorsqu'elle se déclenche.
+   *
+   * POURQUOI CE CHAMP EXISTE. Une règle qui fait converger trois observations
+   * dit quelque chose que ses trois constituants ne disent pas séparément. Mais
+   * si les quatre sortent ensemble, le rapport gagne trois lignes et perd sa
+   * lisibilité : le marchand relit trois fois le même problème sous des titres
+   * différents, et conclut que l'outil radote. Mieux vaut cinq constats
+   * spécifiques que vingt-cinq recommandations qui se recouvrent.
+   *
+   * L'absorption est déclarée, jamais devinée : on peut donc toujours répondre
+   * à « où est passé ce constat ? » — il est dans celui-ci, avec ses preuves.
+   */
+  absorbs?: string[];
   evaluate: (ctx: RuleContext) => RuleFinding | null;
 };
 
@@ -272,6 +356,159 @@ function trace(ctx: RuleContext, ids: string[]) {
     evidence: used.map((o) => o.evidence),
     sample: samples.length > 0 ? Math.min(...samples) : null,
     periodDays: periods.length > 0 ? Math.max(...periods) : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Portée d'un constat d'échantillon
+// ---------------------------------------------------------------------------
+
+/**
+ * CE QU'UN ÉCHANTILLON AUTORISE À DIRE, ET RIEN DE PLUS.
+ *
+ * LE DÉFAUT QUE CE TYPE FERME. Le scan ouvrait une seule fiche produit, et les
+ * constats parlaient du catalogue : « les fiches produit n'ont pas de
+ * description ». Une phrase vraie de la page lue, fausse de la boutique, et que
+ * rien dans le rapport ne permettait de distinguer de l'autre.
+ *
+ * Quatre portées, et une seule est jamais atteinte par extrapolation : chacune
+ * se calcule sur deux nombres réellement comptés — combien de fiches présentent
+ * le défaut, combien ont été ouvertes.
+ */
+export type Portee =
+  "aucune" | "une_fiche" | "plusieurs_fiches" | "toutes_les_inspectees" | "catalogue_complet";
+
+/**
+ * Couverture en dessous de laquelle un échantillon ne peut plus PROUVER.
+ *
+ * POURQUOI CE SEUIL EXISTE, ET CE QU'IL NE DIT PAS. « 3 des 5 fiches
+ * inspectées » reste vrai quel que soit le catalogue : la phrase porte sur
+ * l'échantillon, et elle est démontrée. Mais le marchand, lui, agit sur son
+ * catalogue — et cinq fiches sur trois cents ne soutiennent pas la même
+ * décision que cinq fiches sur douze.
+ *
+ * Le constat n'est donc pas rendu faux : il est rendu MOINS PESANT. Son niveau
+ * plafonne à « fortement suggéré », dont le poids de priorité vaut 0,6 au lieu
+ * de 1. C'est la traduction mécanique d'une évidence : une observation issue
+ * de 5 fiches sur 100 ne doit pas être traitée comme une observation portant
+ * sur 100.
+ */
+export const COUVERTURE_MIN_POUR_PROUVER = 0.2;
+
+export type ScopeReading = {
+  portee: Portee;
+  /** Fiches présentant le défaut. */
+  touchees: number;
+  /** Fiches réellement ouvertes. Le dénominateur, jamais implicite. */
+  inspectees: number;
+  /**
+   * Part du catalogue réellement ouverte. `null` quand le catalogue est inconnu.
+   *
+   * Elle ne change pas ce qui est vrai — elle change ce que le constat pèse.
+   */
+  couverture: number | null;
+  /** La phrase de portée, telle qu'elle entre dans un constat. */
+  phrase: string;
+  /**
+   * Plafond de preuve imposé par la taille de l'échantillon.
+   *
+   * Une fiche unique ne prouve rien du catalogue : le constat reste « à
+   * vérifier », quelle que soit la netteté de ce qui a été lu sur cette page.
+   */
+  plafond: EvidenceLevel;
+};
+
+/**
+ * Lit un couple (touchées, inspectées) et rend ce qu'il est permis d'en dire.
+ *
+ * `total` est le catalogue déclaré par l'API, quand il est connu. Il n'entre
+ * jamais dans la conclusion — il sert uniquement à rappeler, dans la phrase,
+ * que l'échantillon EST un échantillon. Cinq fiches sur trois cents restent
+ * cinq fiches.
+ */
+export function lirePortee(
+  touchees: number | null,
+  inspectees: number | null,
+  total?: number | null,
+): ScopeReading {
+  const n = inspectees ?? 0;
+  const k = touchees ?? 0;
+  if (n <= 0 || k <= 0) {
+    return {
+      portee: "aucune",
+      touchees: 0,
+      inspectees: n,
+      couverture: null,
+      phrase:
+        n <= 0 ? "aucune fiche produit n'a pu être ouverte" : `aucune des ${n} fiches inspectées`,
+      plafond: "donnee_insuffisante",
+    };
+  }
+  const catalogueConnu = typeof total === "number" && total > 0;
+  const couverture = catalogueConnu ? n / total! : null;
+  const surCatalogue =
+    catalogueConnu && total! > n ? `, sur un catalogue de ${total} produits` : "";
+  if (n === 1) {
+    return {
+      portee: "une_fiche",
+      touchees: 1,
+      inspectees: 1,
+      couverture,
+      phrase: `sur la seule fiche produit inspectée${surCatalogue}`,
+      // UNE PAGE NE PROUVE PAS UN CATALOGUE. Le plafond est ici, mécanisé, et
+      // non laissé à la vigilance de chaque règle.
+      plafond: "a_verifier",
+    };
+  }
+
+  /*
+    LA COUVERTURE DÉCIDE DU POIDS, PAS DE LA VÉRITÉ.
+
+    « 3 des 5 fiches inspectées » est démontré, que le catalogue en compte
+    douze ou trois cents. Mais ce n'est pas la même information : dans le
+    premier cas l'échantillon EST presque le catalogue, dans le second il en
+    montre un vingtième. Le constat garde donc sa formulation exacte et perd du
+    poids — « fortement suggéré » plutôt que « prouvé » — ce qui le fait
+    descendre dans le classement sans rien lui faire dire de faux.
+  */
+  const plafond: EvidenceLevel =
+    couverture !== null && couverture < COUVERTURE_MIN_POUR_PROUVER
+      ? "fortement_suggere"
+      : "prouve";
+
+  // L'échantillon couvre tout le catalogue connu : c'est le seul cas où parler
+  // du catalogue n'est pas une extrapolation.
+  if (catalogueConnu && n >= total!) {
+    return {
+      portee: "catalogue_complet",
+      touchees: k,
+      inspectees: n,
+      couverture,
+      phrase:
+        k === n
+          ? `sur les ${n} fiches du catalogue, toutes inspectées`
+          : `sur ${k} des ${n} fiches du catalogue, toutes inspectées`,
+      plafond: "prouve",
+    };
+  }
+
+  if (k === n) {
+    return {
+      portee: "toutes_les_inspectees",
+      touchees: k,
+      inspectees: n,
+      couverture,
+      phrase: `sur les ${n} fiches produit inspectées, toutes${surCatalogue}`,
+      plafond,
+    };
+  }
+  return {
+    portee: "plusieurs_fiches",
+    touchees: k,
+    inspectees: n,
+    couverture,
+    phrase: `sur ${k} des ${n} fiches produit inspectées${surCatalogue}`,
+    plafond,
   };
 }
 
@@ -363,7 +600,7 @@ export const RULES: Rule[] = [
         impact: 4,
         effort: 2,
         recommendation:
-          "Afficher les frais de livraison et le délai sur la page produit, avant le panier : la découverte tardive des frais est la première cause d'abandon mesurée.",
+          "Afficher les frais de livraison et le délai sur la page produit, avant le panier : l'acheteur qui découvre le coût final en caisse a déjà décidé sur un autre prix.",
       });
     },
   },
@@ -658,10 +895,24 @@ export const RULES: Rule[] = [
       if (pages === null || pages > 0) return null;
       const t = trace(ctx, ["storefront.policy_pages"]);
       return emit(RULES_BY_ID["trust.policy_pages_missing"], {
-        title: "Aucune page de politique accessible",
+        title: "Aucune page de politique aux adresses vérifiées",
+        /*
+          LA PORTÉE DE LA PREUVE, ET RIEN AU-DELÀ.
+
+          Le constat affirmait « aucune page … n'a été trouvée SUR LE SITE
+          PUBLIC ». Le scan n'interroge pourtant que trois adresses fixes — les
+          chemins standards de Shopify. Une boutique qui publie sa politique de
+          retour sous un autre chemin était donc déclarée dépourvue, et le
+          marchand invité à créer une page qu'il avait déjà. C'est la
+          surinterprétation la plus coûteuse d'un audit : elle envoie refaire
+          l'existant, et fait douter de tout le reste du rapport.
+
+          Le texte dit désormais ce qui a été inspecté. La preuve, elle, listait
+          déjà les trois adresses et leur code de réponse.
+        */
         statement:
-          "Aucune page de livraison, de retour ou de conditions n'a été trouvée sur le site public.",
-        why: "Ce sont les pages que l'acheteur hésitant cherche avant de payer. Leur absence est aussi un motif de refus à la publication sur les régies publicitaires.",
+          "Aucune des trois adresses de politique vérifiées n'a répondu : remboursement, livraison, conditions générales. Les adresses exactes et leur code de réponse figurent dans la preuve.",
+        why: "Ce sont les pages que l'acheteur hésitant cherche avant de payer. Leur absence est aussi un motif de refus à la publication sur les régies publicitaires. Si ces pages existent chez vous sous une autre adresse, c'est leur emplacement qui pose problème, pas leur contenu — elles restent introuvables pour qui les cherche au chemin habituel.",
         level: "prouve",
         ...t,
         impact: 3,
@@ -671,8 +922,638 @@ export const RULES: Rule[] = [
       });
     },
   },
+  /**
+   * UNE PAGE SUR TROIS N'EST PAS « DES PAGES DE POLITIQUE ».
+   *
+   * La règle voisine ne se déclenchait qu'à zéro. Une boutique servant les
+   * conditions générales mais ni la livraison ni les retours passait donc pour
+   * pourvue — alors que les deux manquantes sont précisément celles que
+   * l'acheteur hésitant va chercher. Les conditions générales, personne ne les
+   * lit avant d'acheter.
+   */
+  {
+    id: "trust.policy_pages_incomplete",
+    axis: "trust",
+    requires: ["storefront.policy_pages"],
+    technical: true,
+    evaluate: (ctx) => {
+      const pages = num(ctx, "storefront.policy_pages");
+      if (pages === null || pages <= 0 || pages >= THRESHOLDS.EXPECTED_POLICY_PAGES) return null;
+      const t = trace(ctx, ["storefront.policy_pages"]);
+      return emit(RULES_BY_ID["trust.policy_pages_incomplete"], {
+        title: "Il manque des pages que l'acheteur va chercher",
+        statement: `${pages} page(s) de politique répondent sur les ${THRESHOLDS.EXPECTED_POLICY_PAGES} vérifiées.`,
+        why: "Les pages manquantes se lisent dans la preuve ci-dessous, avec le code renvoyé par chacune. Celle des retours et celle de la livraison sont les deux que l'acheteur ouvre avant de payer ; les conditions générales, elles, ne se lisent qu'après un litige.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 1,
+        recommendation:
+          "Publier les pages absentes depuis Boutique en ligne → Pages, puis les lier depuis le pied de page. Y écrire un délai et un montant réels : une page vide fait plus de dégâts qu'une page absente.",
+      });
+    },
+  },
+  /**
+   * AUCUN AVIS SUR LA FICHE INSPECTÉE.
+   *
+   * Le fait était mesuré depuis toujours et n'était lu par aucune règle. Il
+   * reste plafonné : une application d'avis qui injecte sa note après le
+   * chargement laisse le document servi muet, et nous ne saurions pas la voir.
+   */
+  {
+    id: "trust.avis_absents_fiche",
+    axis: "trust",
+    requires: ["storefront.produits_sans_avis", "storefront.produits_inspectes"],
+    technical: true,
+    evaluate: (ctx) => {
+      const p = lirePortee(
+        num(ctx, "storefront.produits_sans_avis"),
+        num(ctx, "storefront.produits_inspectes"),
+        num(ctx, "shopify.product_count"),
+      );
+      if (p.portee === "aucune") return null;
+      if (p.touchees / p.inspectees < THRESHOLDS.PRODUCT_SAMPLE_SHARE) return null;
+      const t = trace(ctx, ["storefront.produits_sans_avis", "storefront.produits_inspectes"]);
+      return emit(RULES_BY_ID["trust.avis_absents_fiche"], {
+        title:
+          p.portee === "une_fiche"
+            ? "Aucune note client sur la fiche inspectée"
+            : "Aucune note client sur les fiches inspectées",
+        statement: `Aucune note ni avis n'est déclaré dans le document servi ${p.phrase}.`,
+        why: "C'est la seule objection qu'un vendeur ne peut pas lever avec ses propres mots. Une application d'avis qui affiche sa note après le chargement resterait invisible pour nous : à vérifier en ouvrant l'une de ces fiches vous-même.",
+        level: capLevel("prouve", p.plafond),
+        ...t,
+        impact: 3,
+        effort: 2,
+        recommendation:
+          "Ouvrir l'une des fiches citées dans la preuve et regarder si une note apparaît. Si elle n'apparaît pas, installer une application d'avis et importer ceux déjà reçus par message ou par e-mail.",
+      });
+    },
+  },
+
+  // --- Fiche produit : ce que la page permet, et ce qu'elle annonce ---------
+  /**
+   * LA FICHE NE PROPOSE PAS D'ACHETER.
+   *
+   * Plafonné volontairement. Un thème qui construit son formulaire en
+   * JavaScript sert un document sans `/cart/add` et déclencherait ici un
+   * constat faux — c'est le mode de défaillance le plus coûteux, celui qui
+   * produit un conseil confiant et erroné. Le constat dit donc ce qu'il a lu,
+   * et demande une vérification d'un geste.
+   */
+  {
+    id: "produit.achat_impossible",
+    axis: "conversion",
+    requires: ["storefront.produits_sans_ajout_panier", "storefront.produits_inspectes"],
+    technical: true,
+    evaluate: (ctx) => {
+      // UNE SEULE FICHE INACHETABLE SUFFIT — c'est le seul défaut de cette
+      // famille qui ne se dilue pas : la page concernée ne peut pas produire de
+      // commande, quel que soit l'état des autres. La portée dit combien.
+      const p = lirePortee(
+        num(ctx, "storefront.produits_sans_ajout_panier"),
+        num(ctx, "storefront.produits_inspectes"),
+        num(ctx, "shopify.product_count"),
+      );
+      if (p.portee === "aucune") return null;
+      const t = trace(ctx, [
+        "storefront.produits_sans_ajout_panier",
+        "storefront.produits_inspectes",
+      ]);
+      return emit(RULES_BY_ID["produit.achat_impossible"], {
+        title: "Aucun ajout au panier trouvé sur des fiches inspectées",
+        statement: `Aucun formulaire d'ajout au panier n'apparaît dans le document servi ${p.phrase}.`,
+        why: "Si le bouton manque réellement, ces fiches ne peuvent pas être achetées et tout le trafic qui les atteint est perdu. Certains thèmes construisent ce bouton après l'affichage : nous lisons le document servi, pas la page finie, et ne pouvons pas trancher seuls.",
+        level: capLevel("prouve", p.plafond),
+        ...t,
+        impact: 5,
+        effort: 2,
+        recommendation:
+          "Ouvrir l'adresse citée dans la preuve en navigation privée, sur un téléphone. Si le bouton d'ajout au panier est absent ou inactif, vérifier dans Shopify que le produit est publié sur le canal Boutique en ligne et qu'il lui reste une variante disponible.",
+      });
+    },
+  },
+  /**
+   * LES FRAIS DÉCOUVERTS EN CAISSE — et la seule règle qui les relie.
+   *
+   * Le module plafonne les faits techniques tant qu'aucune observation
+   * commerciale ne corrobore. Cette règle est l'endroit où ce plafond se lève :
+   * l'absence de mention de livraison sur la fiche est un fait de page, et elle
+   * ne devient une explication de perte que si un abandon de panier a été
+   * MESURÉ, sur assez de commandes pour vouloir dire quelque chose. Les deux
+   * ensemble décrivent une chaîne ; l'un des deux seul décrit un détail.
+   */
+  {
+    id: "conversion.livraison_absente_fiche",
+    axis: "conversion",
+    requires: ["storefront.produits_sans_livraison", "storefront.produits_inspectes"],
+    evaluate: (ctx) => {
+      const p = lirePortee(
+        num(ctx, "storefront.produits_sans_livraison"),
+        num(ctx, "storefront.produits_inspectes"),
+        num(ctx, "shopify.product_count"),
+      );
+      if (p.portee === "aucune") return null;
+      if (p.touchees / p.inspectees < THRESHOLDS.PRODUCT_SAMPLE_SHARE) return null;
+
+      const abandon = ratio(num(ctx, "shopify.cart_abandonment_rate"));
+      const commandes = num(ctx, "shopify.orders_30d");
+      const corrobore =
+        abandon !== null &&
+        abandon >= THRESHOLDS.CART_ABANDONMENT &&
+        commandes !== null &&
+        commandes >= THRESHOLDS.MIN_ORDERS_FOR_RATES;
+
+      const socle = ["storefront.produits_sans_livraison", "storefront.produits_inspectes"];
+      const t = trace(
+        ctx,
+        corrobore ? [...socle, "shopify.cart_abandonment_rate", "shopify.orders_30d"] : socle,
+      );
+      return emit(RULES_BY_ID["conversion.livraison_absente_fiche"], {
+        title: corrobore
+          ? "Les frais de livraison se découvrent en caisse, et le panier s'y vide"
+          : "Les fiches inspectées n'annoncent ni livraison ni frais de port",
+        statement: corrobore
+          ? `Ni livraison ni frais de port ne sont évoqués ${p.phrase}, et ${Math.round((abandon ?? 0) * 100)} % des paniers ouverts n'aboutissent pas, sur ${commandes} commandes.`
+          : `Ni livraison ni frais de port ne sont évoqués dans le document servi ${p.phrase}.`,
+        why: corrobore
+          ? "Ces deux constats n'en font qu'un : l'acheteur choisit son produit sans connaître le coût final, puis le découvre au moment de payer. Traiter l'abandon de panier sans annoncer les frais plus tôt ne donnera rien — c'est la même perte, prise par l'autre bout."
+          : "L'acheteur décide sans connaître le coût final, et le découvre en caisse. Sans mesure d'abandon sur cette boutique, cela reste un fait de page : nous ne pouvons pas dire ce qu'il coûte ici.",
+        // La corroboration commerciale ne fait jamais oublier la taille de
+        // l'échantillon : une fiche unique reste une fiche unique, même quand
+        // l'abandon de panier est mesuré et massif.
+        level: capLevel(corrobore ? "fortement_suggere" : "a_verifier", p.plafond),
+        ...t,
+        impact: corrobore ? 4 : 3,
+        effort: 1,
+        recommendation:
+          "Afficher le montant de la livraison et le délai sur la fiche produit, sous le prix — ou annoncer le seuil de livraison offerte s'il existe. Dans Shopify : Paramètres → Livraison, puis reporter le montant dans la section de la fiche.",
+      });
+    },
+  },
+
+  // --- Découverte du catalogue ---------------------------------------------
+  /**
+   * LA PAGE OÙ LE VISITEUR CHOISIT.
+   *
+   * Elle était téléchargée à chaque scan et jetée sans être lue. C'est pourtant
+   * elle, et non la fiche, qui décide de ce qui sera comparé : la fiche ne fait
+   * que confirmer un choix déjà fait ailleurs.
+   */
+  {
+    id: "merchandising.collection_maigre",
+    axis: "merchandising",
+    requires: ["storefront.collection_produits_listes"],
+    evaluate: (ctx) => {
+      const listes = num(ctx, "storefront.collection_produits_listes");
+      if (listes === null || listes >= THRESHOLDS.MIN_PRODUCTS_IN_COLLECTION) return null;
+      const total = num(ctx, "shopify.product_count");
+      const t = trace(
+        ctx,
+        total === null
+          ? ["storefront.collection_produits_listes"]
+          : ["storefront.collection_produits_listes", "shopify.product_count"],
+      );
+      return emit(RULES_BY_ID["merchandising.collection_maigre"], {
+        title: "La collection inspectée ne fait rien choisir",
+        statement:
+          total === null
+            ? `La page de collection ouverte pendant le diagnostic ne mène qu'à ${listes} fiche(s) produit.`
+            : `La page de collection ouverte pendant le diagnostic ne mène qu'à ${listes} fiche(s) produit, alors que le catalogue en compte ${total}.`,
+        why:
+          total !== null && total > listes
+            ? "Le catalogue existe, mais cette porte d'entrée n'en montre presque rien : le reste n'est atteignable que par la recherche ou par un lien direct, c'est-à-dire par quelqu'un qui sait déjà ce qu'il cherche."
+            : "Une page qui présente moins de quatre articles ne fait pas comparer : elle demande au visiteur de décider sans point de comparaison, ce qu'il fait rarement au premier passage.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 2,
+        recommendation:
+          "Ouvrir Boutique en ligne → Navigation et vérifier que le menu pointe vers une collection réellement remplie. Dans Produits → Collections, contrôler les conditions automatiques : une condition trop étroite vide une collection sans prévenir.",
+      });
+    },
+  },
+  /**
+   * UN CATALOGUE QUI DEMANDE DES FILTRES, ET UNE PAGE QUI N'EN A PAS.
+   *
+   * Le compte de produits vient de l'API Admin, l'absence de filtres du
+   * document servi. Aucun des deux ne suffit : c'est leur rencontre qui fait le
+   * constat, et c'est pourquoi la règle exige les deux.
+   */
+  {
+    id: "merchandising.collection_sans_filtres",
+    axis: "merchandising",
+    requires: ["storefront.collection_filtres", "shopify.product_count"],
+    evaluate: (ctx) => {
+      const filtres = num(ctx, "storefront.collection_filtres");
+      const total = num(ctx, "shopify.product_count");
+      if (filtres === null || filtres > 0) return null;
+      if (total === null || total < THRESHOLDS.CATALOG_NEEDS_FILTERS) return null;
+      const t = trace(ctx, ["storefront.collection_filtres", "shopify.product_count"]);
+      return emit(RULES_BY_ID["merchandising.collection_sans_filtres"], {
+        title: "Un catalogue de cette taille se parcourt sans aucun filtre",
+        statement: `${total} produits au catalogue, et la page de collection inspectée n'expose aucun filtre.`,
+        why: "Passé quelques dizaines d'articles, parcourir sans filtre revient à faire défiler. Le visiteur qui cherche une taille, une couleur ou une gamme de prix abandonne avant de trouver — et ce n'est pas le produit qu'il rejette, c'est la recherche.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 2,
+        recommendation:
+          "Ajouter le filtrage sur les collections : dans l'éditeur de thème, section Collection, activer les filtres, puis choisir dans Boutique en ligne → Navigation → Filtres les critères que vos clients emploient réellement (taille, couleur, prix).",
+      });
+    },
+  },
+  {
+    id: "ux.catalogue_invisible_depuis_accueil",
+    axis: "ux",
+    requires: ["storefront.accueil_collection_links"],
+    technical: true,
+    evaluate: (ctx) => {
+      const collections = num(ctx, "storefront.accueil_collection_links");
+      if (collections === null || collections > 0) return null;
+      const t = trace(ctx, ["storefront.accueil_collection_links"]);
+      return emit(RULES_BY_ID["ux.catalogue_invisible_depuis_accueil"], {
+        title: "L'accueil ne mène à aucune collection",
+        statement:
+          "Aucun lien vers une collection n'a été trouvé dans le document de la page d'accueil.",
+        why: "Le visiteur qui arrive sans savoir ce qu'il veut n'a alors aucune porte d'entrée dans le catalogue : il doit ouvrir un menu, ou deviner. La preuve porte aussi le nombre de fiches produit atteignables en un clic, qui dit si l'accueil compense par des mises en avant.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 1,
+        recommendation:
+          "Ajouter à la page d'accueil une section de collections mises en avant, et vérifier dans Boutique en ligne → Navigation que le menu principal pointe bien vers des collections et non vers des pages.",
+      });
+    },
+  },
+
+  // --- Prix, variantes, disponibilité --------------------------------------
+  /**
+   * UNE FICHE SANS PRIX NE SE VEND PAS.
+   *
+   * Le prix des variantes était lu depuis toujours — il alimente le minimum, le
+   * maximum et la médiane — et personne ne regardait combien de fiches n'en
+   * avaient aucun. C'est pourtant le seul défaut de catalogue qui rend un
+   * produit littéralement inachetable, au même titre qu'une fiche sans image.
+   */
+  {
+    id: "offre.prix_absent",
+    axis: "offre",
+    requires: ["shopify.products_without_price", "shopify.product_count"],
+    evaluate: (ctx) => {
+      const sans = num(ctx, "shopify.products_without_price");
+      const total = num(ctx, "shopify.product_count");
+      if (sans === null || total === null || sans <= 0) return null;
+      const t = trace(ctx, ["shopify.products_without_price", "shopify.product_count"]);
+      return emit(RULES_BY_ID["offre.prix_absent"], {
+        title: "Des fiches n'affichent aucun prix",
+        statement: `${sans} fiche(s) sur ${total} n'exposent aucune variante à un prix positif.`,
+        why: "Un visiteur qui ne voit pas de prix ne demande pas : il ferme. Ces fiches consomment du trafic et de la place en collection sans pouvoir produire une seule commande.",
+        level: "prouve",
+        ...t,
+        impact: 4,
+        effort: 1,
+        recommendation:
+          "Ouvrir Produits dans Shopify, trier par prix croissant, et renseigner le prix des fiches à zéro — ou les dépublier du canal Boutique en ligne tant qu'elles n'en ont pas.",
+      });
+    },
+  },
+  /**
+   * LE CHOIX QUI N'EN EST PAS UN.
+   *
+   * Les variantes ne servaient qu'à décider si un produit était en rupture
+   * TOTALE. Le cas intermédiaire — une taille sur trois épuisée — n'existait
+   * nulle part, alors que c'est celui que le visiteur rencontre : il choisit,
+   * découvre que son choix est indisponible, et repart. La fiche a fait tout le
+   * travail de conviction pour rien.
+   */
+  {
+    id: "merchandising.choix_partiellement_epuise",
+    axis: "merchandising",
+    requires: [
+      "shopify.products_partially_out_of_stock",
+      "shopify.products_multi_variant",
+      "shopify.product_count",
+    ],
+    evaluate: (ctx) => {
+      const partiels = num(ctx, "shopify.products_partially_out_of_stock");
+      const multi = num(ctx, "shopify.products_multi_variant");
+      const total = num(ctx, "shopify.product_count");
+      if (partiels === null || multi === null || total === null) return null;
+      if (partiels <= 0 || multi <= 0) return null;
+      if (total < THRESHOLDS.MIN_PRODUCTS_FOR_SHARES) return null;
+      // La part se calcule sur les fiches QUI OFFRENT UN CHOIX, pas sur le
+      // catalogue : une boutique de mille produits à variante unique ne peut
+      // pas avoir de problème de choix, et le dénominateur doit le refléter.
+      const part = partiels / multi;
+      if (part < THRESHOLDS.PARTIAL_STOCK_SHARE) return null;
+      const t = trace(ctx, [
+        "shopify.products_partially_out_of_stock",
+        "shopify.products_multi_variant",
+        "shopify.product_count",
+      ]);
+      return emit(RULES_BY_ID["merchandising.choix_partiellement_epuise"], {
+        title: "Le choix proposé est en partie indisponible",
+        statement: `${partiels} fiches sur les ${multi} qui proposent un choix ont une partie de leurs variantes épuisées, l'autre partie disponible.`,
+        why: "Ces fiches ne sont ni disponibles ni en rupture : elles laissent le visiteur choisir, puis lui refusent son choix. C'est le moment du parcours où l'intention est la plus forte, donc celui où un refus coûte le plus cher.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 2,
+        recommendation:
+          "Sur ces fiches, masquer les variantes épuisées plutôt que de les afficher grisées, et activer l'alerte de retour en stock. Dans Shopify : Produits → variante → décocher la disponibilité sur le canal Boutique en ligne.",
+      });
+    },
+  },
+  /**
+   * LA DISPONIBILITÉ N'EST NI VRAIE NI FAUSSE : ELLE EST PARFOIS ILLISIBLE.
+   *
+   * Troisième état, et le plus fréquent chez un marchand qui ne suit pas son
+   * stock. Le ranger avec « disponible » promettrait ce qu'on n'a pas lu ; le
+   * ranger avec « en rupture » inventerait un problème. Il se dit donc pour ce
+   * qu'il est : une donnée manquante, qui ne retire aucun point et qui nomme ce
+   * qu'elle empêche de conclure.
+   */
+  {
+    id: "data.disponibilite_non_lisible",
+    axis: "data",
+    requires: ["shopify.products_stock_inconnu", "shopify.product_count"],
+    evaluate: (ctx) => {
+      const inconnu = num(ctx, "shopify.products_stock_inconnu");
+      const total = num(ctx, "shopify.product_count");
+      if (inconnu === null || total === null || total <= 0) return null;
+      if (inconnu / total < THRESHOLDS.STOCK_UNKNOWN_SHARE) return null;
+      const t = trace(ctx, ["shopify.products_stock_inconnu", "shopify.product_count"]);
+      return emit(RULES_BY_ID["data.disponibilite_non_lisible"], {
+        title: "La disponibilité d'une partie du catalogue n'est pas lisible",
+        statement: `${inconnu} fiches sur ${total} ne permettent pas d'établir leur disponibilité : leur stock n'est pas suivi, ou la quantité ne nous est pas renvoyée.`,
+        why: "Ce n'est pas une rupture, et ce n'est pas une disponibilité : c'est une absence de mesure. Tant qu'elle dure, aucun constat de ce diagnostic ne peut affirmer qu'un produit est achetable ou non — et une rupture réelle passerait inaperçue.",
+        level: "donnee_insuffisante",
+        ...t,
+        impact: 2,
+        effort: 2,
+        recommendation:
+          "Activer le suivi d'inventaire dans Shopify (Produits → variante → Suivre la quantité) sur les fiches concernées. Sans lui, Shopify vend sans compter et personne ne peut dire ce qui reste.",
+      });
+    },
+  },
+
+  // --- Métadonnées ---------------------------------------------------------
+  /**
+   * LE TITRE D'ONGLET, ENFIN LU PAR UNE RÈGLE.
+   *
+   * Il était mesuré sur chaque page depuis l'ajout de l'observation, et aucune
+   * règle ne le consommait. C'est pourtant la seule phrase que le visiteur lit
+   * AVANT d'ouvrir la page : la ligne bleue d'un résultat de recherche, le nom
+   * de l'onglet, le libellé d'un partage.
+   *
+   * DEUX DÉCLENCHEURS, PAS UN SEUIL DE LONGUEUR. « Trop court » demanderait un
+   * nombre de caractères que rien ne justifie ici. Un titre ABSENT, ou réduit
+   * au seul nom de la boutique, sont deux faits vérifiables — et le second est
+   * le cas de loin le plus fréquent.
+   */
+  {
+    id: "seo.titre_page_muet",
+    axis: "seo",
+    requires: ["storefront.accueil_title"],
+    technical: true,
+    evaluate: (ctx) => {
+      const o = obs(ctx, "storefront.accueil_title");
+      if (!o) return null;
+      const longueur = typeof o.value === "number" ? o.value : null;
+      if (longueur === null) return null;
+      const texte = typeof o.text === "string" ? o.text.trim() : "";
+      const mots = texte ? texte.split(/\s+/).filter(Boolean).length : 0;
+      const absent = longueur === 0 || mots === 0;
+      if (!absent && mots > THRESHOLDS.TITLE_MIN_WORDS) return null;
+      const t = trace(ctx, ["storefront.accueil_title"]);
+      return emit(RULES_BY_ID["seo.titre_page_muet"], {
+        title: absent
+          ? "La page d'accueil ne porte aucun titre"
+          : "Le titre de la page d'accueil ne dit pas ce qui est vendu",
+        statement: absent
+          ? "Le document servi par la page d'accueil ne contient aucun titre."
+          : `Le titre servi par la page d'accueil tient en ${mots} mot(s) : « ${texte} ».`,
+        why: absent
+          ? "Sans titre, les moteurs et les onglets affichent l'adresse du site. Le visiteur qui retrouve un onglet ouvert ou une ligne de résultat ne sait pas ce qu'il regarde."
+          : "C'est la seule phrase lue AVANT d'ouvrir la page. Réduite au nom de la boutique, elle ne dit ni ce qui est vendu, ni à qui : la ligne de résultat n'a aucune raison d'être cliquée plutôt qu'une autre.",
+        level: "prouve",
+        ...t,
+        impact: 2,
+        effort: 1,
+        recommendation:
+          "Dans Shopify → Boutique en ligne → Préférences, écrire un titre de la forme « [Ce que vous vendez] — [pour qui ou d'où] ». Le nom de la boutique se met à la fin, pas au début.",
+      });
+    },
+  },
+  {
+    id: "seo.description_absente",
+    axis: "seo",
+    requires: ["storefront.accueil_meta_description"],
+    technical: true,
+    evaluate: (ctx) => {
+      const presente = num(ctx, "storefront.accueil_meta_description");
+      if (presente === null || presente > 0) return null;
+      const t = trace(ctx, ["storefront.accueil_meta_description"]);
+      return emit(RULES_BY_ID["seo.description_absente"], {
+        title: "La page d'accueil n'a pas de description",
+        statement: "Le document servi par la page d'accueil ne déclare aucune description.",
+        why: "Sans description, le moteur de recherche compose lui-même le texte affiché sous le titre, en prélevant une phrase de la page — souvent un menu ou un bandeau de cookies. La boutique perd la seule ligne d'argumentaire qu'elle contrôle dans les résultats.",
+        level: "prouve",
+        ...t,
+        impact: 2,
+        effort: 1,
+        recommendation:
+          "Dans Shopify → Boutique en ligne → Préférences, écrire deux phrases : ce que la boutique vend, et ce qui la distingue. Elles s'affichent sous le titre dans les résultats de recherche.",
+      });
+    },
+  },
+
+  // --- Diagnostics de convergence ------------------------------------------
+  /*
+    CE QUE PLUSIEURS OBSERVATIONS DISENT ENSEMBLE, ET QU'AUCUNE NE DIT SEULE.
+
+    Jusqu'ici, une seule règle du moteur croisait réellement deux sources. Tout
+    le reste appliquait un seuil à une observation unique — ce qui produit une
+    checklist enrichie, pas un diagnostic. Les trois règles qui suivent partent
+    d'observations DÉJÀ collectées, n'ajoutent aucune requête, et concluent
+    seulement ce que leur convergence autorise.
+
+    TROIS DISCIPLINES, sans lesquelles ce serait de la surinterprétation :
+
+    1. **Le vocabulaire suit la preuve.** On écrit « ces éléments convergent »,
+       jamais « X provoque Y » : aucune de ces observations ne démontre une
+       causalité, elles montrent une cohérence.
+    2. **Le niveau ne dépasse jamais celui de ses appuis.** Une convergence de
+       lectures de document reste « à vérifier » ; elle ne monte que si une
+       mesure commerciale l'accompagne.
+    3. **La convergence REMPLACE ses constituants** (`absorbs`). Sortir les
+       quatre ferait relire quatre fois le même problème.
+  */
+  {
+    id: "parcours.entree_catalogue_absente",
+    axis: "ux",
+    requires: ["storefront.accueil_h1_mots", "storefront.accueil_cta"],
+    technical: true,
+    absorbs: ["ux.catalogue_invisible_depuis_accueil"],
+    evaluate: (ctx) => {
+      const mots = num(ctx, "storefront.accueil_h1_mots");
+      const cta = num(ctx, "storefront.accueil_cta");
+      const collections = num(ctx, "storefront.accueil_collection_links");
+      if (mots === null || cta === null) return null;
+
+      const signaux: string[] = [];
+      const ids: string[] = [];
+      if (mots < THRESHOLDS.PROMISE_MIN_WORDS) {
+        signaux.push(
+          mots === 0
+            ? "aucune promesse en titre de niveau 1"
+            : `une promesse de ${mots} mot(s) seulement`,
+        );
+        ids.push("storefront.accueil_h1_mots");
+      }
+      if (cta === 0) {
+        signaux.push("aucun appel à l'action");
+        ids.push("storefront.accueil_cta");
+      }
+      if (collections === 0) {
+        signaux.push("aucun lien vers une collection");
+        ids.push("storefront.accueil_collection_links");
+      }
+      // DEUX SIGNAUX AU MINIMUM. Un seul est un détail de page, et il a déjà sa
+      // propre règle : une convergence à un élément n'est pas une convergence.
+      if (signaux.length < 2) return null;
+
+      const t = trace(ctx, ids);
+      return emit(RULES_BY_ID["parcours.entree_catalogue_absente"], {
+        title: "La page d'accueil n'ouvre aucun chemin vers l'offre",
+        statement: `${signaux.length} éléments observables convergent sur la page d'accueil : ${signaux.join(", ")}.`,
+        why: "Pris isolément, chacun se corrige en dix minutes et ne dit pas grand-chose. Ensemble, ils décrivent une page qui ne dit pas ce qu'elle vend, ne propose pas de geste et n'ouvre pas le catalogue : le visiteur qui arrive sans connaître la boutique n'a aucun chemin devant lui. Ces trois lectures sont cohérentes entre elles ; elles ne démontrent pas à elles seules une perte de vente, qui se mesurerait sur du trafic.",
+        level: "prouve",
+        ...t,
+        impact: 5,
+        effort: 2,
+        recommendation:
+          "Traiter les trois d'un seul geste, dans l'éditeur de thème : un titre qui dit ce que vous vendez et pour qui, un bouton d'action juste en dessous, et une section de collections mises en avant. C'est la même section du thème pour les trois.",
+      });
+    },
+  },
+  {
+    id: "conversion.fiche_sans_reponse_avec_trafic",
+    axis: "conversion",
+    requires: ["shopify.sessions_30d"],
+    absorbs: ["trust.avis_absents_fiche", "conversion.livraison_absente_fiche"],
+    evaluate: (ctx) => {
+      const sessions = num(ctx, "shopify.sessions_30d");
+      if (sessions === null || sessions < THRESHOLDS.MIN_SESSIONS_FOR_CONVERSION) return null;
+
+      const manques: string[] = [];
+      const ids = ["shopify.sessions_30d"];
+      const inspectees = num(ctx, "storefront.produits_inspectes") ?? 0;
+      const majorite = (id: string) => {
+        const k = num(ctx, id);
+        return inspectees > 0 && k !== null && k / inspectees >= THRESHOLDS.PRODUCT_SAMPLE_SHARE;
+      };
+      if (majorite("storefront.produits_sans_livraison")) {
+        manques.push("ni le coût ni le délai de livraison");
+        ids.push("storefront.produits_sans_livraison");
+      }
+      if (majorite("storefront.produits_sans_avis")) {
+        manques.push("aucune note ni avis");
+        ids.push("storefront.produits_sans_avis");
+      }
+      const sansTexte = num(ctx, "shopify.products_without_description");
+      const total = num(ctx, "shopify.product_count");
+      if (
+        sansTexte !== null &&
+        total !== null &&
+        total >= THRESHOLDS.MIN_PRODUCTS_FOR_SHARES &&
+        sansTexte / total >= THRESHOLDS.DESCRIPTIONS_MISSING_SHARE
+      ) {
+        manques.push(`aucun texte descriptif sur ${sansTexte} fiches du catalogue`);
+        ids.push("shopify.products_without_description");
+      }
+      if (manques.length < 2) return null;
+      ids.push("storefront.produits_inspectes");
+
+      const t = trace(ctx, ids);
+      return emit(RULES_BY_ID["conversion.fiche_sans_reponse_avec_trafic"], {
+        title: "Du trafic arrive sur des fiches qui ne lèvent aucune objection",
+        statement: `${sessions} sessions mesurées sur la période, et les ${inspectees} fiche(s) produit inspectée(s) n'exposent ${manques.join(", ni ")}.`,
+        why: "Le trafic est acquis — c'est une mesure, pas une lecture de page. Ce qu'il rencontre ensuite ne répond à aucune des trois questions qu'un acheteur se pose avant de payer : combien ça coûte au total, est-ce que d'autres l'ont acheté, qu'est-ce que c'est exactement. Ces éléments sont cohérents avec une perte située après l'arrivée ; localiser cette perte exactement demanderait la mesure du tunnel.",
+        level: "fortement_suggere",
+        ...t,
+        impact: 4,
+        effort: 2,
+        recommendation:
+          "Compléter la fiche la plus visitée en premier, dans cet ordre : le montant et le délai de livraison sous le prix, puis deux avis réels, puis trois lignes disant à qui le produit s'adresse et ce qu'il change.",
+      });
+    },
+  },
+  {
+    id: "merchandising.catalogue_present_mais_invisible",
+    axis: "merchandising",
+    requires: ["shopify.product_count", "storefront.collection_produits_listes"],
+    absorbs: ["merchandising.collection_maigre"],
+    evaluate: (ctx) => {
+      const total = num(ctx, "shopify.product_count");
+      const listes = num(ctx, "storefront.collection_produits_listes");
+      const depuisAccueil = num(ctx, "storefront.accueil_collection_links");
+      if (total === null || listes === null) return null;
+      if (total < THRESHOLDS.CATALOG_NEEDS_FILTERS) return null;
+      if (listes >= THRESHOLDS.MIN_PRODUCTS_IN_COLLECTION) return null;
+      const ids = ["shopify.product_count", "storefront.collection_produits_listes"];
+      if (depuisAccueil !== null) ids.push("storefront.accueil_collection_links");
+      const t = trace(ctx, ids);
+      return emit(RULES_BY_ID["merchandising.catalogue_present_mais_invisible"], {
+        title: "Le catalogue existe, la vitrine n'en montre presque rien",
+        statement: `${total} produits au catalogue Shopify, et la page de collection inspectée ne mène qu'à ${listes} fiche(s)${depuisAccueil === 0 ? ", sans aucun lien de collection depuis la page d'accueil" : ""}.`,
+        why: "Deux sources indépendantes se contredisent : l'API dit un catalogue fourni, la page servie montre une poignée d'articles. Le reste n'est atteignable que par la recherche ou par un lien direct — donc par quelqu'un qui sait déjà ce qu'il cherche, c'est-à-dire pas par un nouveau visiteur.",
+        level: "prouve",
+        ...t,
+        impact: 4,
+        effort: 2,
+        recommendation:
+          "Ouvrir Produits → Collections et vérifier les conditions automatiques de la collection mise en avant : une condition trop étroite la vide sans prévenir. Vérifier ensuite que les produits sont bien publiés sur le canal Boutique en ligne.",
+      });
+    },
+  },
 
   // --- SEO -----------------------------------------------------------------
+  /**
+   * UNE PAGE QUI DEMANDE À NE PAS ÊTRE RÉFÉRENCÉE.
+   *
+   * Le fait était mesuré sur chaque page lue et n'était consommé par aucune
+   * règle. Il est pourtant sans ambiguïté : une directive `noindex` dans le
+   * document servi retire la page des résultats de recherche, quel que soit le
+   * reste. C'est fréquemment un reste de mise en ligne que personne n'a retiré.
+   */
+  {
+    id: "seo.noindex_declare",
+    axis: "seo",
+    requires: [],
+    technical: true,
+    evaluate: (ctx) => {
+      const pages = ["accueil", "produit", "collection"] as const;
+      const bloquees = pages.filter((role) => num(ctx, `storefront.${role}_noindex`) === 1);
+      if (bloquees.length === 0) return null;
+      const t = trace(
+        ctx,
+        bloquees.map((role) => `storefront.${role}_noindex`),
+      );
+      return emit(RULES_BY_ID["seo.noindex_declare"], {
+        title: "Une page demande à ne pas être référencée",
+        statement: `${bloquees.length} des pages lues portent une directive « noindex » : ${bloquees.join(", ")}.`,
+        why: "Cette directive retire explicitement la page des résultats de recherche. Elle survit régulièrement à une mise en ligne — le site est ouvert au public, mais continue de demander à ne pas être trouvé.",
+        level: "prouve",
+        ...t,
+        impact: 4,
+        effort: 1,
+        recommendation:
+          "Dans l'éditeur de thème, ouvrir le code du fichier d'en-tête et retirer la balise `meta name=\"robots\"` qui porte « noindex », puis demander une réindexation dans la Search Console. Vérifier aussi qu'aucune application de maintenance n'est restée active.",
+      });
+    },
+  },
   {
     id: "seo.robots_blocks_all",
     axis: "seo",
@@ -698,17 +1579,25 @@ export const RULES: Rule[] = [
   {
     id: "seo.structured_data_missing",
     axis: "seo",
-    requires: ["storefront.product_structured_data"],
+    requires: ["storefront.produits_sans_donnees_structurees", "storefront.produits_inspectes"],
     technical: true,
     evaluate: (ctx) => {
-      const present = num(ctx, "storefront.product_structured_data");
-      if (present === null || present > 0) return null;
-      const t = trace(ctx, ["storefront.product_structured_data"]);
+      const p = lirePortee(
+        num(ctx, "storefront.produits_sans_donnees_structurees"),
+        num(ctx, "storefront.produits_inspectes"),
+        num(ctx, "shopify.product_count"),
+      );
+      if (p.portee === "aucune") return null;
+      if (p.touchees / p.inspectees < THRESHOLDS.PRODUCT_SAMPLE_SHARE) return null;
+      const t = trace(ctx, [
+        "storefront.produits_sans_donnees_structurees",
+        "storefront.produits_inspectes",
+      ]);
       return emit(RULES_BY_ID["seo.structured_data_missing"], {
-        title: "Les fiches produit n'exposent pas de données structurées",
-        statement: "Aucune donnée structurée produit n'a été trouvée sur la page produit examinée.",
+        title: "Des fiches produit n'exposent pas de données structurées",
+        statement: `Aucune donnée structurée de type Produit n'a été trouvée ${p.phrase}.`,
         why: "Sans elles, les résultats de recherche n'affichent ni prix ni disponibilité : la ligne est moins cliquée à position égale.",
-        level: "prouve",
+        level: capLevel("prouve", p.plafond),
         ...t,
         impact: 2,
         effort: 2,
@@ -741,15 +1630,65 @@ export const RULES: Rule[] = [
       });
     },
   },
+  /**
+   * LA LENTEUR EST UNE MESURE ; CE QU'ELLE COÛTE EST D'UN AUTRE ORDRE.
+   *
+   * C'est l'exemple que l'en-tête de ce module donne de sa règle absolue, et
+   * c'est ici qu'il est mécanisé. Le temps de réponse était mesuré à chaque
+   * scan et lu par aucune règle. Il le devient — en disant une chose quand du
+   * commerce est mesuré sur cette boutique, et une autre quand rien ne l'est.
+   * `hasBusinessCorroboration` ne change pas le niveau de preuve, qui reste
+   * plafonné : il change ce que le constat a le droit d'affirmer.
+   */
+  {
+    id: "technique.reponse_lente",
+    axis: "technique",
+    requires: ["storefront.response_ms"],
+    technical: true,
+    evaluate: (ctx) => {
+      const ms = num(ctx, "storefront.response_ms");
+      if (ms === null || ms < SLOW_RESPONSE_MS) return null;
+      const corrobore = hasBusinessCorroboration(ctx, BUSINESS_SIGNALS);
+      const t = trace(ctx, ["storefront.response_ms"]);
+      return emit(RULES_BY_ID["technique.reponse_lente"], {
+        title: "Le serveur met plus de deux secondes à répondre",
+        statement: `${Math.round(ms)} ms pour recevoir le document le plus lent, mesurés par requête serveur.`,
+        why: corrobore
+          ? "Ce délai s'ajoute avant que le navigateur n'ait commencé à afficher quoi que ce soit, et il précède chaque visite de cette boutique — dont l'activité est par ailleurs mesurée ici. Ce qu'il coûte exactement demanderait une mesure dans un vrai navigateur, sur du vrai trafic ; nous mesurons le serveur, pas l'affichage."
+          : "C'est un temps de réponse serveur, et rien de plus à ce stade : aucune donnée commerciale n'a été mesurée sur cette boutique, donc rien ne permet de dire ce que ce délai lui coûte.",
+        level: "prouve",
+        ...t,
+        impact: corrobore ? 3 : 2,
+        effort: 3,
+        recommendation:
+          "Désactiver une à une les applications récemment installées et remesurer entre chaque : ce sont elles, et non le thème, qui allongent le plus souvent la réponse. Si le délai persiste sans application, il vient du thème.",
+      });
+    },
+  },
+  /**
+   * VIEWPORT ABSENT — lu sur la version mobile, ou à défaut sur l'accueil.
+   *
+   * La règle n'exigeait que `storefront.mobile_viewport`, qui n'existe que si
+   * la requête en agent mobile a abouti ET que les deux poids étaient
+   * lisibles. Sur un site lent, ce contrôle est le premier sauté par le budget
+   * du scan : une boutique réellement dépourvue de balise viewport ne
+   * produisait alors aucun constat, alors que `storefront.accueil_viewport`
+   * portait déjà la réponse. Un contrôle sauté se lisait comme un contrôle
+   * réussi — exactement ce que le scan déclare vouloir éviter.
+   */
   {
     id: "ux.mobile_viewport_missing",
     axis: "ux",
-    requires: ["storefront.mobile_viewport"],
+    requires: [],
     technical: true,
     evaluate: (ctx) => {
-      const viewport = num(ctx, "storefront.mobile_viewport");
+      const source =
+        num(ctx, "storefront.mobile_viewport") !== null
+          ? "storefront.mobile_viewport"
+          : "storefront.accueil_viewport";
+      const viewport = num(ctx, source);
       if (viewport === null || viewport > 0) return null;
-      const t = trace(ctx, ["storefront.mobile_viewport"]);
+      const t = trace(ctx, [source]);
       return emit(RULES_BY_ID["ux.mobile_viewport_missing"], {
         title: "La page n'est pas déclarée adaptée au mobile",
         statement: "La balise viewport est absente de la page d'accueil.",
@@ -901,6 +1840,9 @@ const RULES_BY_ID: Record<string, Rule> = Object.fromEntries(RULES.map((r) => [r
  */
 export function runRules(ctx: RuleContext): RuleFinding[] {
   const out: RuleFinding[] = [];
+  /** Constats rendus redondants par une règle de convergence qui a parlé. */
+  const absorbes = new Set<string>();
+
   for (const rule of RULES) {
     // Une règle ne se prononce jamais sans ses entrées. Le test est ici, hors
     // de la règle, pour qu'aucune ne puisse l'oublier.
@@ -908,13 +1850,19 @@ export function runRules(ctx: RuleContext): RuleFinding[] {
     if (missing.length > 0 && rule.requires.length > 0) continue;
     try {
       const finding = rule.evaluate(ctx);
-      if (finding) out.push(finding);
+      if (!finding) continue;
+      out.push(finding);
+      for (const id of rule.absorbs ?? []) absorbes.add(id);
     } catch {
       // Une règle défectueuse est un défaut de code, pas un constat.
       continue;
     }
   }
-  return out;
+
+  // Le retrait se fait à la fin, pas pendant : l'ordre de déclaration des règles
+  // ne doit pas décider de ce qui survit. Une règle de convergence placée après
+  // ses constituants doit les absorber quand même.
+  return out.filter((f) => !absorbes.has(f.ruleId));
 }
 
 // ---------------------------------------------------------------------------
@@ -1001,11 +1949,23 @@ export function axisOfObservation(id: string): AuditAxis | null {
   if (id.startsWith("meta.") || id.startsWith("google.")) return "acquisition";
   if (id.startsWith("organic.")) return "data";
   if (id.startsWith("storefront.")) {
-    if (id.includes("robots") || id.includes("sitemap") || id.includes("structured_data")) {
+    if (
+      id.includes("robots") ||
+      id.includes("sitemap") ||
+      id.includes("structured_data") ||
+      // Le titre d'onglet, la description et les titres de niveau 1 sont ce
+      // qu'un moteur affiche et indexe : les ranger en « technique » laissait
+      // l'axe SEO non mesuré alors qu'il avait bel et bien été regardé.
+      id.includes("_title") ||
+      id.includes("meta_description") ||
+      id.includes("_h1_count") ||
+      id.includes("noindex")
+    ) {
       return "seo";
     }
-    if (id.includes("mobile")) return "ux";
+    if (id.includes("mobile") || id.includes("recherche")) return "ux";
     if (id.includes("policy") || id.includes("reviews")) return "trust";
+    if (id.includes("collection")) return "merchandising";
     return "technique";
   }
   if (id.startsWith("shopify.")) {
@@ -1059,10 +2019,46 @@ export function globalScore(axes: AxisScore[]): number | null {
 export const MAX_PRIORITIES = 7;
 export const MIN_PRIORITIES = 3;
 
-export type PrioritisedFinding = RuleFinding & { priority: number; rank: number };
+/**
+ * L'EFFET DE DÉPENDANCE, ET POURQUOI IL EST BORNÉ.
+ *
+ * Un problème qui en explique d'autres doit passer devant eux : le corriger
+ * fait tomber les suivants, l'inverse ne marche pas. Jusqu'ici le classement
+ * l'ignorait complètement — les causes racines étaient calculées, justes, et
+ * sans aucun poids sur l'ordre des actions.
+ *
+ * TROIS GARDE-FOUS, chacun contre une façon de tricher :
+ *
+ * 1. **L'effet MULTIPLIE la formule existante, il ne s'y ajoute pas.** Il passe
+ *    donc par le poids de preuve. Une cause « à vérifier » (poids 0,25) qui
+ *    explique trois constats vaut 0,25 × 1,75 = 0,44 : toujours en dessous d'un
+ *    constat PROUVÉ isolé, qui vaut 1. Une hypothèse ne double jamais un fait
+ *    parce qu'elle est bien accompagnée.
+ * 2. **Un constat « donnée insuffisante » a un poids nul.** Nul multiplié par
+ *    n'importe quoi reste nul : une absence de mesure ne peut pas devenir une
+ *    priorité en expliquant des choses.
+ * 3. **Le compte est plafonné.** Au-delà de trois descendants, l'avantage
+ *    n'augmente plus. Sans plafond, une cause fourre-tout attrapant huit
+ *    symptômes écraserait tout le reste par son seul nombre.
+ */
+export const DEPENDENCY_STEP = 0.25;
+export const MAX_COUNTED_DEPENDENTS = 3;
+
+/** Le multiplicateur, entre 1 (rien ne dépend) et 1,75 (plafond atteint). */
+export function dependencyEffect(dependents: number): number {
+  if (!Number.isFinite(dependents) || dependents <= 0) return 1;
+  return 1 + DEPENDENCY_STEP * Math.min(MAX_COUNTED_DEPENDENTS, Math.floor(dependents));
+}
+
+export type PrioritisedFinding = RuleFinding & {
+  priority: number;
+  rank: number;
+  /** Constats que celui-ci explique. Zéro quand il n'explique rien. */
+  dependents: number;
+};
 
 /**
- * Impact × preuve ÷ effort.
+ * Impact × preuve × dépendance ÷ effort.
  *
  * L'effort divise plutôt qu'il ne soustrait : entre deux problèmes d'impact
  * égal, celui qui se corrige en dix minutes doit passer très loin devant celui
@@ -1071,13 +2067,25 @@ export type PrioritisedFinding = RuleFinding & { priority: number; rank: number 
  * Un constat « donnée insuffisante » ne peut jamais être priorisé comme un
  * problème : son poids de preuve est nul, donc sa priorité l'est aussi. Il
  * remonte par l'axe `data`, à sa place.
+ *
+ * `dependents` est facultatif : sans lui, le classement est exactement celui
+ * d'avant. C'est ce qui permet de le vérifier des deux côtés.
  */
-export function prioritise(findings: RuleFinding[]): PrioritisedFinding[] {
+export function prioritise(
+  findings: RuleFinding[],
+  dependents?: ReadonlyMap<string, number>,
+): PrioritisedFinding[] {
   const scored = findings
-    .map((f) => ({
-      ...f,
-      priority: Math.round((f.impact * EVIDENCE_WEIGHT[f.level] * 100) / Math.max(1, f.effort)),
-    }))
+    .map((f) => {
+      const n = dependents?.get(f.ruleId) ?? 0;
+      return {
+        ...f,
+        dependents: n,
+        priority: Math.round(
+          (f.impact * EVIDENCE_WEIGHT[f.level] * dependencyEffect(n) * 100) / Math.max(1, f.effort),
+        ),
+      };
+    })
     .filter((f) => f.priority > 0)
     .sort((a, b) => b.priority - a.priority || a.ruleId.localeCompare(b.ruleId));
 

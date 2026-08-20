@@ -184,8 +184,8 @@ function Dashboard() {
         <ErrorState onRetry={() => void storesQ.refetch()} />
       ) : !storesQ.data || storesQ.data.length === 0 ? (
         <EmptyState
-          title="Aucune boutique pour l'instant"
-          description="Ajoutez votre première boutique pour lancer votre premier audit gratuit."
+          title="Aucune boutique connectée"
+          description="Connectez votre boutique pour lancer un premier diagnostic. Nous lisons votre catalogue, vos commandes et les pages que vos visiteurs reçoivent, puis nous vous disons ce qui bloque — avec la preuve de chaque constat."
           actionLabel="Ajouter ma boutique"
           onAction={() => navigate({ to: "/onboarding" })}
         />

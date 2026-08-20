@@ -494,9 +494,25 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
     "utf8",
   );
   t.check("le chemin d'audit appelle le moteur de règles", /analyseRules\(\{/.test(runner), true);
+  // Le contrôle vise la RÈGLE, pas le nom de la variable : le rapport du moteur
+  // est interpolé dans le prompt. Épingler `ruleReport` a cassé au premier
+  // remaniement — le rapport passe désormais par un second classement — sans
+  // qu'aucune garantie n'ait bougé.
   t.check(
     "les constats du moteur partent dans le prompt",
-    /\$\{rulesToPromptBlock\(ruleReport\)\}/.test(runner),
+    /\$\{rulesToPromptBlock\([a-zA-Z]+\)\}/.test(runner),
+    true,
+  );
+  // Et c'est bien le rapport RECLASSÉ qui part : sans cela, le modèle recevrait
+  // un ordre de priorités que les causes racines ont déjà corrigé.
+  t.check(
+    "…après prise en compte des dépendances",
+    /prioritise\(ruleReport\.findings, dependances\)/.test(runner),
+    true,
+  );
+  t.check(
+    "…et les dépendances viennent des causes racines",
+    /dependentsByFinding\(causes\)/.test(runner),
     true,
   );
   t.check(

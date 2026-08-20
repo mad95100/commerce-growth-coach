@@ -151,7 +151,11 @@ const findings = [
     difficulty: 1,
     time_minutes: 40,
     confidence: "high",
+    finding_key: "frais-livraison-tardifs",
+    caused_by: [],
+    blocks_count: 1,
     epistemic_level: "fait",
+    timeframe: "today",
     auto_correction: null,
   },
   {
@@ -173,7 +177,11 @@ const findings = [
     difficulty: 2,
     time_minutes: 60,
     confidence: "medium",
+    finding_key: "relance-panier-absente",
+    caused_by: ["frais-livraison-tardifs"],
+    blocks_count: 0,
     epistemic_level: "observe",
+    timeframe: "this_week",
     auto_correction: { kind: "email", body: "..." },
   },
   {
@@ -183,7 +191,8 @@ const findings = [
     category: "offre",
     severity: "medium",
     evidence: {
-      based_on: "Titre principal relevé sur la page d'accueil : « Collection ».",
+      based_on:
+        "Titre principal relevé sur la page d'accueil : « Collection ». 4 des 5 fiches produit inspectées n'exposent aucun prix en donnée structurée, sur un catalogue de 48 produits — 2 issues du parcours visible et 3 réparties à pas régulier sur les 48 fiches publiées du catalogue.",
       assumptions: "Nous n'avons pas mesuré le taux de rebond par source de trafic.",
     },
     impact_description: "Un visiteur ne peut pas savoir ce qu'il achète.",
@@ -194,7 +203,11 @@ const findings = [
     difficulty: 1,
     time_minutes: 20,
     confidence: "high",
+    finding_key: "accueil-sans-promesse",
+    caused_by: [],
+    blocks_count: 0,
     epistemic_level: "hypothese",
+    timeframe: "this_month",
     auto_correction: { kind: "copy", body: "..." },
   },
 ];

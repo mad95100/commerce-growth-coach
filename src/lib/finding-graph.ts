@@ -304,24 +304,6 @@ function confidenceOf(f: { confidence?: string | null }): "low" | "medium" | "hi
 }
 
 /**
- * Classe une conclusion selon ce qui la soutient.
- *
- * La table complète, six cas, sans exception :
- *
- * | Base citée | Hypothèses | Confiance | Niveau           |
- * | ---------- | ---------- | --------- | ---------------- |
- * | non        | —          | —         | Donnée manquante |
- * | oui        | —          | faible    | Hypothèse        |
- * | oui        | non        | élevée    | Fait             |
- * | oui        | non        | moyenne   | Déduction forte  |
- * | oui        | oui        | élevée    | Déduction forte  |
- * | oui        | oui        | moyenne   | Hypothèse        |
- *
- * La première ligne prime sur tout le reste : sans base citée, une confiance
- * « élevée » annoncée par le modèle ne vaut rien. C'est exactement le cas qu'on
- * veut voir écrit « Donnée manquante » dans le rapport plutôt que « Fait ».
- */
-/**
  * La preuve citée est-elle une MESURE, ou une constatation ?
  *
  * C'est la distinction qui manquait, et elle change ce qu'on a le droit
@@ -350,7 +332,14 @@ export function citeUneMesure(based_on: unknown): boolean {
   const quantite = /\d[\d\s.,]*\d|\d\s*(?:%|€|\$|j\b|jours?\b)/.test(texte);
   if (!quantite) return false;
   // Un repère qui rattache le chiffre à une origine ou à une fenêtre.
-  return /shopify|meta|google|analytics|commandes?|sessions?|paniers?|visiteurs?|derniers? jours|sur \d|30 j|par mois|\/mois/i.test(
+  //
+  // « sur \d » a été retiré, et c'est le point délicat de cette fonction. La
+  // préposition seule attrapait « aucun verbe d'action sur 34 liens » ou
+  // « 3 fiches listées sur 120 au catalogue » : des relevés de page, comptés
+  // certes, mais sans source ni période — donc « Observé », jamais « Mesuré ».
+  // Aucune vraie mesure n'en dépendait : « 412 paniers sur les 30 derniers
+  // jours » se reconnaît déjà à « paniers » et à sa fenêtre.
+  return /shopify|meta|google|analytics|commandes?|sessions?|paniers?|visiteurs?|derniers? jours|30 j\b|par mois|\/mois/i.test(
     texte,
   );
 }

@@ -5,7 +5,12 @@ import { analyseFindings, applyTechnicalFrontier } from "@/lib/finding-graph";
 import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-history";
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
-import { analyse as analyseRules, rulesToPromptBlock } from "@/lib/audit-rules";
+import {
+  analyse as analyseRules,
+  buildActionPlan,
+  prioritise,
+  rulesToPromptBlock,
+} from "@/lib/audit-rules";
 import {
   audienceInputFrom,
   audienceToPromptBlock,
@@ -17,7 +22,12 @@ import {
   experienceToPromptBlock,
   extractExperience,
 } from "@/lib/storefront-experience";
-import { causesToPromptBlock, groupByCause, type Symptom } from "@/lib/root-cause";
+import {
+  causesToPromptBlock,
+  dependentsByFinding,
+  groupByCause,
+  type Symptom,
+} from "@/lib/root-cause";
 import { assessDiagnostics, diagnosticsToPromptBlock } from "@/lib/diagnostics";
 import { crossSignals, crossSignalsToPromptBlock } from "@/lib/cross-source";
 import { anchorGainsOnLeak, buildFunnel, funnelToPromptBlock } from "@/lib/funnel";
@@ -89,6 +99,8 @@ export async function executeAuditWork(input: {
   let landings: Array<{ path: string; orders: number }> = [];
   /** Titres et descriptions, pour lire le vocabulaire adressé au client. */
   let productTexts: string[] = [];
+  /** Adresses des fiches publiées, pour un échantillon non biaisé par la vitrine. */
+  let catalogueHandles: string[] = [];
   /*
     UNE COLLECTE EN ÉCHEC DOIT LAISSER UNE TRACE QUE LE MARCHAND PEUT LIRE.
 
@@ -146,6 +158,11 @@ export async function executeAuditWork(input: {
       reports.push(shopifyReports.shopify, shopifyReports.organic);
       landings = shopifyReports.landings;
       productTexts = shopifyReports.productTexts;
+      // LE CATALOGUE COMPLET, POUR QUE LE SCAN NE LISE PLUS QUE LA VITRINE.
+      // Ces identifiants viennent du même appel, sous la même permission déjà
+      // accordée. Sans eux, le scan ne découvre des fiches qu'en suivant les
+      // liens de l'accueil — donc uniquement ce que la boutique met en avant.
+      catalogueHandles = shopifyReports.productHandles;
     } catch (err) {
       console.error("[audit] collecte Shopify impossible :", err);
       reports.push(
@@ -211,7 +228,7 @@ export async function executeAuditWork(input: {
   let homeHtml: string | null = null;
   try {
     const { scanStorefront } = await import("@/lib/connectors/storefront.server");
-    const storefrontScan = await scanStorefront(store.url, landings);
+    const storefrontScan = await scanStorefront(store.url, landings, catalogueHandles);
     reports.push(storefrontScan);
     homeHtml = storefrontScan.homeHtml;
   } catch (err) {
@@ -384,6 +401,27 @@ export async function executeAuditWork(input: {
   ];
   const { causes, isolated } = groupByCause(symptomes);
 
+  /*
+    LE CLASSEMENT APPREND CE QUE LES CAUSES SAVAIENT DÉJÀ.
+
+    Les causes racines étaient calculées ici, justes, et n'avaient AUCUN poids
+    sur l'ordre des actions : le plan pouvait donc proposer de corriger un
+    symptôme avant la cause qui le produit. C'est l'incohérence la plus visible
+    d'un audit — corriger l'effet laisse la cause reproduire l'effet.
+
+    Le second passage ne rejoue aucune règle : il reclasse les mêmes constats
+    avec, en plus, ce que chaque levier débloque. L'avantage passe par le poids
+    de preuve, donc une cause « à vérifier » ne dépasse pas un constat prouvé
+    du seul fait d'expliquer des choses.
+  */
+  const dependances = dependentsByFinding(causes);
+  const priorities = prioritise(ruleReport.findings, dependances);
+  const rapportPriorise = {
+    ...ruleReport,
+    priorities,
+    plan: buildActionPlan(priorities),
+  };
+
   const userPrompt = `Voici les infos de la boutique à auditer :
 
 - Nom : ${store.name}
@@ -406,7 +444,7 @@ ${observationsToPromptBlock(reports)}
 
 ${diagnosticsToPromptBlock(availability, allGaps(reports))}
 
-${rulesToPromptBlock(ruleReport)}
+${rulesToPromptBlock(rapportPriorise)}
 
 ${audienceToPromptBlock(audience, incoherences)}
 
@@ -496,8 +534,24 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
                   type: "object",
                   additionalProperties: false,
                   properties: {
-                    based_on: { type: "string" },
-                    assumptions: { type: "string" },
+                    // LA PREUVE SE RECOPIE, ELLE NE SE RÉSUME PAS.
+                    //
+                    // Sans cette consigne, le modèle reformulait : « la page
+                    // d'accueil manque de clarté » remplaçait « 34 liens
+                    // relevés, aucun ne portant de verbe d'action ». Le constat
+                    // devenait alors vrai de n'importe quelle boutique, et le
+                    // classement de certitude, qui lit cette phrase, n'avait
+                    // plus rien à quoi se raccrocher.
+                    based_on: {
+                      type: "string",
+                      description:
+                        "La ou les phrases de preuve du moteur, RECOPIÉES MOT POUR MOT depuis les blocs « Preuve : » ci-dessus, avec leurs chiffres, leurs adresses et leurs libellés cités. Ne reformule pas, ne résume pas, n'ajoute aucun chiffre absent de ces phrases. Si un constat ne s'appuie sur aucune preuve du moteur, laisse ce champ vide.",
+                    },
+                    assumptions: {
+                      type: "string",
+                      description:
+                        "Ce que le constat suppose sans l'avoir observé. Vide si le constat ne suppose rien.",
+                    },
                   },
                   required: ["based_on", "assumptions"],
                 },

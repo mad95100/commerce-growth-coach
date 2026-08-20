@@ -621,10 +621,11 @@ function AuditPage() {
                 */}
                 {audit.score === null && (
                   <p className="mt-3 rounded-lg bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground">
-                    Trop peu de points ont pu être mesurés sur cette boutique pour qu'une note
-                    d'ensemble veuille dire quelque chose. Une note calculée sur trois sujets sur
-                    dix parlerait surtout de ce que nous avons réussi à regarder. Les constats
-                    ci-dessous, eux, sont établis et restent valables.
+                    Nous n'attribuons pas de note : trop peu de sujets ont pu être mesurés sur cette
+                    boutique pour qu'une moyenne veuille dire quelque chose. Une note calculée sur
+                    trois axes sur dix décrirait surtout ce que nous avons réussi à regarder, pas
+                    l'état de votre boutique. Les constats ci-dessous, eux, sont établis et restent
+                    exploitables.
                   </p>
                 )}
                 {/*
@@ -670,7 +671,7 @@ function AuditPage() {
           {findings.length > 0 && (
             <div className="mt-6 flex items-center justify-between rounded-xl border border-border/50 bg-surface p-4">
               <div className="text-sm">
-                <strong>{doneCount}</strong> / {findings.length} actions faites
+                <strong>{doneCount}</strong> sur {findings.length} points traités
               </div>
               <div className="h-2 flex-1 mx-4 overflow-hidden rounded-full bg-muted">
                 <div
@@ -686,12 +687,13 @@ function AuditPage() {
             <div className="mt-6 rounded-xl border border-dashed border-border bg-surface p-4">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                Ce qu'il nous manque pour conclure
+                Ce que nous n'avons pas pu établir
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Sur ces {unverified.length} point{unverified.length > 1 ? "s" : ""}, nous n'avons
-                pas la donnée. Nous vous les signalons quand même, mais ne dépensez rien dessus
-                avant de les avoir vérifiés.
+                Sur ces {unverified.length} point{unverified.length > 1 ? "s" : ""}, la donnée nous
+                manque : nous ne pouvons ni les chiffrer, ni les classer parmi vos priorités. Ils
+                restent listés parce qu'ils méritent d'être vérifiés — pas parce qu'ils sont
+                établis. N'engagez pas de budget dessus avant de les avoir confirmés.
               </p>
               <ul className="mt-3 space-y-1">
                 {unverified.map((f) => (
@@ -744,6 +746,65 @@ function AuditPage() {
               </ul>
             </details>
           )}
+
+          {/*
+            PAR QUOI COMMENCER — avant l'inventaire, jamais à sa place.
+
+            L'ordre de lecture d'un rapport de conseil est : la note, ce qu'elle
+            veut dire, les causes, PUIS ce qu'on fait demain matin. Le marchand
+            tombait jusqu'ici sur la liste complète des constats et devait la
+            trier lui-même.
+
+            POURQUOI CE N'EST PAS UN ONGLET. La version précédente ouvrait le
+            rapport sur l'onglet « Plan d'action ». Rendue au navigateur, elle a
+            montré deux défauts que le code seul ne disait pas : la preuve et le
+            niveau de certitude disparaissaient du premier écran — ils vivent
+            dans les cartes de l'onglet « Problèmes » —, et un audit dont aucun
+            constat ne porte d'horizon ouvrait sur un onglet VIDE. Un bloc placé
+            au-dessus des onglets donne l'ordre voulu sans rien cacher : il
+            s'efface de lui-même quand il n'a rien à dire.
+
+            TROIS AU PLUS. Au-delà, une liste de priorités cesse d'en être une.
+          */}
+          {(() => {
+            const horizon = (tf: string) => findings.filter((f) => f.timeframe === tf);
+            const premieres = [...horizon("today"), ...horizon("this_week")].slice(0, 3);
+            if (premieres.length === 0) return null;
+            return (
+              <div className="mt-8 rounded-2xl border border-border bg-card p-5">
+                <div className="intitule">Par quoi commencer</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Dans cet ordre : ce qui a le plus d'effet, pour l'effort le plus faible, avec le
+                  niveau de certitude indiqué en face de chaque point.
+                </p>
+                <ol className="mt-3 space-y-2">
+                  {premieres.map((f, i) => {
+                    const niveau = toEpistemicLevel(f.epistemic_level);
+                    return (
+                      <li key={f.id} className="flex min-w-0 items-baseline gap-3">
+                        <span className="chiffres shrink-0 text-lg">{i + 1}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="font-medium">{f.title}</span>
+                          {niveau && (
+                            <span
+                              className="ml-2 inline-flex rounded-md border border-border px-1.5 py-0.5 text-xs text-muted-foreground"
+                              title={EPISTEMIC_HINTS[niveau]}
+                            >
+                              {EPISTEMIC_LABELS[niveau]}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Le détail de chaque point — ce que nous avons observé, sur quoi nous nous
+                  appuyons, et ce que nous n'avons pas pu vérifier — est juste en dessous.
+                </p>
+              </div>
+            );
+          })()}
 
           {/* Tabs */}
           <Tabs defaultValue="problems" className="mt-8">
@@ -983,12 +1044,12 @@ function FindingCard({
                 className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${sevColor}`}
               >
                 {finding.severity === "critical"
-                  ? "Critique"
+                  ? "Priorité : critique"
                   : finding.severity === "high"
-                    ? "Important"
+                    ? "Priorité : importante"
                     : finding.severity === "medium"
-                      ? "Moyen"
-                      : "Mineur"}
+                      ? "Priorité : opportunité"
+                      : "Priorité : secondaire"}
               </span>
             )}
             {epistemic && (
@@ -996,7 +1057,7 @@ function FindingCard({
                 className="inline-flex rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground"
                 title={EPISTEMIC_HINTS[epistemic]}
               >
-                {EPISTEMIC_LABELS[epistemic]}
+                Certitude : {EPISTEMIC_LABELS[epistemic].toLowerCase()}
               </span>
             )}
             <span className="text-xs text-muted-foreground uppercase">{finding.category}</span>
@@ -1014,12 +1075,22 @@ function FindingCard({
             la couleur de l'argent, aligné d'une carte à l'autre pour que trois
             constats se comparent d'un coup d'œil.
           */}
-          <div className="mt-2 flex items-start justify-between gap-4">
+          {/*
+            LES DEUX SE CÔTOIENT SUR LARGE, ILS S'EMPILENT SUR TÉLÉPHONE.
+
+            Mesuré au navigateur à 390 px : côte à côte, le montant — qui ne se
+            coupe pas — prenait la moitié de la ligne et laissait au titre une
+            colonne de deux mots. « Les frais de livraison n'apparaissent qu'au
+            paiement » tombait sur sept lignes de deux mots, et cessait d'être
+            lisible comme un titre. Le montant garde sa taille et son
+            alignement dès qu'il y a la place pour les deux.
+          */}
+          <div className="mt-2 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <h2 className={`min-w-0 font-display text-lg font-bold ${done ? "line-through" : ""}`}>
               {finding.title}
             </h2>
             {(finding.estimated_gain_max ?? 0) > 0 && (
-              <div className="shrink-0 text-right">
+              <div className="shrink-0 sm:text-right">
                 <div className="montant text-base leading-tight sm:text-lg">
                   +{formatMoney(Number(finding.estimated_gain_min), storeCurrency)} –{" "}
                   {formatMoney(Number(finding.estimated_gain_max), storeCurrency)}
@@ -1072,7 +1143,7 @@ function FindingCard({
           )}
           {!compact && finding.root_cause && (
             <div className="mt-3">
-              <div className="text-xs uppercase text-muted-foreground">Pourquoi</div>
+              <div className="text-xs uppercase text-muted-foreground">Diagnostic</div>
               <p className="mt-1 text-sm">{finding.root_cause}</p>
             </div>
           )}
@@ -1093,7 +1164,7 @@ function FindingCard({
           {!compact && finding.impact_description && (
             <div className="mt-3">
               <div className="text-xs uppercase text-muted-foreground flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" /> Impact
+                <AlertTriangle className="h-3 w-3" /> Ce que cela empêche
               </div>
               <p className="mt-1 text-sm">{finding.impact_description}</p>
             </div>
@@ -1131,7 +1202,9 @@ function FindingCard({
           )}
           {steps.length > 0 && (
             <div className="mt-4">
-              <div className="text-xs uppercase text-muted-foreground">Ce que vous devez faire</div>
+              <div className="text-xs uppercase text-muted-foreground">
+                Ce que vous pouvez faire
+              </div>
               <ol className="mt-2 space-y-1.5">
                 {steps.map((s, i) => (
                   <li key={i} className="flex gap-2 text-sm">
@@ -1231,7 +1304,22 @@ function FindingCard({
               </p>
             </div>
           )}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          {/*
+            LES LIBELLÉS PEUVENT REVENIR À LA LIGNE À 320 PX.
+
+            Mesuré au navigateur : « Copier le texte proposé » fait 234 px, la
+            primitive de bouton porte `whitespace-nowrap`, et la carte n'en
+            offre pas autant sur un écran de 320 px. Le bouton poussait donc le
+            document à 323 px — le seul débordement horizontal du produit.
+            `flex-wrap` sur la rangée n'y pouvait rien : ce n'est pas la rangée
+            qui dépassait, c'est un bouton seul.
+
+            L'override est local à cette rangée : la primitive garde son
+            `nowrap` partout ailleurs, où il évite des boutons à deux lignes
+            sans raison. La hauteur devient libre pour que le texte replié ne
+            soit pas coupé.
+          */}
+          <div className="mt-4 flex flex-wrap items-center gap-2 [&>button]:h-auto [&>button]:min-h-8 [&>button]:max-w-full [&>button]:whitespace-normal [&>button]:py-1.5">
             {!applied && !proposal && !refus && (
               <Button
                 size="sm"

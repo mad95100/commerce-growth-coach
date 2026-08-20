@@ -91,11 +91,12 @@ export default defineSuite("Rapport — la preuve est montrée au marchand", (t)
   const iPourquoi = rapport.indexOf("finding.root_cause");
   const iPreuve = rapport.indexOf("Sur quoi nous nous appuyons");
   const iImpact = rapport.indexOf("finding.impact_description");
-  const iActions = rapport.indexOf("Ce que vous devez faire");
+  const iActions = rapport.indexOf("Ce que vous pouvez faire");
 
   t.check("« Pourquoi » est bien présent", iPourquoi > -1, true);
   t.check("« Impact » est bien présent", iImpact > -1, true);
-  t.check("« Ce que vous devez faire » est bien présent", iActions > -1, true);
+  // « devez » culpabilise ; « pouvez » décrit ce qui est à sa portée.
+  t.check("« Ce que vous pouvez faire » est bien présent", iActions > -1, true);
   /*
     L'ORDRE A CHANGÉ, ET DANS LE BON SENS.
 
