@@ -202,9 +202,11 @@ function StorePage() {
       <div className="mt-8 card-elevated rounded-2xl p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h2 className="font-display text-xl font-bold">Lancer un nouvel audit</h2>
+            <h2 className="font-display text-xl font-bold">Lancer un nouveau diagnostic</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Nous analysons votre boutique et en sortons un plan d'action en 2 minutes.
+              Nous relisons votre catalogue, vos commandes et les pages que reçoivent vos visiteurs,
+              puis nous classons ce qui freine vos ventes — du plus coûteux au moins urgent, avec la
+              preuve de chaque constat. Comptez deux minutes.
             </p>
           </div>
           <Button
@@ -215,11 +217,11 @@ function StorePage() {
           >
             {launching ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyse en cours...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyse de votre boutique…
               </>
             ) : (
               <>
-                <Sparkles className="mr-2 h-4 w-4" /> Lancer l'audit
+                <Sparkles className="mr-2 h-4 w-4" /> Lancer le diagnostic
               </>
             )}
           </Button>
@@ -227,7 +229,7 @@ function StorePage() {
       </div>
 
       <div className="mt-8">
-        <h2 className="mb-4 font-display text-xl font-bold">Historique</h2>
+        <h2 className="mb-4 font-display text-xl font-bold">Diagnostics précédents</h2>
         {auditsQ.isLoading ? (
           <ListSkeleton rows={2} label="Chargement de l'historique de vos audits" />
         ) : !auditsQ.data || auditsQ.data.length === 0 ? (

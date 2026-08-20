@@ -62,7 +62,7 @@ function Onboarding() {
           .select()
           .single(),
       );
-      toast.success("Boutique ajoutée ! Prêt pour votre premier audit ?");
+      toast.success("Boutique enregistrée. Lançons votre premier diagnostic.");
       navigate({ to: "/stores/$storeId", params: { storeId: data.id } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur");
@@ -93,9 +93,11 @@ function Onboarding() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-primary">
             <Rocket className="h-6 w-6 text-primary-foreground" />
           </div>
-          <h1 className="mt-4 font-display text-3xl font-bold">Parlez-nous de votre boutique</h1>
+          <h1 className="mt-4 font-display text-3xl font-bold">Commençons par votre boutique</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Deux champs suffisent pour commencer. Le reste affine le diagnostic et peut attendre.
+            Deux champs suffisent. Nous lisons ensuite votre catalogue, vos commandes et les pages
+            que reçoivent vos visiteurs, puis nous vous disons ce qui freine vos ventes et par quoi
+            commencer.
           </p>
         </div>
 
@@ -151,14 +153,15 @@ function Onboarding() {
             tenu, là où la page d'accueil lui avait promis une minute.
           */}
           <div className="border-t border-border/60 pt-5">
-            <h2 className="font-display text-lg font-bold">Pour affiner le diagnostic</h2>
+            <h2 className="font-display text-lg font-bold">Ce qui nous permet de chiffrer</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Tout ce qui suit est facultatif. Chaque réponse permet de chiffrer davantage, et vous
-              pourrez compléter à tout moment depuis la page de votre boutique.
+              Facultatif. Sans ces éléments nous constatons, avec eux nous chiffrons : ce qu'un
+              problème vous coûte réellement, et ce que vaut sa correction. Vous pouvez compléter
+              plus tard depuis la page de votre boutique.
             </p>
           </div>
           <div>
-            <Label htmlFor="niche">Votre niche / secteur</Label>
+            <Label htmlFor="niche">Ce que vous vendez</Label>
             <Input
               id="niche"
               value={form.niche}
@@ -206,7 +209,7 @@ function Onboarding() {
           </div>
 
           <div>
-            <Label htmlFor="goal">Votre objectif principal</Label>
+            <Label htmlFor="goal">Ce que vous cherchez à obtenir</Label>
             <Textarea
               id="goal"
               value={form.goal}
@@ -221,7 +224,7 @@ function Onboarding() {
             disabled={loading || !form.name || !form.url}
           >
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Enregistrer ma boutique
+            Analyser ma boutique
           </Button>
           <p className="text-center text-xs text-muted-foreground">
             Nous lisons votre boutique, nous n'y écrivons rien sans votre accord explicite.

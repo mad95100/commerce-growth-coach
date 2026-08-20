@@ -52,8 +52,8 @@ export default defineSuite("Interface — la page boutique", (t) => {
   // =========================================================================
   // 1. L'ordre suit ce que le marchand vient faire
   // =========================================================================
-  const iAudit = page.indexOf("Lancer un nouvel audit");
-  const iHistorique = page.indexOf(">Historique<");
+  const iAudit = page.indexOf("Lancer un nouveau diagnostic");
+  const iHistorique = page.indexOf(">Diagnostics précédents<");
   const iSources = page.indexOf("<ConnectionsPanel");
   const iModele = page.indexOf("<StoreEconomicsCard");
   const iDanger = page.indexOf("<DangerZone");

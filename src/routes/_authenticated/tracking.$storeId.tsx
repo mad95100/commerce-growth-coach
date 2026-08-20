@@ -178,10 +178,11 @@ function TrackingPage() {
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold">Suivi des gains</h1>
+          <h1 className="font-display text-3xl font-bold">Ce que vos corrections ont changé</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ce que chaque correction a réellement changé : conversion, CTR, ROAS, chiffre
-            d'affaires.
+            Chaque correction appliquée est remesurée sur vos chiffres réels — commandes, taux de
+            conversion, retour sur dépense publicitaire — pour dire si elle a produit un effet, et
+            lequel.
           </p>
         </div>
         {/*

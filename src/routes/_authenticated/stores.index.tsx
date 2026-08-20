@@ -91,9 +91,9 @@ function StoresIndex() {
         <ErrorState onRetry={() => void q.refetch()} />
       ) : !q.data || q.data.length === 0 ? (
         <EmptyState
-          title="Aucune boutique pour l'instant"
-          description="Ajoutez votre première boutique pour lancer votre premier diagnostic."
-          actionLabel="Ajouter ma boutique"
+          title="Aucune boutique connectée"
+          description="Connectez votre boutique pour lancer un premier diagnostic. Nous lisons votre catalogue, vos commandes et les pages que reçoivent vos visiteurs, puis nous vous disons ce qui freine vos ventes — avec la preuve de chaque constat."
+          actionLabel="Connecter ma boutique"
           onAction={() => void navigate({ to: "/onboarding" })}
         />
       ) : (
