@@ -621,10 +621,11 @@ function AuditPage() {
                 */}
                 {audit.score === null && (
                   <p className="mt-3 rounded-lg bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground">
-                    Trop peu de points ont pu être mesurés sur cette boutique pour qu'une note
-                    d'ensemble veuille dire quelque chose. Une note calculée sur trois sujets sur
-                    dix parlerait surtout de ce que nous avons réussi à regarder. Les constats
-                    ci-dessous, eux, sont établis et restent valables.
+                    Nous n'attribuons pas de note : trop peu de sujets ont pu être mesurés sur cette
+                    boutique pour qu'une moyenne veuille dire quelque chose. Une note calculée sur
+                    trois axes sur dix décrirait surtout ce que nous avons réussi à regarder, pas
+                    l'état de votre boutique. Les constats ci-dessous, eux, sont établis et restent
+                    exploitables.
                   </p>
                 )}
                 {/*
@@ -670,7 +671,7 @@ function AuditPage() {
           {findings.length > 0 && (
             <div className="mt-6 flex items-center justify-between rounded-xl border border-border/50 bg-surface p-4">
               <div className="text-sm">
-                <strong>{doneCount}</strong> / {findings.length} actions faites
+                <strong>{doneCount}</strong> sur {findings.length} points traités
               </div>
               <div className="h-2 flex-1 mx-4 overflow-hidden rounded-full bg-muted">
                 <div
@@ -686,12 +687,13 @@ function AuditPage() {
             <div className="mt-6 rounded-xl border border-dashed border-border bg-surface p-4">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                Ce qu'il nous manque pour conclure
+                Ce que nous n'avons pas pu établir
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Sur ces {unverified.length} point{unverified.length > 1 ? "s" : ""}, nous n'avons
-                pas la donnée. Nous vous les signalons quand même, mais ne dépensez rien dessus
-                avant de les avoir vérifiés.
+                Sur ces {unverified.length} point{unverified.length > 1 ? "s" : ""}, la donnée nous
+                manque : nous ne pouvons ni les chiffrer, ni les classer parmi vos priorités. Ils
+                restent listés parce qu'ils méritent d'être vérifiés — pas parce qu'ils sont
+                établis. N'engagez pas de budget dessus avant de les avoir confirmés.
               </p>
               <ul className="mt-3 space-y-1">
                 {unverified.map((f) => (
@@ -771,6 +773,10 @@ function AuditPage() {
             return (
               <div className="mt-8 rounded-2xl border border-border bg-card p-5">
                 <div className="intitule">Par quoi commencer</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Dans cet ordre : ce qui a le plus d'effet, pour l'effort le plus faible, avec le
+                  niveau de certitude indiqué en face de chaque point.
+                </p>
                 <ol className="mt-3 space-y-2">
                   {premieres.map((f, i) => {
                     const niveau = toEpistemicLevel(f.epistemic_level);
@@ -793,8 +799,8 @@ function AuditPage() {
                   })}
                 </ol>
                 <p className="mt-3 text-sm text-muted-foreground">
-                  Le détail de chaque point, avec ce sur quoi nous nous appuyons, est juste en
-                  dessous.
+                  Le détail de chaque point — ce que nous avons observé, sur quoi nous nous
+                  appuyons, et ce que nous n'avons pas pu vérifier — est juste en dessous.
                 </p>
               </div>
             );
@@ -1038,12 +1044,12 @@ function FindingCard({
                 className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${sevColor}`}
               >
                 {finding.severity === "critical"
-                  ? "Critique"
+                  ? "Priorité : critique"
                   : finding.severity === "high"
-                    ? "Important"
+                    ? "Priorité : importante"
                     : finding.severity === "medium"
-                      ? "Moyen"
-                      : "Mineur"}
+                      ? "Priorité : opportunité"
+                      : "Priorité : secondaire"}
               </span>
             )}
             {epistemic && (
@@ -1051,7 +1057,7 @@ function FindingCard({
                 className="inline-flex rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground"
                 title={EPISTEMIC_HINTS[epistemic]}
               >
-                {EPISTEMIC_LABELS[epistemic]}
+                Certitude : {EPISTEMIC_LABELS[epistemic].toLowerCase()}
               </span>
             )}
             <span className="text-xs text-muted-foreground uppercase">{finding.category}</span>
@@ -1137,7 +1143,7 @@ function FindingCard({
           )}
           {!compact && finding.root_cause && (
             <div className="mt-3">
-              <div className="text-xs uppercase text-muted-foreground">Pourquoi</div>
+              <div className="text-xs uppercase text-muted-foreground">Diagnostic</div>
               <p className="mt-1 text-sm">{finding.root_cause}</p>
             </div>
           )}
@@ -1158,7 +1164,7 @@ function FindingCard({
           {!compact && finding.impact_description && (
             <div className="mt-3">
               <div className="text-xs uppercase text-muted-foreground flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" /> Impact
+                <AlertTriangle className="h-3 w-3" /> Ce que cela empêche
               </div>
               <p className="mt-1 text-sm">{finding.impact_description}</p>
             </div>
@@ -1196,7 +1202,9 @@ function FindingCard({
           )}
           {steps.length > 0 && (
             <div className="mt-4">
-              <div className="text-xs uppercase text-muted-foreground">Ce que vous devez faire</div>
+              <div className="text-xs uppercase text-muted-foreground">
+                Ce que vous pouvez faire
+              </div>
               <ol className="mt-2 space-y-1.5">
                 {steps.map((s, i) => (
                   <li key={i} className="flex gap-2 text-sm">

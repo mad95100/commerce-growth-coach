@@ -197,7 +197,11 @@ export default defineSuite("Produit — les promesses faites au marchand sont te
   );
   t.check(
     "et il dit pourquoi il n'y a pas de note",
-    /Trop peu de points ont pu être mesurés/.test(rapport),
+    // Le contrôle vise la RÈGLE — une note absente s'explique — pas la phrase
+    // exacte, qui a été réécrite pour dire « nous n'attribuons pas de note »
+    // plutôt que de laisser croire à une panne.
+    /Nous n'attribuons pas de note/.test(rapport) &&
+      /trop peu de sujets ont pu être mesurés/i.test(rapport),
     true,
   );
 

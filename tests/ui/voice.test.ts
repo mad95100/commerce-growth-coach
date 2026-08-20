@@ -436,12 +436,34 @@ export default defineSuite("Interface — une seule voix", (t) => {
     true,
   );
 
-  // Les consignes au modèle, elles, DOIVENT rester telles quelles : les
-  // convertir par excès de zèle abîmerait des instructions dont la précision
-  // compte, sans qu'aucun marchand n'y gagne quoi que ce soit.
+  /*
+    LES CONSIGNES AU MODÈLE IMPOSENT LA MÊME VOIX QUE LE RESTE DU PRODUIT.
+
+    Elles disaient « Tutoie l'utilisateur » et « Parle comme un mentor
+    bienveillant » — soit exactement l'inverse de ce que cette suite vérifie
+    partout ailleurs. Le rapport est le texte le plus lu du produit, et il était
+    le seul écrit sous des consignes contraires.
+  */
+  const consignes = readFileSync(`${ROOT}src/lib/audit-prompt.ts`, "utf8");
   t.check(
-    "les consignes au modèle gardent leur forme",
-    /Tu es EcomPilot AI/.test(readFileSync(`${ROOT}src/lib/audit-prompt.ts`, "utf8")),
+    "les consignes au modèle imposent le vouvoiement",
+    /VOUVOIEMENT partout/.test(consignes),
+    true,
+  );
+  t.check(
+    "…et interdisent explicitement le tutoiement",
+    /Jamais de tutoiement/.test(consignes),
+    true,
+  );
+  t.check("…et n'ordonnent plus de tutoyer", /Tutoie l'utilisateur|Tutoyez/.test(consignes), false);
+  t.check(
+    "…et bannissent les formules creuses",
+    /il est important de/.test(consignes) && /optimisez votre boutique/.test(consignes),
+    true,
+  );
+  t.check(
+    "…et rappellent que la portée n'est pas une nuance de style",
+    /LA PORTÉE EST UNE VÉRITÉ/.test(consignes),
     true,
   );
 });
