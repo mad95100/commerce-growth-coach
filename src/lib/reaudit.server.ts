@@ -244,9 +244,12 @@ async function launchAudit(
     store_id: store.id,
     kind: "insight",
     severity: "medium",
-    title: `Nouveau diagnostic lancé sur ${store.name}`,
-    body: reason,
-    action_label: "Voir le diagnostic",
+    title: `Diagnostic en cours sur ${store.name}`,
+    // CE QUE LA NOTIFICATION DOIT DIRE, ET QU'ELLE NE DISAIT PAS : pourquoi il
+    // a été relancé, et quand le regarder. « Nouveau diagnostic lancé » annonce
+    // un événement sans donner de raison d'ouvrir l'écran.
+    body: `${reason} Les résultats seront prêts dans deux minutes environ.`,
+    action_label: "Suivre le diagnostic",
     action_href: `/audits/${audit.id}`,
   });
 }

@@ -82,7 +82,7 @@ function SettingsPage() {
           <div>
             <h2 className="font-display text-lg font-bold">Votre compte</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Ces réglages valent pour toutes vos boutiques.
+              Ces réglages s'appliquent à toutes vos boutiques et à tous vos diagnostics.
             </p>
           </div>
           <div>
@@ -98,9 +98,10 @@ function SettingsPage() {
             <Input id="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </div>
           <div>
-            <Label>Votre niveau en e-commerce</Label>
+            <Label>Votre familiarité avec le e-commerce</Label>
             <p className="mt-1 text-xs text-muted-foreground">
-              Cela ajuste le style et le niveau de détail de vos audits.
+              Ce réglage change la façon dont vos diagnostics sont rédigés, jamais ce qu'ils
+              constatent : les mêmes problèmes sont trouvés, expliqués plus ou moins en détail.
             </p>
             <RadioGroup
               className="mt-3 gap-2"
@@ -134,7 +135,7 @@ function SettingsPage() {
             disabled={loading}
             className="bg-gradient-primary text-primary-foreground"
           >
-            Enregistrer
+            Enregistrer mes préférences
           </Button>
         </div>
       </div>

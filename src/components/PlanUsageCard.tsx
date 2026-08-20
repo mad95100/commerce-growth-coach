@@ -78,11 +78,17 @@ export function PlanUsageCard() {
   return (
     <div className="rounded-2xl border border-border/60 bg-card/50 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-display text-lg font-bold">Plan {PLAN_LABELS[e.tier]}</h2>
+        <h2 className="font-display text-lg font-bold">Votre abonnement — {PLAN_LABELS[e.tier]}</h2>
         {periodLabel && (
-          <span className="text-xs text-muted-foreground">Période : {periodLabel}</span>
+          <span className="text-xs text-muted-foreground">Période en cours : {periodLabel}</span>
         )}
       </div>
+      {/* CE QUE LA CARTE RÉPOND, ET DANS CET ORDRE : ce qui est inclus, ce qui
+          a été consommé, ce qu'il reste. Sans cette ligne, le marchand lisait
+          des compteurs sans savoir de quoi ils comptaient la consommation. */}
+      <p className="mt-1 text-sm text-muted-foreground">
+        Ce que votre abonnement inclut ce mois-ci, et ce que vous en avez utilisé.
+      </p>
 
       <div className="mt-4 space-y-3">
         {SHOWN.map((key) => {
@@ -128,7 +134,8 @@ export function PlanUsageCard() {
 
       {e.tier === "free" && (
         <p className="mt-4 text-xs text-muted-foreground">
-          Les compteurs repartent à zéro le 1er de chaque mois.
+          Vos compteurs repartent à zéro le 1er de chaque mois. Rien n'est facturé sur ce plan :
+          au-delà des quantités incluses, les lancements sont refusés, jamais prélevés.
         </p>
       )}
     </div>
