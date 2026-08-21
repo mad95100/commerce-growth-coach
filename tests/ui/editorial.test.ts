@@ -95,6 +95,59 @@ export default defineSuite("Éditorial — le produit parle comme un consultant"
   );
 
   // =========================================================================
+  // AUCUN COMPORTEMENT DE VISITEUR SANS MESURE DE COMPORTEMENT
+  // =========================================================================
+  /*
+    LE DÉFAUT, RELEVÉ SUR UN VRAI RAPPORT. Le moteur écrivait « les personnes qui
+    arrivent sur votre boutique quittent le site aussitôt » et « l'absence de ces
+    pages provoque le refus systématique de vos publicités ». Aucun départ n'a
+    été observé, aucun refus publicitaire n'a été constaté : ce sont deux
+    conduites prêtées à des gens que personne n'a vus, et une conséquence
+    décrétée sans mesure. Elles rendent le rapport spectaculaire et indéfendable
+    — la seule chose qu'un consultant ne peut pas se permettre.
+  */
+  t.check(
+    "les consignes interdisent de prêter une conduite aux visiteurs",
+    /AUCUN COMPORTEMENT DE VISITEUR SANS MESURE DE COMPORTEMENT/.test(consignes),
+    true,
+  );
+  t.check(
+    "…en nommant les formules bannies",
+    /les visiteurs quittent le site aussitôt/.test(consignes) &&
+      /provoque le refus de vos publicités/.test(consignes),
+    true,
+  );
+  t.check(
+    "…et la distinction qui les remplace",
+    /ce que le manque EMPÊCHE, jamais ce qu'il DÉCLENCHE/.test(consignes),
+    true,
+  );
+  t.check("…sans dramatisation", /Aucune dramatisation/.test(consignes), true);
+  t.check(
+    "le diagnostic passe avant la preuve technique",
+    /LE DIAGNOSTIC D'ABORD, LA PREUVE TECHNIQUE ENSUITE/.test(consignes),
+    true,
+  );
+
+  // Le jargon du moteur ne remonte pas jusqu'au marchand.
+  const certitudes = lire("src/lib/finding-graph.ts");
+  t.check(
+    "« Déduction forte » ne s'affiche plus tel quel",
+    /deduction_forte: "Déduction forte"/.test(certitudes),
+    false,
+  );
+  t.check(
+    "…le libellé dit d'où vient la conclusion",
+    /Déduit des éléments observés/.test(certitudes),
+    true,
+  );
+  t.check(
+    "la mémoire des corrections ne parle plus de « piste »",
+    /Piste jamais tentée/.test(lire("src/lib/attempt-history.ts")),
+    false,
+  );
+
+  // =========================================================================
   // PRIORITÉ ET CERTITUDE NE SE CONFONDENT JAMAIS À L'ÉCRAN
   // =========================================================================
   /*

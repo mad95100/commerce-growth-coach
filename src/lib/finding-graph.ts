@@ -48,7 +48,7 @@ export type EpistemicLevel = (typeof EPISTEMIC_LEVELS)[number];
 export const EPISTEMIC_LABELS: Record<EpistemicLevel, string> = {
   fait: "Mesuré",
   observe: "Observé",
-  deduction_forte: "Déduction forte",
+  deduction_forte: "Déduit des éléments observés",
   hypothese: "Hypothèse",
   donnee_manquante: "Donnée manquante",
 };
@@ -58,8 +58,10 @@ export const EPISTEMIC_HINTS: Record<EpistemicLevel, string> = {
   fait: "Chiffré dans vos données, avec sa source et sa période.",
   observe:
     "Constaté directement sur votre boutique. Le fait est certain ; ce qu'il coûte n'est pas chiffré.",
-  deduction_forte: "Déduit de vos données, avec des hypothèses annoncées. Très probable.",
-  hypothese: "Piste plausible, non démontrée. À vérifier avant d'y mettre du budget.",
+  deduction_forte:
+    "Établi en rapprochant plusieurs éléments de votre boutique. Les hypothèses du raisonnement sont indiquées.",
+  hypothese:
+    "Explication plausible, que nos données ne démontrent pas. À vérifier avant d'y consacrer un budget.",
   donnee_manquante:
     "Il manque la donnée pour conclure. La première action est d'aller la chercher.",
 };
@@ -543,8 +545,8 @@ const SEVERITY_SENTENCE: Record<string, string> = {
 const EPISTEMIC_SENTENCE: Record<EpistemicLevel, string> = {
   fait: "Chiffré sur vos données réelles.",
   observe: "Constaté sur votre boutique ; le coût n'est pas chiffré.",
-  deduction_forte: "Déduit de vos données, avec des hypothèses annoncées.",
-  hypothese: "Repose sur une hypothèse : à vérifier avant d'y consacrer un budget.",
+  deduction_forte: "Déduit en rapprochant plusieurs éléments observés.",
+  hypothese: "Repose sur une hypothèse que nous n'avons pas pu vérifier.",
   donnee_manquante: "La donnée qui permettrait de conclure manque.",
 };
 

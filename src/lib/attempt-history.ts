@@ -139,7 +139,12 @@ const SETTLED = new Set(["confirme", "nul", "regression"]);
 export function guidanceFor(candidate: Candidate, history: Attempt[]): HistoryGuidance {
   const { similarity, match } = compareToHistory(candidate, history);
   if (!match) {
-    return { action: "proposer", similarity, match: null, reason: "Piste jamais tentée." };
+    return {
+      action: "proposer",
+      similarity,
+      match: null,
+      reason: "Vous n'avez pas encore traité ce point.",
+    };
   }
 
   const when = frenchDate(match.appliedAt);

@@ -97,7 +97,7 @@ export type CauseDefinition = {
 export const CAUSES: CauseDefinition[] = [
   {
     id: "cause.boutique_muette",
-    title: "La boutique n'explique pas ce qu'elle vend",
+    title: "Votre offre n'est pas identifiable dès l'arrivée",
     statement:
       "Le visiteur arrive sur des pages qui montrent des produits sans jamais dire à qui ils s'adressent, ce qu'ils changent, ni pourquoi les acheter ici.",
     why: "Fiches sans description, page d'accueil sans promesse, prix sans argument : ce sont trois manifestations du même vide. Les corriger séparément revient à écrire trois fois le même texte à trois endroits, dans le désordre — et à ne jamais finir.",
@@ -118,7 +118,7 @@ export const CAUSES: CauseDefinition[] = [
   },
   {
     id: "cause.rien_ne_rassure",
-    title: "Rien ne rassure au moment de payer",
+    title: "Les réponses attendues avant l'achat ne sont pas exposées",
     statement:
       "Aucune preuve, aucune politique et aucun interlocuteur ne sont exposés là où l'acheteur les cherche.",
     why: "Avis absents, pages de retour introuvables, aucun contact : la même objection reste ouverte à chaque fois — « et si ça se passe mal ? ». Une seule de ces absences est un manque ; les trois ensemble sont une raison de ne pas acheter.",
@@ -140,7 +140,7 @@ export const CAUSES: CauseDefinition[] = [
   },
   {
     id: "cause.chemin_absent",
-    title: "Le visiteur n'a pas de chemin vers l'achat",
+    title: "L'accès à vos produits n'est pas suffisamment visible",
     statement:
       "La page ne propose ni geste évident ni moyen d'explorer : le visiteur intéressé doit chercher lui-même comment acheter.",
     why: "Absence de bouton, bouton trop bas, navigation absente ou surchargée : chacun ajoute une friction au même endroit du parcours — juste après le moment où l'intention naît. C'est le seul endroit où une friction coûte le prix entier de la visite.",
@@ -169,7 +169,7 @@ export const CAUSES: CauseDefinition[] = [
    */
   {
     id: "cause.catalogue_pas_achetable",
-    title: "Une partie du catalogue exposé ne peut pas être achetée",
+    title: "Une partie de votre catalogue exposé n'est pas achetable en l'état",
     statement:
       "Des fiches sont visibles en boutique alors qu'elles n'ont pas de prix, plus de stock, ou un choix dont la moitié est indisponible.",
     why: "Prix absent, rupture totale, choix partiellement épuisé : le visiteur rencontre à chaque fois le même mur, à la même étape — celle où il a déjà décidé d'acheter. Ce ne sont pas trois chantiers, c'est un passage en revue du catalogue, à faire une fois.",
@@ -189,7 +189,7 @@ export const CAUSES: CauseDefinition[] = [
   },
   {
     id: "cause.boutique_non_mesuree",
-    title: "La boutique n'est pas mesurée",
+    title: "Vos ventes ne sont pas mesurées assez finement pour être pilotées",
     statement:
       "Les données qui permettraient de dire OÙ se perd le chiffre d'affaires ne sont pas collectées.",
     why: "Trafic inconnu, origine des commandes inconnue, rétention incalculable : ce ne sont pas trois problèmes, c'est un seul — personne ne regarde. Tant qu'il dure, chaque décision se prend au jugé, y compris celles qui engagent un budget publicitaire.",
@@ -208,7 +208,7 @@ export const CAUSES: CauseDefinition[] = [
   },
   {
     id: "cause.identite_flottante",
-    title: "La boutique ne sait pas à qui elle parle",
+    title: "Votre positionnement client n'est pas encore cohérent",
     statement:
       "Le catalogue, les prix et la présentation désignent des publics différents, sans qu'aucun ne soit servi complètement.",
     why: "Écart entre ce qui est exposé et ce qui se vend, gamme trop étendue, présentation dispersée : chacun montre la même hésitation. Une boutique qui s'adresse à tout le monde ne convainc personne en particulier, et c'est ce qui rend chaque autre correction moins efficace qu'elle ne devrait.",

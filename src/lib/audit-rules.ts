@@ -912,7 +912,7 @@ export const RULES: Rule[] = [
         */
         statement:
           "Aucune des trois adresses de politique vérifiées n'a répondu : remboursement, livraison, conditions générales. Les adresses exactes et leur code de réponse figurent dans la preuve.",
-        why: "Ce sont les pages que l'acheteur hésitant cherche avant de payer. Leur absence est aussi un motif de refus à la publication sur les régies publicitaires. Si ces pages existent chez vous sous une autre adresse, c'est leur emplacement qui pose problème, pas leur contenu — elles restent introuvables pour qui les cherche au chemin habituel.",
+        why: "Ce sont les pages que l'acheteur hésitant cherche avant de payer. Leur absence figure aussi parmi les motifs de refus que les régies publicitaires opposent aux annonceurs — nous n'avons pas constaté de refus sur votre compte. Si ces pages existent chez vous sous une autre adresse, c'est leur emplacement qui pose problème, pas leur contenu — elles restent introuvables pour qui les cherche au chemin habituel.",
         level: "prouve",
         ...t,
         impact: 3,
