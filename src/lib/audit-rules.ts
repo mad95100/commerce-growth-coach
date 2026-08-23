@@ -148,6 +148,18 @@ export const THRESHOLDS = {
   MIN_PRODUCTS_FOR_SHARES: 5,
   /** Sessions minimales avant de parler de conversion. */
   MIN_SESSIONS_FOR_CONVERSION: 300,
+  /**
+   * Taux de transformation en dessous duquel quelque chose est CASSÉ.
+   *
+   * CE QUE CE SEUIL N'EST PAS : une moyenne de marché. Le produit s'interdit
+   * d'opposer au marchand une norme sectorielle qu'il ne peut pas vérifier, et
+   * ce nombre n'en est pas une. C'est NOTRE ligne entre « améliorable » et
+   * « quelque chose ne fonctionne pas » — assumée comme telle, et volontairement
+   * basse pour ne se déclencher que sur l'indéfendable.
+   *
+   * Exprimé en RATIO, comme l'observation : 0,005 = un demi pour cent.
+   */
+  CONVERSION_RATE_ANORMALE: 0.005,
   /** Part de fiches sans description au-delà de laquelle c'est systémique. */
   DESCRIPTIONS_MISSING_SHARE: 0.3,
   /** Part de produits en rupture au-delà de laquelle l'offre se vide. */
@@ -579,6 +591,57 @@ export const RULES: Rule[] = [
       });
     },
   },
+  /*
+    L'OBSERVATION ÉTAIT PRODUITE ET LUE PAR PERSONNE.
+
+    `shopify.conversion_rate` est calculé par la collecte ShopifyQL depuis
+    toujours. AUCUNE des trente-sept règles ne la consommait. Conséquence
+    mesurée : dix mille sessions et UNE commande — un taux de 0,01 % — ne
+    produisaient aucun constat, l'axe conversion restait à 100, et le score
+    global sortait à 99. Une faiblesse commerciale démontrée, récompensée.
+
+    `conversion.traffic_without_orders` ne couvrait que le cas binaire — zéro
+    commande. Une commande suffisait à passer entre les mailles.
+
+    CE QUE CE CONSTAT DIT, ET CE QU'IL SE GARDE DE DIRE. Il énonce le taux
+    mesuré et le VOLUME qui n'a pas commandé : c'est de l'arithmétique, pas une
+    comparaison. Il n'affirme aucune cause — sans mesure d'entonnoir, on ne sait
+    pas à quelle marche la perte se produit — et n'oppose aucune moyenne de
+    marché, que le produit s'interdit.
+  */
+  {
+    id: "conversion.taux_anormalement_bas",
+    axis: "conversion",
+    requires: ["shopify.conversion_rate", "shopify.sessions_30d", "shopify.orders_30d"],
+    evaluate: (ctx) => {
+      const taux = num(ctx, "shopify.conversion_rate");
+      const sessions = num(ctx, "shopify.sessions_30d");
+      const orders = num(ctx, "shopify.orders_30d");
+      if (taux === null || sessions === null || orders === null) return null;
+      // Le cas « aucune commande » a sa propre règle, qui dit autre chose.
+      if (orders === 0) return null;
+      if (sessions < THRESHOLDS.MIN_SESSIONS_FOR_CONVERSION) return null;
+      if (taux >= THRESHOLDS.CONVERSION_RATE_ANORMALE) return null;
+
+      const t = trace(ctx, [
+        "shopify.conversion_rate",
+        "shopify.sessions_30d",
+        "shopify.orders_30d",
+      ]);
+      const sansCommande = Math.max(0, Math.round(sessions - orders));
+      return emit(RULES_BY_ID["conversion.taux_anormalement_bas"], {
+        title: "Presque aucune visite ne se transforme en commande",
+        statement: `${Math.round(taux * 1000) / 10} % de transformation : ${orders} commande(s) payée(s) pour ${sessions} sessions sur la période.`,
+        why: `Sur ${sessions} sessions, ${sansCommande} n'ont pas abouti à une commande. À ce niveau, l'écart ne s'explique pas par des réglages fins : quelque chose empêche l'achat. Nous ne mesurons pas à quelle marche la perte se produit — cela demanderait les données d'entonnoir.`,
+        level: "prouve",
+        ...t,
+        impact: 5,
+        effort: 3,
+        recommendation:
+          "Passer une commande test de bout en bout depuis un téléphone, en payant réellement, et noter l'étape où quelque chose surprend ou bloque. C'est le seul moyen de situer la marche sans données d'entonnoir.",
+      });
+    },
+  },
   {
     id: "conversion.cart_abandonment_high",
     axis: "conversion",
@@ -789,9 +852,40 @@ export const RULES: Rule[] = [
     id: "merchandising.catalogue_vide",
     axis: "merchandising",
     requires: ["shopify.product_count"],
+    /*
+      UN CATALOGUE COMPTÉ À ZÉRO REND INCOHÉRENT TOUT CONSTAT DE FICHE.
+
+      La liste ne tenait d'abord que les deux constats de navigation. Une
+      matrice exécutée sur les trente-sept règles a montré que ce n'était pas
+      assez : `conversion.livraison_absente_fiche` et `offre.prix_absent`
+      sortaient AVEC un catalogue à zéro, et recommandaient d'afficher la
+      livraison sur les fiches ou d'aller renseigner le prix des produits.
+
+      Ce n'est pas une combinaison théorique. `product_count` vient de
+      `/products/count.json` ; `products_without_price` et le scan des fiches
+      viennent d'ailleurs. Deux appels distincts peuvent diverger — pagination,
+      cache, échec partiel — et le rapport se remettait alors à parler de fiches
+      sur une boutique qu'il venait de déclarer vide.
+
+      Le compte fait foi. Tout ce qui décrit une fiche, un prix, une variante ou
+      une collection est absorbé : ces constats redeviendront vrais le jour où
+      il y aura des produits, et ils seront alors recalculés.
+    */
     absorbs: [
       "ux.catalogue_invisible_depuis_accueil",
       "merchandising.catalogue_present_mais_invisible",
+      "conversion.livraison_absente_fiche",
+      "offre.prix_absent",
+      "merchandising.choix_partiellement_epuise",
+      "merchandising.collection_maigre",
+      "merchandising.collection_sans_filtres",
+      "merchandising.descriptions_missing",
+      "merchandising.images_missing",
+      "merchandising.out_of_stock_share",
+      "merchandising.catalog_concentration",
+      "trust.avis_absents_fiche",
+      "produit.achat_impossible",
+      "data.disponibilite_non_lisible",
     ],
     evaluate: (ctx) => {
       const total = num(ctx, "shopify.product_count");

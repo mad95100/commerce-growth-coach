@@ -597,4 +597,91 @@ export default defineSuite("Moteur — boutiques témoins, verdict de bout en bo
     note([...VITRINE_SAINE, ...CATALOGUE_FOURNI], SANS_SESSIONS),
     null,
   );
+
+  /*
+    UNE COMMANDE SUFFISAIT À PASSER ENTRE LES MAILLES.
+
+    `shopify.conversion_rate` était calculé par la collecte depuis toujours et
+    AUCUNE des trente-sept règles ne le lisait. `traffic_without_orders` ne
+    couvrait que le cas binaire — zéro commande.
+
+    Conséquence mesurée : dix mille sessions et UNE commande, soit 0,01 % de
+    transformation, ne produisaient aucun constat. L'axe conversion restait à
+    100, et le score global sortait à 99 sur une faiblesse commerciale
+    démontrée. Il tombe maintenant au niveau de ce que le commerce obtient.
+  */
+  const dixMillePourUne = note([
+    ...VITRINE_SAINE,
+    ...CATALOGUE_FOURNI,
+    obs("shopify.sessions_30d", 10000),
+    obs("shopify.orders_30d", 1),
+    obs("shopify.conversion_rate", 1 / 10000, { unit: "percent" }),
+  ]);
+  t.check("7. dix mille visites, une commande — une note existe", dixMillePourUne !== null, true);
+  t.check("…et elle n'est pas flatteuse", (dixMillePourUne ?? 100) < 70, true);
+
+  // ET LE CONSTAT EXISTE, avec son volume — pas une comparaison de marché.
+  const constatTaux = analyse({
+    observations: [
+      ...VITRINE_SAINE,
+      ...CATALOGUE_FOURNI,
+      obs("shopify.sessions_30d", 10000),
+      obs("shopify.orders_30d", 1),
+      obs("shopify.conversion_rate", 1 / 10000, { unit: "percent" }),
+    ],
+    gaps: [],
+  } as RuleContext).findings.find((f) => f.ruleId === "conversion.taux_anormalement_bas");
+  t.check("le taux anormalement bas produit un constat", constatTaux !== undefined, true);
+  t.check("…mesuré, pas déduit", constatTaux?.level, "prouve");
+  t.check("…qui cite le volume qui n'a pas commandé", /9999/.test(constatTaux?.why ?? ""), true);
+  // AUCUNE MOYENNE DE MARCHÉ : le produit s'interdit d'opposer au marchand une
+  // norme sectorielle qu'il ne peut pas vérifier.
+  t.check(
+    "…sans invoquer une moyenne de marché",
+    /moyenne du secteur|taux moyen|norme|benchmark|standard du march/i.test(
+      `${constatTaux?.statement ?? ""} ${constatTaux?.why ?? ""}`,
+    ),
+    false,
+  );
+  // ET IL N'AFFIRME AUCUNE CAUSE : sans entonnoir, la marche reste inconnue.
+  t.check(
+    "…et reconnaît ne pas situer la marche",
+    /ne mesurons pas à quelle marche/.test(constatTaux?.why ?? ""),
+    true,
+  );
+
+  // 8. UN TAUX SAIN NE DÉCLENCHE RIEN. Un seuil qui mordrait sur une boutique
+  // normale rendrait la note inutilisable.
+  t.check(
+    "8. un taux sain ne produit pas ce constat",
+    analyse({
+      observations: [
+        ...VITRINE_SAINE,
+        ...CATALOGUE_FOURNI,
+        obs("shopify.sessions_30d", 4000),
+        obs("shopify.orders_30d", 130),
+        obs("shopify.conversion_rate", 130 / 4000, { unit: "percent" }),
+      ],
+      gaps: [],
+    } as RuleContext).findings.some((f) => f.ruleId === "conversion.taux_anormalement_bas"),
+    false,
+  );
+
+  // ET LES CONSTATS RESTENT VISIBLES QUAND LA NOTE EST REFUSÉE. « Non
+  // déterminable » veut dire « nous ne savons pas noter », jamais « nous
+  // préférons ne pas montrer ».
+  const sansNote = analyse({
+    observations: [...VITRINE_SAINE, obs("shopify.product_count", 0), obs("shopify.orders_30d", 0)],
+    gaps: SANS_SESSIONS,
+  } as RuleContext);
+  t.check(
+    "sans note, les constats restent",
+    sansNote.score === null && sansNote.findings.length > 0,
+    true,
+  );
+  t.check(
+    "…et le catalogue vide en fait partie",
+    sansNote.findings.some((f) => f.ruleId === "merchandising.catalogue_vide"),
+    true,
+  );
 });

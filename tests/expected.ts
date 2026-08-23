@@ -284,13 +284,13 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/catalogue-vide-bout-en-bout.test.ts",
-    minChecks: 30,
+    minChecks: 63,
     covers:
       "product_count = 0, de la mesure au texte final. Le rapport réel affichait « Votre boutique ne propose aucun produit à la vente » en constat [1] et, deux constats plus bas, « Ce que nous supposons : Le catalogue contient des produits actifs et publiés dans l'administration Shopify, mais aucun lien n'a été créé pour les afficher sur la page d'accueil ». Deux phrases contradictoires dans le même rapport, dont la seconde inventait une cause alternative là où la vraie était établie et envoyait le marchand créer des liens vers des produits inexistants. Aucun test unitaire ne pouvait le voir : le défaut ne vivait DANS aucune couche, il vivait entre elles — le prompt demandait, `sanitizeAuditPayload` recopiait, et rien ne confrontait jamais le texte rendu aux chiffres comptés. Cette suite part des données brutes de Shopify, traverse observations, règles, priorisation, bloc envoyé au modèle, puis injecte la réponse de production mot pour mot et vérifie que la contradiction est retirée et remplacée par ce qui a été compté. Elle vérifie aussi les deux moitiés qu'on perd en corrigeant trop fort : une phrase qui NIE l'existence est conservée, et sans mesure du catalogue la même hypothèse redevient légitime.",
   },
   {
     file: "audits/boutiques-temoins.test.ts",
-    minChecks: 142,
+    minChecks: 153,
     covers:
       "Le moteur jugé sur son verdict, pas sur ses pièces. Chaque module a ses contrôles et ils passent tous — ce n'est pas la même chose que dire que le moteur a raison. Les défauts les plus graves de ce projet ne sont jamais nés DANS un module mais entre deux : « Conversion 100/100 » sur une boutique sans un seul visiteur (la règle ne s'était pas déclenchée, le calcul de score n'avait donc rien à déduire, et les deux ensemble affirmaient une excellence sur un sujet inconnu), « 9999 % » parce qu'un module rendait un ratio là où un autre attendait un pourcentage. Quatre boutiques telles qu'on en rencontre — sans trafic, premium sans réassurance, du trafic et pas de ventes, aucune source qui répond — traversent la chaîne entière et le verdict est jugé : jamais d'axe noté sans donnée, jamais de constat sans preuve, jamais de pourcentage hors bornes, jamais un mot du moteur dans une phrase lue par le marchand, et jamais une cause plus sûre que son symptôme le moins sûr.",
   },

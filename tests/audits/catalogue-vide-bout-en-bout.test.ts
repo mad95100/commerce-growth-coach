@@ -3,8 +3,9 @@ import { shopifyObservations } from "@/lib/connectors/shopify-observe";
 import { storefrontObservations } from "@/lib/connectors/storefront";
 import type { FetchedPage, StorefrontRaw } from "@/lib/connectors/storefront";
 import { analyse, rulesToPromptBlock } from "@/lib/audit-rules";
+import type { Observation } from "@/lib/observations";
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
-import { confronter, faitsEtablis } from "@/lib/faits-opposables";
+import { confronter, faitsEtablis, recommandationImpossible } from "@/lib/faits-opposables";
 
 /**
  * PRODUCT_COUNT = 0, JUSQU'AU TEXTE FINAL.
@@ -124,6 +125,21 @@ const REPONSE_DU_MODELE = {
   ],
 };
 
+/** Observation minimale, pour forcer les entrées d'une règle. */
+let compteur = 0;
+const obsSimple = (id: string, value: number) =>
+  ({
+    id,
+    source: id.startsWith("storefront.") ? "storefront" : "shopify",
+    domain: "produit",
+    label: id,
+    value,
+    unit: "count",
+    periodDays: 30,
+    evidence: `preuve ${++compteur}`,
+    sample: 200,
+  }) as Observation;
+
 export default defineSuite("Catalogue vide — de la mesure au texte final", (t) => {
   // =========================================================================
   // 1. LA COLLECTE : le fait est compté, pas déduit
@@ -204,24 +220,104 @@ export default defineSuite("Catalogue vide — de la mesure au texte final", (t)
   );
 
   /*
-    AUCUN TEXTE DU MOTEUR NE CONTREDIT LE FAIT — ET C'EST VÉRIFIÉ EN BLOC.
+    AUCUNE RÈGLE NE DEMANDE UN GESTE IMPOSSIBLE — VÉRIFIÉ SUR TOUTES.
 
-    Le contrôle ci-dessus vise une phrase connue. Celui-ci passe TOUS les textes
-    produits par les règles dans le même garde-fou que les textes du modèle. Une
-    règle ajoutée demain, dont la recommandation présupposerait des produits, le
-    ferait tomber — sans que personne ait à y penser.
+    Le texte des règles ne porte pas le même risque que celui du modèle. Il est
+    déterministe, versionné, relu : il n'hallucine pas. Il peut en revanche
+    faire pire pour le marchand — lui demander un geste irréalisable. C'est le
+    défaut qui a lancé cette affaire.
+
+    Ce contrôle passe donc toutes les recommandations produites : une règle
+    ajoutée demain, qui demanderait de relier ou de mettre en avant un
+    catalogue absent, le ferait tomber sans que personne ait à y penser.
 
     C'est là que la contradiction naissait : le moteur conseillait « ajoutez une
     section de collections mises en avant » sur une boutique sans catalogue, et
     le modèle n'avait plus qu'à broder l'histoire des produits mal reliés.
   */
   const opposablesMoteur = faitsEtablis([...shopify.observations, ...vitrine.observations]);
-  const contradictionsMoteur = rapport.findings.flatMap((f) =>
-    [f.title, f.statement, f.why, f.recommendation].flatMap(
-      (texte) => confronter(texte, opposablesMoteur).retire,
-    ),
+  const gestesImpossibles = rapport.findings
+    .map((f) => recommandationImpossible(f.recommendation, opposablesMoteur))
+    .filter((r): r is string => r !== null);
+  t.check("aucune recommandation ne demande un geste impossible", gestesImpossibles, []);
+
+  /*
+    LA MATRICE : TOUTES LES RÈGLES, CATALOGUE VIDE ET CATALOGUE REMPLI.
+
+    Le contrôle ci-dessus juge les constats d'UNE boutique. Celui-ci force les
+    entrées de TOUTES les règles qui parlent de fiches, de prix, de variantes ou
+    de collections, en gardant `product_count = 0` — et vérifie qu'aucune ne
+    sort.
+
+    CE QUE CETTE MATRICE A TROUVÉ, ET QUE LE RAISONNEMENT AVAIT MANQUÉ.
+    `conversion.livraison_absente_fiche` et `offre.prix_absent` sortaient bel et
+    bien avec un catalogue à zéro, et recommandaient d'afficher la livraison sur
+    les fiches ou d'aller renseigner le prix des produits. J'avais conclu qu'ils
+    étaient inatteignables ; l'exécution a dit le contraire.
+
+    Ce n'est pas théorique : `product_count` vient de `/products/count.json`,
+    tandis que `products_without_price` et le scan des fiches viennent
+    d'ailleurs. Deux appels distincts peuvent diverger — pagination, cache,
+    échec partiel — et le rapport se remet alors à parler de fiches sur une
+    boutique qu'il vient de déclarer vide.
+  */
+  const entreesHostiles = [
+    obsSimple("shopify.product_count", 0),
+    obsSimple("shopify.cart_abandonment_rate", 85),
+    obsSimple("shopify.orders_30d", 0),
+    obsSimple("shopify.sessions_30d", 5000),
+    obsSimple("shopify.products_without_price", 4),
+    obsSimple("shopify.products_partially_out_of_stock", 3),
+    obsSimple("shopify.products_multi_variant", 6),
+    obsSimple("storefront.produits_inspectes", 5),
+    obsSimple("storefront.produits_sans_livraison", 5),
+    obsSimple("storefront.collection_produits_listes", 2),
+    obsSimple("storefront.accueil_collection_links", 0),
+  ];
+  const surCatalogueVide = analyse({ observations: entreesHostiles, gaps: [] });
+  const faitsHostiles = faitsEtablis(entreesHostiles);
+
+  // AUCUN CONSTAT DE FICHE NE SURVIT À UN CATALOGUE COMPTÉ À ZÉRO.
+  for (const parlantDeFiches of [
+    "conversion.livraison_absente_fiche",
+    "offre.prix_absent",
+    "merchandising.choix_partiellement_epuise",
+    "merchandising.collection_maigre",
+    "trust.avis_absents_fiche",
+    "produit.achat_impossible",
+  ]) {
+    t.check(
+      `${parlantDeFiches} ne sort pas sur un catalogue vide`,
+      surCatalogueVide.findings.some((f) => f.ruleId === parlantDeFiches),
+      false,
+    );
+  }
+  t.check(
+    "et aucune recommandation impossible ne subsiste",
+    surCatalogueVide.findings
+      .map((f) => recommandationImpossible(f.recommendation, faitsHostiles))
+      .filter((r) => r !== null),
+    [],
   );
-  t.check("aucun texte de règle ne contredit le catalogue vide", contradictionsMoteur, []);
+
+  // L'AUTRE MOITIÉ DE LA MATRICE : catalogue REMPLI, les mêmes règles doivent
+  // reprendre leur travail. Absorber sans condition les rendrait inutiles.
+  const surCatalogueRempli = analyse({
+    observations: entreesHostiles.map((o) =>
+      o.id === "shopify.product_count" ? obsSimple("shopify.product_count", 40) : o,
+    ),
+    gaps: [],
+  });
+  t.check(
+    "catalogue rempli — les constats de fiche reviennent",
+    surCatalogueRempli.findings.length > surCatalogueVide.findings.length,
+    true,
+  );
+  t.check(
+    "…et le constat de catalogue vide disparaît",
+    surCatalogueRempli.findings.some((f) => f.ruleId === "merchandising.catalogue_vide"),
+    false,
+  );
 
   // =========================================================================
   // 3. LE CONTEXTE ENVOYÉ AU MODÈLE
@@ -275,6 +371,80 @@ export default defineSuite("Catalogue vide — de la mesure au texte final", (t)
     /contient des produits actifs/.test(resume.texte),
     false,
   );
+
+  // =========================================================================
+  // 4 bis. LE MODÈLE HOSTILE — VINGT-TROIS FAÇONS DE DIRE LA MÊME CHOSE
+  // =========================================================================
+  /*
+    POURQUOI CE JEU EXISTE, ET CE QU'IL A COÛTÉ D'ADMETTRE.
+
+    La première version du garde-fou listait les AFFIRMATIONS interdites — une
+    liste noire. Mise à l'épreuve sur douze reformulations, elle en laissait
+    passer DIX. Il suffisait d'écrire « articles », « références », « gamme »,
+    « fiches existantes » ou « votre offre est déjà enregistrée » pour la
+    contourner. Une liste noire perd toujours.
+
+    Le module décrit désormais le SUJET — les mots qui désignent la chose
+    comptée — et refuse par défaut. Une phrase n'est autorisée que si elle NIE
+    l'existence, PRESCRIT de la créer, ou DÉCLARE une non-mesure. Les synonymes
+    ne sont plus une échappatoire : ils sont dans le lexique, ou la phrase ne
+    parle pas du sujet.
+
+    Trois passes successives ont été nécessaires. La deuxième a montré qu'une
+    négation d'ATTRIBUT — « les articles ne sont pas reliés » — présuppose
+    l'existence au lieu de la nier. La troisième a trouvé « non » absent des
+    marques de négation, et la causalité par privation — « sans bouton d'achat,
+    vos ventes ne peuvent pas décoller » — qui se déguisait en négation.
+  */
+  const doitTomber = [
+    // Reformulations directes
+    "Votre catalogue contient des produits.",
+    "Vos articles sont bien présents mais mal reliés.",
+    "Vos produits existent dans Shopify.",
+    "Vos collections doivent simplement être mieux mises en avant.",
+    "Votre offre est déjà enregistrée mais inaccessible.",
+    "Il suffit de relier vos fiches existantes au menu principal.",
+    "Le catalogue est bien rempli, seule la navigation manque.",
+    "Vos références sont enregistrées dans l'administration.",
+    "Votre gamme est disponible mais invisible depuis l'accueil.",
+    "Reliez vos collections existantes à la navigation.",
+    // Négation d'ATTRIBUT, qui présuppose l'existence
+    "Les articles du catalogue ne sont pas reliés à la page d'accueil.",
+    "Les produits que vous vendez ne sont pas mis en avant.",
+    // Voix passive et nominalisation
+    "La présence de vos articles dans l'administration est confirmée.",
+    "L'enregistrement de vos produits a bien eu lieu.",
+    "On dénombre plusieurs références dans votre boutique.",
+    // Existence glissée sous couvert d'hypothèse
+    "Il est probable que vos produits soient déjà créés.",
+    "Nous supposons que votre catalogue est alimenté.",
+  ];
+  for (const phrase of doitTomber) {
+    t.check(
+      `hostile — « ${phrase.slice(0, 46)}… » est retirée`,
+      confronter(phrase, opposables).retire.length > 0,
+      true,
+    );
+  }
+
+  const doitSurvivre = [
+    "Aucun produit n'est enregistré.",
+    "Nous avons compté 0 produit.",
+    "Aucune fiche produit n'a pu être consultée, ce qui est cohérent avec un catalogue vide.",
+    "Nous n'avons trouvé aucune référence dans votre boutique.",
+    // LA MOITIÉ QU'IL NE FAUT PAS PERDRE : c'est l'hypothèse que les consignes
+    // donnent elles-mêmes en exemple de raisonnement légitime.
+    "Il est possible que des produits existent en brouillon, non publiés.",
+    "Créez un produit, puis publiez-le sur votre boutique en ligne.",
+    "La page d'accueil ne porte aucun titre de niveau 1.",
+  ];
+  for (const phrase of doitSurvivre) {
+    t.check(
+      `légitime — « ${phrase.slice(0, 46)}… » est conservée`,
+      confronter(phrase, opposables).retire.length,
+      0,
+    );
+  }
 
   // =========================================================================
   // 5. CE QUE LE FILTRE NE DOIT PAS FAIRE
