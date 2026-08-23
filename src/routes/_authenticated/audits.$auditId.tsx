@@ -53,6 +53,7 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
+import { decrireAttente } from "@/lib/audit-jobs";
 
 export const Route = createFileRoute("/_authenticated/audits/$auditId")({
   head: () => ({ meta: [{ title: "Audit — EcomPilot AI" }] }),
@@ -472,6 +473,11 @@ function AuditPage() {
   // sûrement pas de corriger à l'aveugle.
   const unverified = findings.filter((f) => f.epistemic_level === "donnee_manquante");
 
+  // Recalculée à chaque rendu : `auditQ` se rafraîchit toutes les trois
+  // secondes tant que l'audit tourne, donc la durée avance toute seule sans
+  // qu'un minuteur de plus soit nécessaire.
+  const attente = decrireAttente((audit as { created_at?: string | null }).created_at ?? null);
+
   return (
     <AppShell>
       {/*
@@ -497,10 +503,27 @@ function AuditPage() {
       {audit.status === "running" ? (
         <div className="card-elevated flex flex-col items-center rounded-2xl p-12 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <h1 className="mt-4 font-display text-xl">Nous analysons votre boutique...</h1>
+          <h1 className="mt-4 font-display text-xl">Nous analysons votre boutique</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            {jobQ.data?.label ?? "Ça prend 30 à 90 secondes."}
+            {jobQ.data?.label ?? "Analyse en cours…"}
           </p>
+          {/*
+            LA DURÉE ÉCOULÉE, PARCE QUE C'EST LA SEULE CHOSE QUE LE MARCHAND
+            VEUT SAVOIR. Sans elle, la même phrase s'affichait à la dixième
+            seconde et à la dixième minute.
+          */}
+          {attente && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Lancée {attente.depuis}. Une analyse demande habituellement 30 à 90 secondes.
+            </p>
+          )}
+          {attente?.auDela && (
+            <p className="mt-3 max-w-md text-xs leading-relaxed text-muted-foreground">
+              C'est plus long que d'habitude. L'analyse se poursuit même si vous fermez cette page,
+              et elle est reprise automatiquement si elle s'interrompt — sans vous coûter un
+              deuxième audit. Vous pouvez revenir plus tard : le rapport vous attendra ici.
+            </p>
+          )}
           {jobQ.data?.lastError && jobQ.data.state === "queued" && (
             <p className="mt-3 max-w-md text-xs text-muted-foreground">
               Une première tentative n'a pas abouti. Nous réessayons automatiquement, sans que cela

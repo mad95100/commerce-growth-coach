@@ -7,6 +7,7 @@ import {
   type RawGoogleCampaign,
 } from "@/lib/connectors/google-observe";
 import type { SourceReport } from "@/lib/observations";
+import { fetchBorne } from "@/lib/fetch-borne.server";
 
 /**
  * Lecture Google Ads. La partie réseau, et rien d'autre.
@@ -77,7 +78,7 @@ const METRIC_FIELDS =
 export async function fetchGoogleObservations(
   customerId: string,
   encryptedRefreshToken: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = fetchBorne,
 ): Promise<SourceReport> {
   // Le jeton de développeur est une exigence de l'API Google Ads. Son absence
   // est un défaut de configuration du service, pas une absence de données chez

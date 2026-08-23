@@ -7,11 +7,14 @@ import {
   shouldRefundAudit,
 } from "@/lib/audit-errors";
 import {
+  AI_TIMEOUT_MS,
   aiChatCompletionAvecSecours,
   aiFallbackModel,
   aiModel,
   meriteUnSecours,
 } from "@/lib/ai-gateway.server";
+import { LEASE_MS } from "@/lib/audit-jobs";
+import { PARTENAIRE_TIMEOUT_MS, estUnDelaiDepasse } from "@/lib/fetch-borne.server";
 
 /**
  * LE FOURNISSEUR D'ANALYSE : QUOTA, SECOURS, ET CE QU'ON DIT AU MARCHAND.
@@ -456,4 +459,99 @@ export default defineSuite("Fournisseur d'analyse — quota, secours et vérité
   const secours = /^AI_AUDIT_FALLBACK_MODEL = "([^"]+)"/m.exec(wrangler)?.[1];
   t.check("les deux modèles sont bien lus", Boolean(principal && secours), true);
   t.check("le secours n'est pas le principal", principal === secours, false);
+
+  // =========================================================================
+  // 8. UN FOURNISSEUR MUET FINIT PAR RENDRE LA MAIN
+  // =========================================================================
+  /*
+    LE DÉFAUT, RELEVÉ SUR UN AUDIT RÉEL. Trois minutes de « Analyse en cours… »
+    sur un écran qui en annonce quatre-vingt-dix secondes. L'appel au modèle
+    partait SANS AUCUN DÉLAI : un fournisseur qui accepte la connexion puis ne
+    répond jamais suspendait l'audit entier — pas d'erreur, pas de trace, pas de
+    fin. Le travail étant réclamé sous un bail de cinq minutes, personne ne
+    pouvait le reprendre pendant ce temps, et l'écran continuait d'affirmer
+    qu'une analyse avançait.
+
+    Ce qui rend ce défaut coûteux : `delai_depasse` existait déjà, avec le bon
+    message et la bonne suite — « relancez maintenant, ce n'est ni vous ni une
+    panne ». La branche était simplement INATTEIGNABLE.
+  */
+  t.check("l'appel au modèle porte un délai", AI_TIMEOUT_MS > 0, true);
+  t.check(
+    "…assez court pour tenir sous le bail qui protège l'audit",
+    AI_TIMEOUT_MS < LEASE_MS,
+    true,
+  );
+
+  const passerelle = lire("src/lib/ai-gateway.server.ts");
+  t.check(
+    "le délai est réellement posé sur la requête",
+    /signal: AbortSignal\.timeout\(AI_TIMEOUT_MS\)/.test(passerelle),
+    true,
+  );
+
+  // UN SILENCE DEVIENT UN CODE. Sans conversion, la `TimeoutError` nue ne porte
+  // pas le préfixe `AI Gateway <code>` : elle serait rangée en « inconnu »,
+  // c'est-à-dire « nous ne savons pas », alors que nous savons.
+  const muet = await aiChatCompletionAvecSecours(
+    "audit",
+    (modele) => ({ model: modele }),
+    async () => {
+      const err = new Error("The operation was aborted due to timeout");
+      err.name = "TimeoutError";
+      throw err;
+    },
+  ).catch((e: unknown) => e);
+  t.check("un appel qui n'aboutit jamais lève", muet instanceof Error, true);
+
+  const messageTimeout = "AI Gateway 408: aucune réponse au bout de 90 secondes";
+  t.check(
+    "un dépassement se classe en délai dépassé",
+    classifyAuditFailure(messageTimeout),
+    "delai_depasse",
+  );
+  t.check(
+    "…et le marchand apprend qu'il peut relancer tout de suite",
+    /[Rr]elancez/.test(auditFailureText(messageTimeout)),
+    true,
+  );
+  // Il n'est PAS de notre faute, et il ne consomme pas le passage du marchand.
+  t.check("…sans que ce soit présenté comme sa faute", shouldRefundAudit(messageTimeout), true);
+
+  // LES PARTENAIRES AUSSI. Shopify, Meta et Google partaient nus eux aussi ;
+  // c'est la valeur par défaut du `fetcher` qui porte la borne, pour que les
+  // suites continuent d'injecter la leur.
+  t.check("un délai partenaire est défini", PARTENAIRE_TIMEOUT_MS > 0, true);
+  for (const connecteur of [
+    "src/lib/connectors/shopify-observe.server.ts",
+    "src/lib/connectors/meta-observe.server.ts",
+    "src/lib/connectors/google-observe.server.ts",
+  ]) {
+    t.check(
+      `${connecteur} ne part plus sur un fetch nu`,
+      /fetcher: Fetcher = fetch,/.test(lire(connecteur)),
+      false,
+    );
+    t.check(
+      `${connecteur} borne ses appels`,
+      /fetcher: Fetcher = fetchBorne,/.test(lire(connecteur)),
+      true,
+    );
+  }
+
+  // Un `signal` déjà posé par l'appelant est respecté : l'écraser retirerait
+  // le budget global du scan de vitrine, qui pose déjà les siens.
+  t.check(
+    "un signal fourni par l'appelant n'est pas écrasé",
+    /if \(init\?\.signal\) return fetch\(url, init\);/.test(lire("src/lib/fetch-borne.server.ts")),
+    true,
+  );
+
+  // Le nom, pas la classe : `DOMException` diffère entre navigateur, Node et
+  // worker, et un `instanceof` rendrait `false` sur l'une des trois — c'est-à-
+  // dire précisément là où le cas se produit.
+  t.check("un dépassement se reconnaît", estUnDelaiDepasse({ name: "TimeoutError" }), true);
+  t.check("une annulation aussi", estUnDelaiDepasse({ name: "AbortError" }), true);
+  t.check("une panne ordinaire, non", estUnDelaiDepasse(new Error("boom")), false);
+  t.check("et une valeur nue ne fait pas tomber la lecture", estUnDelaiDepasse(null), false);
 });

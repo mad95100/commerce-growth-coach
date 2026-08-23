@@ -7,6 +7,7 @@ import {
   type RawMetaInsight,
 } from "@/lib/connectors/meta-observe";
 import type { SourceReport } from "@/lib/observations";
+import { fetchBorne } from "@/lib/fetch-borne.server";
 
 /**
  * Lecture Meta Ads. La partie réseau, et rien d'autre.
@@ -50,7 +51,7 @@ const INSIGHT_FIELDS =
 export async function fetchMetaObservations(
   accountId: string,
   encryptedToken: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = fetchBorne,
 ): Promise<SourceReport> {
   let token: string;
   try {

@@ -15,6 +15,8 @@ import {
   auditStatusFor,
   claimedJob,
   completedJob,
+  DUREE_ANNONCEE_MS,
+  decrireAttente,
   describeJob,
   failedAttempt,
   isClaimable,
@@ -31,6 +33,10 @@ import {
   loadAuditJob,
 } from "../../src/lib/audit-jobs.server";
 import { defineSuite } from "../../tests/harness";
+import { readFileSync } from "node:fs";
+
+const ROOT = new URL("../../", import.meta.url).pathname;
+const read = (relative: string) => readFileSync(`${ROOT}${relative}`, "utf8");
 
 export default defineSuite("Audits — exécution asynchrone et reprise", async (t) => {
   const NOW = new Date("2026-08-14T12:00:00Z");
@@ -353,4 +359,88 @@ export default defineSuite("Audits — exécution asynchrone et reprise", async 
   function futureFromNow() {
     return new Date(Date.now() + LEASE_MS).toISOString();
   }
+
+  // =========================================================================
+  // 7. CE QUE L'ÉCRAN DIT PENDANT L'ATTENTE
+  // =========================================================================
+  /*
+    LE DÉFAUT, RELEVÉ SUR UN AUDIT RÉEL. Trois minutes de « Analyse en cours… »
+    sur un écran qui annonce trente à quatre-vingt-dix secondes.
+
+    « Ça prend 30 à 90 secondes » n'était que le REPLI affiché tant que l'état
+    du travail n'était pas chargé — c'est-à-dire pendant trois secondes. Ensuite
+    venait « Analyse en cours… », qui ne change plus JAMAIS : la même phrase à la
+    dixième seconde et à la dixième minute. Rien ne distinguait une analyse qui
+    avance d'une tentative morte dont le bail n'a pas encore expiré.
+
+    La durée écoulée ne répare pas la lenteur. Elle rend à l'attente sa vérité,
+    et c'est la seule chose que le marchand peut vérifier lui-même.
+  */
+  const T0 = new Date("2026-08-23T10:00:00.000Z");
+  const apres = (ms: number) => new Date(T0.getTime() + ms);
+
+  t.check(
+    "sous la minute, on ne prétend pas compter les minutes",
+    decrireAttente(T0.toISOString(), apres(20_000))?.depuis,
+    "il y a moins d'une minute",
+  );
+  t.check(
+    "une minute se dit au singulier",
+    decrireAttente(T0.toISOString(), apres(70_000))?.depuis,
+    "il y a 1 minute",
+  );
+  t.check(
+    "et trois minutes se disent telles quelles",
+    decrireAttente(T0.toISOString(), apres(3 * 60_000))?.depuis,
+    "il y a 3 minutes",
+  );
+
+  // LE SEUIL EST CELUI QUI A ÉTÉ ANNONCÉ. Le dépasser n'est pas un détail de
+  // style : c'est le moment où la promesse faite au marchand cesse d'être tenue,
+  // et où l'écran doit le lui dire au lieu de répéter que tout va bien.
+  t.check(
+    "dans la durée annoncée, rien d'anormal",
+    decrireAttente(T0.toISOString(), apres(DUREE_ANNONCEE_MS - 1))?.auDela,
+    false,
+  );
+  t.check(
+    "au-delà, l'écran doit le dire",
+    decrireAttente(T0.toISOString(), apres(DUREE_ANNONCEE_MS + 1))?.auDela,
+    true,
+  );
+  t.check(
+    "trois minutes sont bien au-delà",
+    decrireAttente(T0.toISOString(), apres(3 * 60_000))?.auDela,
+    true,
+  );
+
+  // UNE HORLOGE CLIENT EN AVANCE NE PRODUIT PAS « IL Y A -2 MINUTES ».
+  t.check(
+    "un écart négatif est ramené à zéro",
+    decrireAttente(T0.toISOString(), apres(-120_000))?.depuis,
+    "il y a moins d'une minute",
+  );
+
+  // MIEUX VAUT NE RIEN DIRE DE LA DURÉE QUE D'ANNONCER « IL Y A NAN MINUTES ».
+  t.check("sans date de départ, rien n'est affirmé", decrireAttente(null), null);
+  t.check("une date illisible non plus", decrireAttente("pas une date"), null);
+
+  // ET L'ÉCRAN S'EN SERT RÉELLEMENT.
+  const ecran = read("src/routes/_authenticated/audits.$auditId.tsx");
+  t.check(
+    "l'écran d'attente affiche la durée écoulée",
+    /attente\.depuis|\{attente/.test(ecran),
+    true,
+  );
+  t.check(
+    "…et dit ce qui se passe quand c'est plus long que prévu",
+    /attente\?\.auDela/.test(ecran),
+    true,
+  );
+  // Ne jamais demander de rester sur la page : le travail n'en dépend pas.
+  t.check(
+    "…sans exiger que la page reste ouverte",
+    /se poursuit même si vous fermez cette page/.test(ecran.replace(/\s+/g, " ")),
+    true,
+  );
 });

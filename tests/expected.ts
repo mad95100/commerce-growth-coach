@@ -68,7 +68,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/jobs.test.ts",
-    minChecks: 69,
+    minChecks: 81,
     covers:
       "Audit asynchrone : réclamation atomique contre la double exécution, reprise par bail expirant, tentatives bornées.",
   },
@@ -332,7 +332,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/fournisseur-ia.test.ts",
-    minChecks: 90,
+    minChecks: 110,
     covers:
       "Le fournisseur d'analyse : quota, secours, et ce qu'on en dit. Un audit réel a échoué sur `429 RESOURCE_EXHAUSTED`, quota `generate_content_free_tier_requests`, limite 20 par JOUR — et le marchand lisait « notre fournisseur était saturé, relancez dans une dizaine de minutes, c'est passager ». Trois affirmations fausses sur quatre : le compteur est journalier, dix minutes n'y changeaient rien, et le fournisseur n'était pas saturé. Cette suite sépare les deux 429, borne le déclenchement du secours aux statuts qu'un autre modèle peut réparer, exige que le secours rejoue le MÊME appel — même prompt, même schéma, même outil forcé, seul le nom du modèle change — et vérifie qu'un échec du fournisseur n'emporte pas les manques de collecte enregistrés avant lui.",
   },

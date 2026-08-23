@@ -166,6 +166,62 @@ export function auditStatusFor(job: AuditJob): "running" | "completed" | "failed
   return "running";
 }
 
+/**
+ * Durée habituelle d'un audit, telle qu'elle est annoncée au marchand.
+ *
+ * Au-delà, l'attente n'est plus celle qu'on lui a promise, et le lui cacher est
+ * la seule chose que l'écran ne doit pas faire.
+ */
+export const DUREE_ANNONCEE_MS = 90_000;
+
+export type AttenteAudit = {
+  /** Depuis combien de temps l'audit a été lancé, en français. */
+  depuis: string;
+  /** `true` si l'attente dépasse la durée annoncée. */
+  auDela: boolean;
+};
+
+/**
+ * DEPUIS COMBIEN DE TEMPS LE MARCHAND ATTEND.
+ *
+ * CE QUE L'ÉCRAN DISAIT, ET POURQUOI C'ÉTAIT INTENABLE. « Ça prend 30 à 90
+ * secondes » n'était que le REPLI affiché tant que l'état du travail n'était pas
+ * chargé. Une fois chargé — c'est-à-dire au bout de trois secondes — il était
+ * remplacé par « Analyse en cours… », qui ne change plus jamais. Le marchand
+ * voyait donc la même phrase à la dixième seconde et à la dixième minute, sans
+ * rien pour distinguer une analyse qui avance d'une tentative morte dont le bail
+ * n'a pas encore expiré. C'est le cas exact remonté en production : trois
+ * minutes d'un texte qui affirmait que tout se passait normalement.
+ *
+ * Une durée qui s'affiche ne répare rien en soi. Elle rend seulement à
+ * l'attente sa vérité, et c'est ce que le marchand peut vérifier lui-même.
+ *
+ * Rend `null` sur une date illisible : mieux vaut ne rien dire de la durée que
+ * d'annoncer « il y a NaN minutes ».
+ */
+export function decrireAttente(
+  demarreA: string | null,
+  now: Date = new Date(),
+): AttenteAudit | null {
+  if (!demarreA) return null;
+  const debut = Date.parse(demarreA);
+  if (Number.isNaN(debut)) return null;
+
+  // Une horloge client en avance sur le serveur donnerait un écart négatif, et
+  // « lancé il y a -2 minutes » se lit comme un défaut du produit.
+  const ecoule = Math.max(0, now.getTime() - debut);
+  const minutes = Math.floor(ecoule / 60_000);
+
+  const depuis =
+    minutes < 1
+      ? "il y a moins d'une minute"
+      : minutes === 1
+        ? "il y a 1 minute"
+        : `il y a ${minutes} minutes`;
+
+  return { depuis, auDela: ecoule > DUREE_ANNONCEE_MS };
+}
+
 /** Phrase courte décrivant l'état, pour l'interface. */
 export function describeJob(job: AuditJob): string {
   switch (job.state) {

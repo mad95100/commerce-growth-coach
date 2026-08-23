@@ -16,6 +16,7 @@ import {
   type FunnelRaw,
 } from "@/lib/connectors/shopify-analytics";
 import type { SourceFailureCause, SourceReport } from "@/lib/observations";
+import { fetchBorne } from "@/lib/fetch-borne.server";
 
 /**
  * Un appel, deux sources.
@@ -139,7 +140,7 @@ function causeDuStatut(statut: number | null): SourceFailureCause {
 export async function fetchShopifyObservations(
   shop: string,
   encryptedToken: string,
-  fetcher: Fetcher = fetch,
+  fetcher: Fetcher = fetchBorne,
 ): Promise<ShopifyReports> {
   let headers: Record<string, string>;
   try {

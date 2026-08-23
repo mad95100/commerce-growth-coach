@@ -21,6 +21,7 @@
  */
 
 import { AUDIT_MODEL } from "@/lib/audit-prompt";
+import { estUnDelaiDepasse } from "@/lib/fetch-borne.server";
 
 /**
  * Repli transitoire vers la passerelle Lovable.
@@ -87,23 +88,63 @@ export function resolveAiEndpoint(env: NodeJS.ProcessEnv = process.env): AiEndpo
 }
 
 /**
+ * Délai accordé au fournisseur d'analyse.
+ *
+ * Plus large que pour les autres partenaires : la demande porte tout le
+ * contexte de la boutique et la génération est longue par nature. Assez court,
+ * cependant, pour qu'une tentative complète — collecte comprise — tienne sous
+ * le bail de cinq minutes qui protège l'audit de la double exécution.
+ */
+export const AI_TIMEOUT_MS = 90_000;
+
+/**
  * Appelle le fournisseur et rend la réponse brute.
  *
  * La réponse n'est délibérément pas interprétée ici : chaque appelant a sa
  * propre façon de lire le résultat — extraction d'un appel d'outil, repli sur
  * du JSON en texte brut, messages d'erreur métier — et centraliser cela
  * mélangerait des responsabilités qui n'ont rien à voir.
+ *
+ * Le seul cas qu'elle interprète est le SILENCE : un dépassement de délai n'est
+ * pas une réponse, et il faut bien en fabriquer une pour que la chaîne d'échec
+ * existante puisse le nommer.
  */
 export async function aiChatCompletion(body: Record<string, unknown>): Promise<Response> {
   const endpoint = resolveAiEndpoint();
-  return fetch(endpoint.url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${endpoint.apiKey}`,
-    },
-    body: JSON.stringify(body),
-  });
+  try {
+    return await fetch(endpoint.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${endpoint.apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    });
+  } catch (err) {
+    /*
+      UN SILENCE DEVIENT UN CODE, ET LE CODE A DÉJÀ SA RÉPONSE.
+
+      Sans cette conversion, un fournisseur muet levait une `TimeoutError` nue.
+      Elle ne porte pas le préfixe `AI Gateway <code>` : la classification la
+      rangeait donc en `inconnu` — « nous ne savons pas » — alors que nous
+      savons très bien ce qui s'est passé. `delai_depasse` existe, dit
+      exactement cela, et désigne la bonne suite : relancer tout de suite.
+
+      408 plutôt qu'un autre code, et ce choix n'est pas cosmétique :
+      `meriteUnSecours` refuse le repli sur 408. Un second modèle, appelé après
+      une attente qui vient déjà d'épuiser le délai, doublerait le temps
+      d'attente pour offrir la même chance. Le marchand relance quand il veut ;
+      c'est plus court, et c'est lui qui décide.
+    */
+    if (estUnDelaiDepasse(err)) {
+      return new Response(
+        `aucune réponse au bout de ${Math.round(AI_TIMEOUT_MS / 1000)} secondes`,
+        { status: 408 },
+      );
+    }
+    throw err;
+  }
 }
 
 /**
