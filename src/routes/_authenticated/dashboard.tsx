@@ -236,7 +236,7 @@ function Dashboard() {
                 ) : (
                   <div className="mt-4 flex items-center gap-2 text-sm text-primary">
                     <Sparkles className="h-4 w-4" />
-                    Prête à être auditée
+                    Prête pour un premier diagnostic
                   </div>
                 )}
                 <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
@@ -244,7 +244,7 @@ function Dashboard() {
                     <TrendingUp className="h-3 w-3" />
                     {store.monthly_revenue
                       ? `${formatMoney(store.monthly_revenue, store.currency)}/mois`
-                      : "CA à définir"}
+                      : "Chiffre d'affaires à renseigner"}
                   </span>
                   <span className="flex items-center gap-1 text-primary group-hover:translate-x-1 transition-transform">
                     Ouvrir <ArrowRight className="h-3 w-3" />

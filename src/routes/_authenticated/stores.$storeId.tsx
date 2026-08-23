@@ -96,7 +96,7 @@ function StorePage() {
       // suite, et l'analyse se poursuit sur la page de l'audit. On y navigue
       // sans attendre, au lieu de bloquer sur une requête qui pouvait expirer.
       const res = await runAuditFn({ data: { storeId } });
-      toast.info("Audit lancé, nous analysons votre boutique.");
+      toast.info("Diagnostic lancé. Nous analysons votre boutique.");
       navigate({ to: "/audits/$auditId", params: { auditId: res.auditId } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erreur audit");
@@ -125,7 +125,7 @@ function StorePage() {
       <AppShell>
         <ErrorState
           title="Impossible de charger cette boutique"
-          description="La lecture a échoué. Rien n'est perdu : votre boutique et vos audits sont intacts."
+          description="La lecture a échoué. Rien n'est perdu : votre boutique et vos diagnostics sont intacts."
           onRetry={() => void storeQ.refetch()}
         />
       </AppShell>
@@ -295,8 +295,8 @@ function StorePage() {
           <div>
             <h2 className="font-display text-lg font-bold">Suivi des gains (avant / après)</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Vérifiez si les corrections appliquées ont vraiment fait monter la conversion, le CTR
-              et le ROAS.
+              Ce que vos corrections ont réellement changé sur vos commandes, votre taux de
+              transformation et le rendement de vos publicités.
             </p>
           </div>
           <Button asChild variant="outline">
@@ -477,9 +477,13 @@ function StoreGoalCard({ storeId, goal }: { storeId: string; goal: string | null
       const valeur = texte.trim() === "" ? null : texte.trim();
       donneesOuLeve(await supabase.from("stores").update({ goal: valeur }).eq("id", storeId));
       await qc.invalidateQueries({ queryKey: ["store", storeId] });
-      toast.success("Objectif enregistré.");
+      toast.success("Objectif enregistré. Vos prochains diagnostics s'en serviront.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Votre objectif n'a pas pu être enregistré. Le précédent reste en place — réessayez dans un instant.",
+      );
     } finally {
       setSaving(false);
     }
@@ -536,9 +540,13 @@ function StoreEconomicsCard({ store }: { store: EconomicsStore }) {
       donneesOuLeve(await supabase.from("stores").update(parsed.payload).eq("id", store.id));
       await qc.invalidateQueries({ queryKey: ["store", store.id] });
       await qc.invalidateQueries({ queryKey: ["cockpit", store.id] });
-      toast.success("Modèle économique enregistré.");
+      toast.success("Modèle économique enregistré. Vos montants seront chiffrés avec ces valeurs.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Vos chiffres n'ont pas pu être enregistrés. Les précédents restent en place — réessayez dans un instant.",
+      );
     } finally {
       setSaving(false);
     }
@@ -548,7 +556,7 @@ function StoreEconomicsCard({ store }: { store: EconomicsStore }) {
     <div className="card-elevated rounded-2xl p-6">
       <h2 className="font-display text-lg font-bold">Votre modèle économique</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Ces informations servent à chiffrer votre marge, votre bénéfice et à orienter l'audit.
+        Ces informations servent à chiffrer votre marge, votre bénéfice et à orienter le diagnostic.
         Laissez vide ce que vous ne connaissez pas encore.
       </p>
 

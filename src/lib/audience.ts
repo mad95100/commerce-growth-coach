@@ -639,13 +639,13 @@ export function findIncoherences(
       id: "audience.premium_sans_avis",
       observation: `Les fiches produit n'affichent aucun avis, sur une boutique dont le prix médian la place en ${gamme}.`,
       problem:
-        "Ce public décide après comparaison et cherche la preuve que quelqu'un d'autre a acheté avant lui. Sur une boutique inconnue, l'absence d'avis est l'objection la plus fréquente et la seule que le vendeur ne peut pas lever par ses propres mots.",
+        "Sur cette gamme, la seule chose qui atteste qu'un autre client a acheté ici est le mot d'un tiers : c'est la seule objection qu'un vendeur ne peut pas lever avec ses propres phrases. Aucune fiche n'en porte.",
       evidence: [
         ...hypothesis.signals.filter((s) => s.id === "gamme").map((s) => s.evidence),
         "Aucun avis détecté sur la page produit (scan du site public)",
       ],
       impact:
-        "Sur cette gamme, l'acheteur reporte sa décision plutôt que de renoncer franchement : la vente n'est pas perdue à l'instant, elle est perdue au profit d'un concurrent qui, lui, affiche des avis.",
+        "Rien sur la fiche ne répond à la question « est-ce que quelqu'un d'autre a acheté ici ». Ce que cette absence vous coûte n'est pas mesuré : il faudrait des données de comportement sur ces fiches pour le chiffrer.",
       recommendation:
         "Afficher les avis existants sur la fiche produit, à hauteur du prix, et non en bas de page.",
       correction:
@@ -661,13 +661,13 @@ export function findIncoherences(
       id: "audience.premium_sans_politique",
       observation: `Aucune page de livraison ni de retour n'est accessible, sur une boutique positionnée en ${gamme}.`,
       problem:
-        "Plus le montant engagé est élevé, plus l'acheteur veut savoir ce qui se passe si ça se passe mal. Ces pages ne sont pas des formalités juridiques : ce sont les pages que ce public ouvre AVANT de payer.",
+        "Sur cette gamme, vos conditions de retour et de livraison pèsent d'autant plus lourd que le montant engagé est élevé. Ces pages ne sont pas des formalités juridiques : elles portent ce que vous vous engagez à faire si la commande se passe mal.",
       evidence: [
         ...hypothesis.signals.filter((s) => s.id === "gamme").map((s) => s.evidence),
         "Aucune page de politique trouvée sur le site public",
       ],
       impact:
-        "L'acheteur qui ne trouve pas ces informations les cherche ailleurs, et souvent ne revient pas.",
+        "Quelqu'un qui cherche vos conditions de retour ou de livraison avant de commander ne les trouve pas sur votre site. Ce que cela vous coûte n'est pas mesuré.",
       recommendation:
         "Publier trois pages et les lier depuis le pied de page ET depuis la fiche produit.",
       correction:
@@ -687,13 +687,13 @@ export function findIncoherences(
       id: "audience.premium_sans_argument",
       observation: `${Math.round(input.descriptionsMissingShare * 100)} % des fiches n'ont aucune description, sur une boutique positionnée en ${gamme}.`,
       problem:
-        "Sur cette gamme, le visiteur ne demande pas ce que le produit EST, il demande pourquoi il vaut ce prix. Une fiche sans texte laisse la question entière, et le prix reste seul face à lui — c'est la configuration où il paraît le plus cher.",
+        "Sur cette gamme, ce qui justifie le prix doit être écrit quelque part. Une fiche sans description n'affiche que le montant : rien n'y expose ce qui le motive.",
       evidence: [
         `${Math.round(input.descriptionsMissingShare * 100)} % de fiches sans description (Shopify)`,
         ...hypothesis.signals.filter((s) => s.id === "gamme").map((s) => s.evidence),
       ],
       impact:
-        "Le prix est perçu sans contrepartie. Le visiteur ne conteste pas la qualité : il n'a simplement aucune raison de la supposer.",
+        "Votre prix est affiché sans l'argument qui le soutient, sur le positionnement que vous avez choisi. Ce que cela vous coûte n'est pas mesuré.",
       recommendation:
         "Réécrire en priorité les fiches des produits qui reçoivent déjà du trafic ou des ventes.",
       correction:

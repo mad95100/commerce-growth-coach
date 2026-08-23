@@ -95,7 +95,7 @@ function AuthPage() {
           setSent({ titre: CONFIRMATION_TITLE, message: confirmationMessage(email) });
           return;
         }
-        toast.success("Compte créé. Bienvenue.");
+        toast.success("Compte créé. Commençons par votre boutique.");
         navigate({ to: "/onboarding" });
         return;
       }
@@ -195,7 +195,7 @@ function AuthPage() {
   return (
     <Cadre>
       <h1 className="font-display text-2xl font-bold tracking-tight">
-        {mode === "signup" ? "Créez votre compte" : "Content de vous revoir"}
+        {mode === "signup" ? "Créez votre compte" : "Connexion à votre compte"}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
         {mode === "signup"

@@ -131,7 +131,7 @@ function StoresIndex() {
                   </p>
                 ) : (
                   <div className="mt-4 flex items-center gap-2 text-sm text-primary">
-                    <Sparkles className="h-4 w-4" /> Prête à être auditée
+                    <Sparkles className="h-4 w-4" /> Prête pour un premier diagnostic
                   </div>
                 )}
 

@@ -105,11 +105,7 @@ export default defineSuite("Audits — relance du diagnostic", (t) => {
 
   const exhausted = decideReaudit(signal({ quotaRemaining: 0 }), NOW);
   t.check("un quota épuisé fait attendre", exhausted.action, "attendre");
-  t.check(
-    "et le dit sans détour",
-    exhausted.reason.includes("quota d'audits du mois est épuisé"),
-    true,
-  );
+  t.check("et le dit sans détour", exhausted.reason.includes("tous utilisés ce mois-ci"), true);
   t.check(
     "tout en reconnaissant que le diagnostic serait justifié",
     exhausted.reason.includes("est justifié"),

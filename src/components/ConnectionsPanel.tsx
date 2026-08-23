@@ -109,7 +109,11 @@ export function ConnectionsPanel({
           : await startGoogle({ data: { storeId } });
       redirectToAuthorization(authorizeUrl);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "La connexion n'a pas pu démarrer. Rien n'a été modifié — réessayez dans un instant.",
+      );
       setBusy(null);
     }
   }
@@ -119,9 +123,13 @@ export function ConnectionsPanel({
     try {
       await disconnect({ data: { storeId, provider } });
       await qc.invalidateQueries({ queryKey: ["connections", storeId] });
-      toast.success("Source déconnectée");
+      toast.success("Source déconnectée. Vos prochains diagnostics ne s'appuieront plus dessus.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "La déconnexion n'a pas abouti. La source reste branchée — réessayez dans un instant.",
+      );
     } finally {
       setBusy(null);
     }
@@ -137,7 +145,11 @@ export function ConnectionsPanel({
       const { authorizeUrl } = await startShopify({ data: { storeId, shopDomain: shopInput } });
       redirectToAuthorization(authorizeUrl);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "La connexion à Shopify n'a pas pu démarrer. Vérifiez votre domaine, puis réessayez.",
+      );
       setBusy(null);
     }
   }
@@ -148,9 +160,15 @@ export function ConnectionsPanel({
       if (provider === "meta_ads") await chooseMeta({ data: { storeId, accountId } });
       else await chooseGoogle({ data: { storeId, customerId: accountId } });
       await qc.invalidateQueries({ queryKey: ["connections", storeId] });
-      toast.success("Compte publicitaire enregistré.");
+      toast.success(
+        "Compte publicitaire enregistré. Vos prochains diagnostics s'appuieront dessus.",
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Ce compte n'a pas pu être enregistré. Votre choix précédent reste en place — réessayez dans un instant.",
+      );
     } finally {
       setBusy(null);
     }
@@ -161,9 +179,15 @@ export function ConnectionsPanel({
     try {
       await disconnect({ data: { storeId, provider: "shopify" } });
       await qc.invalidateQueries({ queryKey: ["connections", storeId] });
-      toast.success("Shopify déconnecté");
+      toast.success(
+        "Shopify déconnecté. Vos prochains diagnostics n'auront plus vos ventes ni votre catalogue.",
+      );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "La déconnexion n'a pas abouti. Shopify reste branché — réessayez dans un instant.",
+      );
     } finally {
       setBusy(null);
     }
@@ -441,7 +465,9 @@ function SoonRow({ icon: Icon, label }: { icon: typeof ShoppingBag; label: strin
       </div>
       <div className="flex-1">
         <div className="font-medium">{label}</div>
-        <div className="text-xs text-muted-foreground">Bientôt — OAuth en cours de branchement</div>
+        <div className="text-xs text-muted-foreground">
+          Bientôt disponible — vos diagnostics n'en dépendent pas
+        </div>
       </div>
     </div>
   );
@@ -460,11 +486,13 @@ function redirectToAuthorization(authorizeUrl: string | undefined) {
     target = new URL(String(authorizeUrl));
   } catch {
     throw new Error(
-      "Le serveur n'a pas renvoyé d'adresse d'autorisation valide. Vérifiez la configuration OAuth du projet.",
+      "La page d'autorisation n'a pas pu être ouverte. Le problème vient de chez nous, pas de votre compte : rien n'a été connecté, et vous pouvez réessayer dans quelques minutes.",
     );
   }
   if (target.protocol !== "https:") {
-    throw new Error("Adresse d'autorisation refusée : elle doit être en HTTPS.");
+    throw new Error(
+      "Nous avons interrompu la connexion : la page d'autorisation reçue n'offrait pas les garanties de sécurité attendues. Rien n'a été connecté. Réessayez, et écrivez-nous si cela se reproduit.",
+    );
   }
   window.location.href = target.toString();
 }

@@ -62,10 +62,14 @@ function Onboarding() {
           .select()
           .single(),
       );
-      toast.success("Boutique enregistrée. Lançons votre premier diagnostic.");
+      toast.success("Boutique enregistrée. Vous pouvez lancer votre premier diagnostic.");
       navigate({ to: "/stores/$storeId", params: { storeId: data.id } });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Votre boutique n'a pas pu être enregistrée. Vos réponses sont toujours à l'écran — réessayez dans un instant.",
+      );
     } finally {
       setLoading(false);
     }

@@ -182,7 +182,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "ui/messages-au-marchand.test.ts",
-    minChecks: 80,
+    minChecks: 82,
     covers:
       "Aucun message atteignant le marchand ne le renvoie à un secret de serveur : les pages d'erreur OAuth lui demandaient de vérifier SHOPIFY_CLIENT_SECRET, et le bouton de connexion Meta d'ajouter META_CLIENT_ID « dans les secrets » — une action impossible, au moment où il vient de confier l'accès à sa boutique. Le nom est déplacé au journal, pas supprimé.",
   },
@@ -308,7 +308,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "ui/editorial.test.ts",
-    minChecks: 300,
+    minChecks: 315,
     covers:
       "Le produit parle comme un consultant, pas comme une checklist. Les formules qui ne disent rien de la boutique regardée — « il est important de », « pensez à », « optimisez votre boutique » — sont interdites sur tous les écrans : elles ne sont fausses nulle part, ce qui les rend invisibles à un test de vérité, et interchangeables d'une boutique à l'autre, ce qui est exactement la différence entre une checklist et un diagnostic. Couvre aussi les consignes envoyées au modèle, qui ordonnaient le tutoiement et le ton de mentor encourageant alors que tout le reste du produit vouvoie, et la séparation à l'écran des deux axes qu'un lecteur pressé additionne : la priorité et la certitude.",
   },

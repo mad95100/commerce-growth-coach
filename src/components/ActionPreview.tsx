@@ -89,7 +89,8 @@ export function ActionPreview({
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        Rien n'a encore été modifié. L'action ne part que si vous cliquez sur « Appliquer ».
+        Rien n'a encore été modifié. La correction ne part que si vous cliquez sur « Appliquer sur
+        mon compte ».
       </p>
     </div>
   );

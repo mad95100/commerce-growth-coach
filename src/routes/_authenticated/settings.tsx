@@ -52,7 +52,11 @@ function SettingsPage() {
       );
       toast.success("Profil mis à jour");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Vos préférences n'ont pas pu être enregistrées. Les précédentes restent en place — réessayez dans un instant.",
+      );
     } finally {
       setLoading(false);
     }

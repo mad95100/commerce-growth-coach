@@ -166,7 +166,11 @@ function AuditPage() {
       qc.invalidateQueries({ queryKey: ["actions", auditId] });
       toast.success(res.detail ?? "Correction annulée.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "L'annulation n'a pas abouti. La correction reste en place — réessayez dans un instant.",
+      );
     } finally {
       setRevertingId(null);
     }
@@ -183,7 +187,11 @@ function AuditPage() {
       }
       setProposals((p) => ({ ...p, [findingId]: res.proposal }));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "La correction n'a pas pu être préparée. Rien n'a été modifié sur votre boutique — réessayez dans un instant.",
+      );
     } finally {
       setProposingId(null);
     }
@@ -200,9 +208,13 @@ function AuditPage() {
         return next;
       });
       qc.invalidateQueries({ queryKey: ["findings", auditId] });
-      toast.success(res.detail ?? "Correction appliquée sur votre compte !");
+      toast.success(res.detail ?? "Correction appliquée sur votre compte.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "La correction n'a pas pu être appliquée. Vérifiez votre boutique avant de réessayer : nous ne savons pas si l'écriture a commencé.",
+      );
     } finally {
       setApplyingId(null);
     }
@@ -221,9 +233,13 @@ function AuditPage() {
     try {
       await generateFixFn({ data: { findingId } });
       qc.invalidateQueries({ queryKey: ["findings", auditId] });
-      toast.success("Correction générée !");
+      toast.success("Correction proposée. Relisez-la avant de l'appliquer.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "La correction n'a pas pu être rédigée. Rien n'a été modifié sur votre boutique — réessayez dans un instant.",
+      );
     } finally {
       setFixingId(null);
     }
@@ -918,7 +934,7 @@ function AuditPage() {
                           variant="outline"
                           onClick={() => {
                             navigator.clipboard.writeText(ac.content);
-                            toast.success("Copié !");
+                            toast.success("Texte copié.");
                           }}
                         >
                           <Copy className="mr-2 h-3 w-3" /> Copier

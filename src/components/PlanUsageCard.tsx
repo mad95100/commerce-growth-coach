@@ -1,7 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getEntitlements } from "@/lib/actions.functions";
-import { PLAN_LABELS, QUOTA_LABELS, quotaLimit, type QuotaKey } from "@/lib/plans";
+import {
+  PLAN_LABELS,
+  QUOTA_LABELS,
+  QUOTAS_SUSPENDUS_POUR_TEST,
+  quotaLimit,
+  type QuotaKey,
+} from "@/lib/plans";
 import { ErrorState, PlanSkeleton } from "@/components/AppShell";
 
 const SHOWN: QuotaKey[] = ["audits", "fixes"];
@@ -132,10 +138,16 @@ export function PlanUsageCard() {
         })}
       </div>
 
+      {/* CE QUE LA PHRASE PROMET DOIT ÊTRE CE QUI SE PASSE. La note annonçait un
+          refus au-delà des quantités incluses. Or les plafonds sont suspendus
+          pendant la phase d'essai : le compteur affiche « sans limite » deux
+          lignes plus haut, et la note en dessous annonçait l'inverse. Les deux
+          régimes ont donc chacun leur phrase. */}
       {e.tier === "free" && (
         <p className="mt-4 text-xs text-muted-foreground">
-          Vos compteurs repartent à zéro le 1er de chaque mois. Rien n'est facturé sur ce plan :
-          au-delà des quantités incluses, les lancements sont refusés, jamais prélevés.
+          {QUOTAS_SUSPENDUS_POUR_TEST
+            ? "Vos compteurs repartent à zéro le 1er de chaque mois. Pendant la phase d'essai, rien n'est plafonné ni facturé : ces chiffres vous disent seulement ce que vous avez utilisé."
+            : "Vos compteurs repartent à zéro le 1er de chaque mois. Rien n'est facturé sur ce plan : au-delà des quantités incluses, les lancements sont refusés, jamais prélevés."}
         </p>
       )}
     </div>

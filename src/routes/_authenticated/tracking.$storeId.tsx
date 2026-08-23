@@ -31,12 +31,13 @@ export const Route = createFileRoute("/_authenticated/tracking/$storeId")({
       { title: "Suivi des gains — EcomPilot AI" },
       {
         name: "description",
-        content: "Comparez vos indicateurs avant et après chaque correction appliquée.",
+        content: "Ce que chaque correction appliquée a changé sur vos chiffres réels.",
       },
       { property: "og:title", content: "Suivi des gains — EcomPilot AI" },
       {
         property: "og:description",
-        content: "Avant / après : conversion, CTR, ROAS et alertes quand les gains n'arrivent pas.",
+        content:
+          "Avant / après : commandes, taux de transformation, rendement publicitaire, et une alerte quand le gain attendu n'arrive pas.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -382,8 +383,8 @@ function TrackingPage() {
                                 }`}
                                 title={
                                   role === "driver"
-                                    ? "Cette métrique a décidé du verdict."
-                                    : "Cette métrique ne pouvait qu'annuler le verdict, pas le produire."
+                                    ? "Ce chiffre a décidé du verdict."
+                                    : "Ce chiffre pouvait annuler le verdict, pas le produire."
                                 }
                               >
                                 {role === "driver" ? "décisive" : "garde-fou"}

@@ -151,12 +151,27 @@ export default defineSuite("Interface — aucun message ne renvoie le marchand �
 
   // C'EST BIEN L'INTERFACE QUI LES AFFICHE. Sans cette vérification, la règle
   // ci-dessus reposerait sur une croyance ; elle repose ici sur le code.
+  //
+  // LA RÈGLE, PAS SA MISE EN PAGE. Ce contrôle épinglait la ligne au caractère
+  // près. Donner un vrai repli au `:` — au lieu du mot « Erreur » — l'a
+  // répartie sur quatre lignes par le formateur, et le contrôle est tombé sans
+  // que rien de ce qu'il protège n'ait bougé. Les espaces sont donc normalisés
+  // avant la recherche.
   const affiche = ["src/components/ConnectionsPanel.tsx", "src/routes/_authenticated/settings.tsx"];
   for (const écran of affiche) {
+    const source = lire(écran).replace(/\s+/g, " ");
     t.check(
       `${écran} affiche bien le message d'erreur tel quel`,
-      /toast\.error\(err instanceof Error \? err\.message/.test(lire(écran)),
+      /toast\.error\( ?err instanceof Error \? err\.message/.test(source),
       true,
+    );
+    // ET LE REPLI EST UNE PHRASE. Quand ce qui est levé n'est pas une `Error`,
+    // le marchand voyait le mot « Erreur » seul : ni ce qui a échoué, ni l'état
+    // dans lequel se trouve sa boutique, ni quoi faire.
+    t.check(
+      `${écran} ne se replie jamais sur un mot technique seul`,
+      /err\.message ?: ?"(Erreur|Error|Échec|Erreur inconnue)"/.test(source),
+      false,
     );
   }
 

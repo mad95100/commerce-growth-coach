@@ -69,7 +69,7 @@ const MESSAGES: Record<AuthErrorKind, string> = {
   trop_de_tentatives:
     "Trop de tentatives en peu de temps. Attendez une minute avant de réessayer — c'est une protection, votre compte n'est pas bloqué.",
   reseau:
-    "La connexion au serveur a échoué. Vérifiez votre connexion internet et réessayez dans un instant.",
+    "La connexion n'a pas abouti. Vérifiez votre accès à internet, puis réessayez dans un instant.",
   inconnu:
     "Quelque chose n'a pas fonctionné. Réessayez dans un instant ; si cela se reproduit, contactez-nous.",
 };

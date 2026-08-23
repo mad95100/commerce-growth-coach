@@ -356,7 +356,7 @@ function CockpitSkeletonInterne() {
  */
 export function ErrorState({
   title = "Impossible de charger ces données",
-  description = "La connexion au serveur a échoué. Vos données ne sont pas perdues — réessayez dans un instant.",
+  description = "Nous n'avons pas réussi à récupérer ces données. Elles ne sont pas perdues, et rien n'a été modifié — réessayez dans un instant.",
   onRetry,
 }: {
   title?: string;

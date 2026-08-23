@@ -1,4 +1,5 @@
 import { UNDETERMINED_CURRENCY_LABEL, formatMoney } from "@/lib/currency";
+import { EPISTEMIC_LABELS } from "@/lib/finding-graph";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Link } from "@tanstack/react-router";
@@ -31,6 +32,8 @@ import {
   Target,
   TrendingUp,
   TriangleAlert,
+  Check,
+  X,
 } from "lucide-react";
 
 /**
@@ -40,11 +43,16 @@ import {
  * les sources n'avaient pas. Un échantillon mince redescend en hypothèse, et
  * l'affichage doit le montrer plutôt que de tout présenter au même niveau.
  */
-const CERTAINTY_LABELS: Record<string, string> = {
-  fait: "Fait",
-  deduction_forte: "Déduction forte",
-  hypothese: "Hypothèse",
-};
+/*
+  UN SEUL JEU DE LIBELLÉS DE CERTITUDE DANS TOUT LE PRODUIT.
+
+  Cette table en recopiait trois à la main — « Fait », « Déduction forte » — là
+  où le rapport affiche déjà « Mesuré » et « Déduit des éléments observés ». Le
+  même niveau portait donc deux noms à deux écrans d'écart, dont l'un est du
+  vocabulaire de moteur. Elle dérive maintenant de la table de référence : les
+  cinq niveaux sont couverts, et la divergence n'est plus possible.
+*/
+const CERTAINTY_LABELS: Record<string, string> = { ...EPISTEMIC_LABELS };
 
 const CERTAINTY_STYLE: Record<string, string> = {
   fait: "bg-primary/15 text-primary",
@@ -88,10 +96,29 @@ export function Cockpit({ storeId }: { storeId: string }) {
       {c.unavailable.length > 0 && (
         <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-          <span>
-            Certaines données ne sont pas disponibles actuellement ({c.unavailable.join(", ")}). Le
-            reste de l'analyse continue avec ce qui est accessible.
-          </span>
+          {/*
+            CHAQUE ENTRÉE EST DÉJÀ UNE PHRASE COMPLÈTE. Elles étaient jointes
+            par « , » à l'intérieur d'une parenthèse : le marchand lisait deux
+            explications collées, ponctuation comprise (« … non calculé., Vos
+            charges fixes… »). Une liste rend chacune lisible pour elle-même.
+          */}
+          <div className="min-w-0">
+            <p className="font-medium">
+              {c.unavailable.length > 1
+                ? "Certains chiffres ne peuvent pas être calculés"
+                : "Un chiffre ne peut pas être calculé"}
+            </p>
+            <ul className="mt-1 space-y-1">
+              {c.unavailable.map((raison) => (
+                <li key={raison} className="text-muted-foreground">
+                  {raison}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-muted-foreground">
+              Le reste du diagnostic s'appuie sur ce qui est disponible.
+            </p>
+          </div>
         </div>
       )}
 
@@ -276,7 +303,8 @@ export function Cockpit({ storeId }: { storeId: string }) {
                       CERTAINTY_STYLE[signal.certainty] ?? "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {CERTAINTY_LABELS[signal.certainty] ?? signal.certainty}
+                    {/* Le repli affichait la clé du moteur telle quelle. */}
+                    {CERTAINTY_LABELS[signal.certainty] ?? "Certitude non précisée"}
                   </span>
                 </div>
                 {signal.investigate.length > 0 && (
@@ -370,9 +398,12 @@ export function Cockpit({ storeId }: { storeId: string }) {
           {c.plan.proven.length > 0 && (
             <ul className="mt-4 space-y-1">
               {c.plan.proven.map((p) => (
-                <li key={p.findingId} className="text-sm text-primary">
-                  ✅ {p.title}
-                  {p.headline && <span className="text-muted-foreground"> — {p.headline}</span>}
+                <li key={p.findingId} className="flex gap-2 text-sm text-primary">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0">
+                    {p.title}
+                    {p.headline && <span className="text-muted-foreground"> — {p.headline}</span>}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -381,8 +412,11 @@ export function Cockpit({ storeId }: { storeId: string }) {
           {c.plan.ineffective.length > 0 && (
             <ul className="mt-2 space-y-1">
               {c.plan.ineffective.map((p) => (
-                <li key={p.findingId} className="text-sm text-muted-foreground">
-                  ❌ {p.title} — sans effet mesurable, ce n'était pas le blocage.
+                <li key={p.findingId} className="flex gap-2 text-sm text-muted-foreground">
+                  <X className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0">
+                    {p.title} — remesuré sans effet : le blocage n'était pas là.
+                  </span>
                 </li>
               ))}
             </ul>
@@ -463,7 +497,8 @@ export function Cockpit({ storeId }: { storeId: string }) {
                           <p className="mt-3 flex items-start gap-1.5 text-xs text-primary">
                             <GitBranch className="mt-0.5 h-3 w-3 shrink-0" />
                             <span>
-                              Fait tomber aussi : {p.unlocks.map((u) => `« ${u} »`).join(", ")}.
+                              Corriger ce point règle aussi :{" "}
+                              {p.unlocks.map((u) => `« ${u} »`).join(", ")}.
                             </span>
                           </p>
                         )}
@@ -497,8 +532,8 @@ export function Cockpit({ storeId }: { storeId: string }) {
                   {c.plan.blocked.length} problème{c.plan.blocked.length > 1 ? "s" : ""} en attente
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Rien à faire dessus pour l'instant : ils viennent de ce qui est au-dessus. Ils
-                  disparaissent peut-être tout seuls.
+                  Ils découlent des points ci-dessus : traitez la cause d'abord. Certains ne se
+                  poseront plus une fois celle-ci corrigée.
                 </p>
                 <ul className="mt-3 space-y-1.5">
                   {c.plan.blocked.map((b) => (

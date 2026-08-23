@@ -31,8 +31,9 @@ export function FunnelView({ funnel, className }: { funnel: Funnel; className?: 
           Parcours client non reconstituable
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          Il faut au moins deux étapes mesurées pour suivre où les visiteurs s'arrêtent. Connectez
-          davantage de sources pour que nous puissions vous dire où cela bloque.
+          Nous mesurons moins de deux étapes du parcours d'achat : nous ne pouvons donc pas situer
+          l'endroit où vos ventes se perdent. Connectez une source de plus pour que nous puissions
+          le faire.
         </p>
       </div>
     );
@@ -51,7 +52,7 @@ export function FunnelView({ funnel, className }: { funnel: Funnel; className?: 
     <div className={`card-elevated rounded-2xl p-6 ${className ?? ""}`}>
       <h2 className="font-display text-lg font-bold">Où passent vos visiteurs</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        Sur les 30 derniers jours. Chaque chiffre vient d'une source réelle — survole pour la voir.
+        Sur les 30 derniers jours. Chaque chiffre vient d'une de vos sources connectées.
       </p>
 
       <div className="mt-5 space-y-3">

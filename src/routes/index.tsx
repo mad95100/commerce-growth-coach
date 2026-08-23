@@ -192,7 +192,7 @@ function Landing() {
               Ce qui distingue ce diagnostic
             </h2>
             <p className="mt-3 text-muted-foreground">
-              Un audit ne vaut que si vous pouvez le vérifier avant d'y croire.
+              Un diagnostic ne vaut que si vous pouvez le vérifier avant d'y croire.
             </p>
           </div>
           <div className="mt-12 grid gap-6 md:grid-cols-2">

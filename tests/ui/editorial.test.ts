@@ -147,6 +147,66 @@ export default defineSuite("Éditorial — le produit parle comme un consultant"
     false,
   );
 
+  // UN SEUL JEU DE LIBELLÉS DE CERTITUDE. Le cockpit en tenait un second, écrit
+  // à la main : le même niveau s'appelait « Fait » ici et « Mesuré » sur le
+  // rapport, et « Déduction forte » y avait survécu. Deux noms pour une même
+  // chose apprennent au lecteur que les mots ne sont pas choisis.
+  const cockpit = sansCommentaires(lire("src/components/Cockpit.tsx"));
+  t.check(
+    "le cockpit ne recopie pas les libellés de certitude",
+    // Viser le LIBELLÉ, pas la table des teintes, qui est légitimement
+    // indexée par les mêmes clés — une classe CSS commence en minuscule.
+    /deduction_forte: "[A-ZÉÈÀ]/.test(cockpit),
+    false,
+  );
+  t.check(
+    "…il dérive de la table de référence",
+    /CERTAINTY_LABELS[^=]*= \{ \.\.\.EPISTEMIC_LABELS \}/.test(cockpit),
+    true,
+  );
+  t.check(
+    "…et son repli n'affiche jamais la clé du moteur",
+    /\?\? signal\.certainty/.test(cockpit),
+    false,
+  );
+
+  // AUCUN GESTE QU'UN ÉCRAN TACTILE NE PERMET PAS. L'entonnoir demandait de
+  // « survoler » pour lire la source d'un chiffre : impossible au doigt, et le
+  // seul tutoiement restant du produit.
+  t.check(
+    "aucun écran ne demande de survoler pour lire une information",
+    /survole/i.test(sansCommentaires(lire("src/components/FunnelView.tsx"))),
+    false,
+  );
+
+  // LE VOCABULAIRE NE S'ÉCHANGE PAS D'UN ÉCRAN À L'AUTRE. Les cartes de
+  // boutique annonçaient « Prête à être auditée » à côté d'un texte qui parle
+  // de « diagnostic », et abrégeaient le chiffre d'affaires en « CA ».
+  for (const écran of [
+    "src/routes/_authenticated/dashboard.tsx",
+    "src/routes/_authenticated/stores.index.tsx",
+  ]) {
+    const src = sansCommentaires(lire(écran));
+    t.check(
+      `${écran} ne dit pas « auditée » là où il dit « diagnostic »`,
+      /auditée/.test(src),
+      false,
+    );
+    t.check(`${écran} n'abrège pas le chiffre d'affaires`, /"CA à/.test(src), false);
+  }
+
+  // AUCUN MOT DE DÉVELOPPEUR SUR UN ÉCRAN DE CONNEXION. « OAuth », « serveur »
+  // et « HTTPS » désignent des choses que le marchand ne peut ni vérifier ni
+  // corriger : ils appartiennent au journal.
+  const connexions = sansCommentaires(lire("src/components/ConnectionsPanel.tsx"));
+  for (const mot of ["OAuth", "HTTPS", "serveur"]) {
+    t.check(
+      `le panneau des sources ne dit pas « ${mot} »`,
+      new RegExp(mot).test(connexions),
+      false,
+    );
+  }
+
   // =========================================================================
   // PRIORITÉ ET CERTITUDE NE SE CONFONDENT JAMAIS À L'ÉCRAN
   // =========================================================================

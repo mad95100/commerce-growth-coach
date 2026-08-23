@@ -169,7 +169,7 @@ export function decideReaudit(signal: ReauditSignal, now: Date = new Date()): Re
 
   if (signal.quotaRemaining === 0) {
     return wait(
-      `${summary} Un nouveau diagnostic est justifié, mais le quota d'audits du mois est épuisé.`,
+      `${summary} Un nouveau diagnostic est justifié, mais les diagnostics inclus dans votre plan sont tous utilisés ce mois-ci.`,
     );
   }
 
