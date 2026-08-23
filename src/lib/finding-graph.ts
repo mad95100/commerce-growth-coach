@@ -535,11 +535,26 @@ function rawBand(input: BandInput): PriorityBand {
   return "optimisation";
 }
 
+/**
+ * CE QUI PÈSE, DIT SANS LE MOT DU MOTEUR.
+ *
+ * « Sévérité critique. » cumulait deux défauts sur une seule ligne. Le mot
+ * d'abord : `severity` est un champ du schéma de sortie, il n'a aucune raison
+ * d'atteindre le marchand — le produit s'est donné deux échelles, Priorité et
+ * Certitude, et « sévérité » n'est ni l'une ni l'autre. Le doublon ensuite :
+ * la phrase s'affiche sous une étiquette qui vient déjà d'annoncer la
+ * priorité, si bien qu'un constat marqué « Important » était justifié par
+ * « Sévérité élevée » — le même fait, dit deux fois, avec deux vocabulaires.
+ *
+ * Ces phrases disent maintenant ce qu'elles ont toujours voulu dire : le POIDS
+ * de ce point par rapport aux autres de ce rapport. Elles ne rejouent pas
+ * l'étiquette, et n'annoncent aucun montant que rien n'établit.
+ */
 const SEVERITY_SENTENCE: Record<string, string> = {
-  critical: "Sévérité critique.",
-  high: "Sévérité élevée.",
-  medium: "Sévérité moyenne.",
-  low: "Sévérité faible.",
+  critical: "Rien d'autre dans ce rapport ne pèse davantage.",
+  high: "Ce point pèse plus que la moyenne de ce rapport.",
+  medium: "Ce point compte, sans passer devant les autres.",
+  low: "Ce point est secondaire au regard du reste.",
 };
 
 const EPISTEMIC_SENTENCE: Record<EpistemicLevel, string> = {

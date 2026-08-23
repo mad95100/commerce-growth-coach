@@ -92,7 +92,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/finding-graph.test.ts",
-    minChecks: 115,
+    minChecks: 121,
     covers:
       "Chaîne causale, quatre niveaux de certitude et priorité justifiée : une conclusion sans preuve ne peut pas être déclarée critique, un symptôme n'est jamais proposé avant sa cause, et une causalité circulaire ne fait pas boucler le cron.",
   },
@@ -308,7 +308,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "ui/editorial.test.ts",
-    minChecks: 322,
+    minChecks: 332,
     covers:
       "Le produit parle comme un consultant, pas comme une checklist. Les formules qui ne disent rien de la boutique regardée — « il est important de », « pensez à », « optimisez votre boutique » — sont interdites sur tous les écrans : elles ne sont fausses nulle part, ce qui les rend invisibles à un test de vérité, et interchangeables d'une boutique à l'autre, ce qui est exactement la différence entre une checklist et un diagnostic. Couvre aussi les consignes envoyées au modèle, qui ordonnaient le tutoiement et le ton de mentor encourageant alors que tout le reste du produit vouvoie, et la séparation à l'écran des deux axes qu'un lecteur pressé additionne : la priorité et la certitude.",
   },
@@ -368,7 +368,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/rules.test.ts",
-    minChecks: 106,
+    minChecks: 114,
     covers:
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
@@ -434,7 +434,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "actions/execution.test.ts",
-    minChecks: 87,
+    minChecks: 98,
     covers:
       "Chemin « corriger maintenant » : une écriture interrompue n'est jamais annoncée comme faite, deux propositions sur un même problème n'écrivent pas deux fois, une correction non appliquée est remboursée, et la réversibilité promise est réellement tenue.",
   },

@@ -171,7 +171,7 @@ export const generateFix = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { consumeQuota } = await import("@/lib/billing.server");
+    const { consumeQuota, refundQuota } = await import("@/lib/billing.server");
     await consumeQuota(supabaseAdmin, userId, "fixes");
 
     const { data: finding, error: fErr } = await supabase
@@ -191,7 +191,7 @@ export const generateFix = createServerFn({ method: "POST" })
 Niche : ${store.niche || "(non précisée)"}
 URL : ${store.url || "(non fournie)"}
 
-Problème (${finding.category}, sévérité ${finding.severity}) :
+Problème (${finding.category}, priorité ${finding.severity}) :
 ${finding.title}
 
 Cause racine :
@@ -219,27 +219,65 @@ Génère la correction prête à copier-coller adaptée à ce problème et à ce
       },
     };
 
-    const res = await aiChatCompletion({
-      model: aiModel("fix"),
-      messages: [
-        { role: "system", content: FIX_SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-      tools: [tool],
-      tool_choice: { type: "function", function: { name: "submit_fix" } },
-    });
+    // RIEN LIVRÉ, RIEN FACTURÉ. `proposeFix` tenait déjà cette règle ; ce chemin
+    // ne la tenait pas, et une génération qui échoue consommait quand même une
+    // unité. Le décompte reste AVANT l'appel — c'est ce qui empêche deux onglets
+    // de lancer deux générations sur la même unité — mais il est rendu dès que
+    // l'appel n'aboutit à rien.
+    let res: Response;
+    try {
+      res = await aiChatCompletion({
+        model: aiModel("fix"),
+        messages: [
+          { role: "system", content: FIX_SYSTEM_PROMPT },
+          { role: "user", content: userPrompt },
+        ],
+        tools: [tool],
+        tool_choice: { type: "function", function: { name: "submit_fix" } },
+      });
+    } catch (err) {
+      await refundQuota(supabaseAdmin, userId, "fixes");
+      throw err;
+    }
 
+    /*
+      CE QUE CE BOUTON DISAIT QUAND IL ÉCHOUAIT.
+
+      Trois phrases, et chacune manquait à une règle que le reste du produit
+      tient. « Réessaie dans une minute » et « passe à l'offre Pro » TUTOIENT,
+      seuls survivants du passage au vouvoiement — ils vivaient dans un chemin
+      d'échec, que rien ne parcourt en temps normal. La seconde promettait en
+      plus une offre Pro qui N'EXISTE PAS : aucun paiement, aucun abonnement,
+      rien à quoi passer. Envoyer quelqu'un acheter une chose inexistante est
+      pire que de ne rien dire. Et « Réponse IA invalide » est du vocabulaire
+      de moteur, dans un produit qui n'en expose aucun.
+
+      Le message technique n'est pas perdu : il part au journal, où il sert à
+      qui peut agir dessus.
+    */
     if (!res.ok) {
       const errText = await res.text();
-      if (res.status === 429) throw new Error("Trop de demandes, réessaie dans une minute.");
-      if (res.status === 402)
-        throw new Error("Crédits IA épuisés — passe à l'offre Pro pour continuer.");
-      throw new Error(`AI Gateway ${res.status}: ${errText}`);
+      console.error(`[correction] AI Gateway ${res.status} : ${errText}`);
+      await refundQuota(supabaseAdmin, userId, "fixes");
+      if (res.status === 429) {
+        throw new Error(
+          "Notre fournisseur d'analyse est momentanément saturé. Réessayez dans une minute : rien n'a été modifié sur votre boutique.",
+        );
+      }
+      throw new Error(
+        "La correction n'a pas pu être rédigée. Le problème vient de chez nous, pas de votre boutique — réessayez dans un instant.",
+      );
     }
 
     const json = await res.json();
     const call = json.choices?.[0]?.message?.tool_calls?.[0];
-    if (!call?.function?.arguments) throw new Error("Réponse IA invalide");
+    if (!call?.function?.arguments) {
+      console.error("[correction] réponse du fournisseur sans appel d'outil exploitable");
+      await refundQuota(supabaseAdmin, userId, "fixes");
+      throw new Error(
+        "La correction n'a pas pu être rédigée. Le problème vient de chez nous, pas de votre boutique — réessayez dans un instant.",
+      );
+    }
     const parsed = JSON.parse(call.function.arguments) as { title: string; content: string };
 
     const { error: uErr } = await supabase

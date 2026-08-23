@@ -2042,6 +2042,20 @@ export function axisOfObservation(id: string): AuditAxis | null {
  */
 export const MIN_MEASURED_AXES_SHARE = 0.5;
 
+/**
+ * Axes qui décrivent le COMMERCE, et non la construction du site.
+ *
+ * La distinction n'est pas théorique : elle sépare ce qu'on lit en
+ * téléchargeant une page de ce qu'on ne sait qu'en ayant des ventes, des
+ * visites ou de la dépense publicitaire.
+ */
+export const COMMERCIAL_AXES: readonly AuditAxis[] = [
+  "acquisition",
+  "conversion",
+  "offre",
+  "retention",
+] as const;
+
 export function globalScore(axes: AxisScore[]): number | null {
   // On filtre sur le SCORE, pas sur `measured` : c'est la seule forme que le
   // compilateur sait vérifier, et elle rend impossible d'additionner un axe
@@ -2062,6 +2076,38 @@ export function globalScore(axes: AxisScore[]): number | null {
   // réussi à regarder. Mieux vaut alors ne pas donner de note : l'absence
   // s'explique, un 100 imaginaire ne se rattrape pas.
   if (notes.length / axes.length < MIN_MEASURED_AXES_SHARE) return null;
+
+  /*
+    COMPTER LES AXES NE SUFFIT PAS : IL FAUT REGARDER LESQUELS.
+
+    LE CAS RÉEL. Une boutique au catalogue vide, sans une seule commande et sans
+    donnée de trafic, a reçu 86/100. Chaque étape était juste. Cinq axes sur dix
+    étaient mesurés — Confiance, SEO, Technique, UX, Merchandising — la moitié
+    exactement, donc le seuil ci-dessus était franchi, et la moyenne de ces cinq
+    sortait à 86.
+
+    Or ces cinq axes ont une chose en commun : ils se lisent ENTIÈREMENT en
+    téléchargeant quelques pages. Ils sont toujours mesurables, sur n'importe
+    quelle boutique, y compris une qui ne vend rien. Les quatre autres —
+    acquisition, conversion, offre, rétention — demandent des ventes, des
+    visites ou de la dépense publicitaire, et sont donc absents précisément
+    quand la boutique ne marche pas.
+
+    Le seuil par le NOMBRE se laisse donc satisfaire par les seuls contrôles
+    faciles, et la note finit par mesurer la qualité de fabrication d'un site
+    plutôt que la santé d'un commerce. 86/100 sur une boutique sans produit et
+    sans vente : chaque composante était honnête, le résultat ne l'était pas.
+
+    Une note de boutique exige donc qu'AU MOINS UN axe commercial ait été
+    mesuré. En dessous, ce que nous savons décrit la vitrine, pas l'affaire —
+    et le dire vaut mieux que de composer un nombre.
+
+    Ce garde-fou ne dépend d'AUCUN constat en particulier : un catalogue vide
+    n'annule pas la note à lui seul, et une boutique qui vend garde la sienne
+    même si son catalogue est mince.
+  */
+  const commerceMesure = axes.some((a) => a.score !== null && COMMERCIAL_AXES.includes(a.axis));
+  if (!commerceMesure) return null;
 
   return Math.round(notes.reduce((sum, n) => sum + n, 0) / notes.length);
 }

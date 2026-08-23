@@ -13,6 +13,7 @@ import {
   buildActionPlan,
   capLevel,
   globalScore,
+  COMMERCIAL_AXES,
   MIN_MEASURED_AXES_SHARE,
   prioritise,
   runRules,
@@ -344,6 +345,80 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
     measured: i % 2 === 0,
   }));
   t.check("la moitié des axes suffit à noter", globalScore(large), 70);
+
+  /*
+    COMPTER LES AXES NE SUFFIT PAS : IL FAUT REGARDER LESQUELS.
+
+    LE CAS RÉEL. Une boutique au catalogue vide, sans une seule commande et sans
+    donnée de trafic, a reçu 86/100. Chaque étape était juste. Cinq axes sur dix
+    étaient mesurés — Confiance, SEO, Technique, UX, Merchandising — la moitié
+    exactement, donc le seuil par le nombre était franchi, et la moyenne de ces
+    cinq sortait à 86.
+
+    Ces cinq axes ont une chose en commun : ils se lisent ENTIÈREMENT en
+    téléchargeant quelques pages. Ils sont toujours mesurables, sur n'importe
+    quelle boutique, y compris une qui ne vend rien. Les quatre autres demandent
+    des ventes, des visites ou de la dépense — et sont donc absents précisément
+    quand la boutique ne marche pas.
+
+    Le seuil par le NOMBRE se laisse donc satisfaire par les seuls contrôles
+    faciles : la note finissait par mesurer la qualité de fabrication d'un site
+    plutôt que la santé d'un commerce.
+  */
+  const axeNote = (axis: (typeof AUDIT_AXES)[number], score: number | null) => ({
+    axis,
+    label: axis,
+    score,
+    deductions: [],
+    measured: score !== null,
+  });
+  const vitrineSeule = [
+    axeNote("trust", 100),
+    axeNote("seo", 92),
+    axeNote("technique", 100),
+    axeNote("ux", 78),
+    axeNote("merchandising", 60),
+    axeNote("acquisition", null),
+    axeNote("conversion", null),
+    axeNote("offre", null),
+    axeNote("retention", null),
+    axeNote("data", null),
+  ];
+  t.check(
+    "la moitié des axes atteinte par les seuls contrôles de vitrine",
+    vitrineSeule.filter((a) => a.score !== null).length / vitrineSeule.length >=
+      MIN_MEASURED_AXES_SHARE,
+    true,
+  );
+  t.check("…mais aucun axe commercial mesuré => aucune note", globalScore(vitrineSeule), null);
+
+  // UN SEUL AXE COMMERCIAL SUFFIT À RENDRE LA NOTE : le garde-fou refuse de
+  // noter une vitrine, il n'interdit pas de noter un commerce.
+  for (const commercial of COMMERCIAL_AXES) {
+    const avecCommerce = vitrineSeule.map((a) =>
+      a.axis === commercial ? axeNote(commercial, 40) : a,
+    );
+    t.check(`${commercial} mesuré rend la note`, globalScore(avecCommerce) !== null, true);
+  }
+
+  // ET LE GARDE-FOU NE DÉPEND D'AUCUN CONSTAT EN PARTICULIER. Un catalogue vide
+  // n'annule pas la note à lui seul — c'est la couverture qui décide, pas un
+  // constat. Une boutique qui vend garde sa note même avec un catalogue mince.
+  const catalogueVideMaisCommerceMesure = vitrineSeule.map((a) =>
+    a.axis === "conversion" ? axeNote("conversion", 55) : a,
+  );
+  t.check(
+    "un catalogue vide n'annule pas à lui seul la note",
+    globalScore(catalogueVideMaisCommerceMesure) !== null,
+    true,
+  );
+  // La note reste la moyenne des axes MESURÉS, garde-fou franchi : le seuil
+  // décide s'il y a une note, jamais laquelle.
+  t.check(
+    "la note est bien la moyenne des axes mesurés",
+    globalScore(catalogueVideMaisCommerceMesure),
+    Math.round((100 + 92 + 100 + 78 + 60 + 55) / 6),
+  );
 
   // L'AXE AVEUGLÉ N'EST PAS NOTÉ. Sans trafic mesuré, une note de conversion
   // serait une note sur rien — et elle remonterait dans le score global,

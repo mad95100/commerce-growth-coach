@@ -262,10 +262,48 @@ export default defineSuite("Audits — chaîne causale et priorité justifiée",
     false,
   );
 
-  // Une priorité qu'on ne sait pas expliquer ne sera pas suivie.
+  // Une priorité qu'on ne sait pas expliquer ne sera pas suivie : la
+  // justification s'ouvre sur ce qui PÈSE, avant tout le reste.
   t.check(
-    "la justification commence par la sévérité",
-    band({ severity: "critical" }).justification.startsWith("Sévérité critique."),
+    "la justification s'ouvre sur le poids du constat",
+    band({ severity: "critical" }).justification.startsWith(
+      "Rien d'autre dans ce rapport ne pèse davantage.",
+    ),
+    true,
+  );
+  t.check(
+    "…et les quatre niveaux s'ouvrent chacun sur une phrase distincte",
+    new Set(
+      (["critical", "high", "medium", "low"] as const).map(
+        (severity) => band({ severity }).justification.split(".")[0],
+      ),
+    ).size,
+    4,
+  );
+  /*
+    « SÉVÉRITÉ » N'ATTEINT PLUS LE MARCHAND.
+
+    Le mot cumulait deux défauts. C'est d'abord un champ du schéma de sortie :
+    le produit s'est donné deux échelles, Priorité et Certitude, et « sévérité »
+    n'est ni l'une ni l'autre. C'est ensuite un doublon — la phrase s'affiche
+    sous une étiquette qui vient d'annoncer la priorité, si bien qu'un constat
+    marqué « Important » était justifié par « Sévérité élevée » : le même fait,
+    dit deux fois, avec deux vocabulaires.
+  */
+  for (const severity of ["critical", "high", "medium", "low"] as const) {
+    t.check(
+      `la justification (${severity}) ne dit pas « sévérité »`,
+      /[Ss]évérité/.test(band({ severity }).justification),
+      false,
+    );
+  }
+  // LES DEUX DIMENSIONS RESTENT SÉPARÉES : le poids d'un côté, ce que nous
+  // savons de l'autre. Les fondre ferait lire une hypothèse comme une mesure.
+  t.check(
+    "la justification porte aussi la certitude, distincte du poids",
+    band({ severity: "critical", epistemic: "hypothese" }).justification.includes(
+      "Repose sur une hypothèse",
+    ),
     true,
   );
   t.check(

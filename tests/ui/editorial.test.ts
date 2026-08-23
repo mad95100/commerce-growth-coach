@@ -181,6 +181,102 @@ export default defineSuite("Éditorial — le produit parle comme un consultant"
     /jamais « ce que vous devez faire »/.test(consignes),
     true,
   );
+
+  /*
+    LES CONSTATS DU MOTEUR SONT OBLIGATOIRES, PAS INDICATIFS.
+
+    LE DÉFAUT, ET C'EST LE PLUS COÛTEUX DE CE CHANTIER. Sur une boutique dont le
+    catalogue Shopify est VIDE, le moteur classe en position [1] — le fait le
+    mieux établi et le plus lourd du rapport — « Votre boutique ne propose aucun
+    produit à la vente ». Le rapport rendu n'en disait pas un mot.
+
+    La règle se déclenchait bien, sortait bien première avec une priorité de 250
+    contre 100 au deuxième, et figurait bien dans le bloc envoyé au modèle. Rien
+    ne DISAIT au modèle qu'il devait la reprendre. Le bloc s'intitule « source de
+    vérité », ce qui se lit comme une documentation où puiser — pas comme une
+    liste de ce qu'il faut dire. Le modèle a donc sélectionné, et il a écarté le
+    seul fait qui expliquait les quatre autres.
+  */
+  t.check(
+    "les constats du moteur sont déclarés obligatoires",
+    /LES CONSTATS DU MOTEUR SONT OBLIGATOIRES, PAS INDICATIFS/.test(consignes),
+    true,
+  );
+  t.check(
+    "…chacun donne un problème dans la sortie",
+    /CHAQUE constat classé par le moteur donne UN problème dans votre sortie/.test(consignes),
+    true,
+  );
+  t.check(
+    "…on peut ajouter, jamais retirer",
+    /Vous ne pouvez\s+pas en RETIRER un qu'il a établi/.test(consignes.replace(/\n/g, " ")),
+    true,
+  );
+  t.check(
+    "…et un constat mesuré ne redescend pas en hypothèse",
+    /ne se dégrade jamais en hypothèse/.test(consignes),
+    true,
+  );
+
+  /*
+    AUCUNE CORRECTION NE PROMET UNE VENTE. Le rapport écrivait « pour débloquer
+    votre toute première vente » : nous ne mesurons ni trafic, ni intention, ni
+    rien qui permette de promettre une commande.
+  */
+  t.check(
+    "aucune correction ne promet une vente",
+    /AUCUNE CORRECTION NE PROMET UNE VENTE/.test(consignes),
+    true,
+  );
+
+  /*
+    OÙ PASSE LA LIGNE, et pourquoi elle devait être écrite noir sur blanc.
+
+    « L'absence de ces éléments de réassurance bloque les décisions d'achat »
+    est interdit — c'est une conduite décrétée. Mais « quelqu'un qui découvre la
+    boutique doit comprendre seul ce qu'elle vend » est PERMIS, et c'est même la
+    formulation que la voix du produit donne en exemple : elle décrit la page,
+    pas les gens, et reste vraie même si personne ne visite.
+
+    Sans cette ligne écrite, une correction trop large aurait interdit la
+    seconde en même temps que la première, et le rapport n'aurait plus rien pu
+    dire d'utile.
+  */
+  t.check(
+    "la ligne entre page et conduite est explicite",
+    /OÙ PASSE EXACTEMENT LA LIGNE/.test(consignes),
+    true,
+  );
+  t.check(
+    "…avec un test applicable",
+    /retirez le mot « visiteur » de votre phrase/.test(consignes),
+    true,
+  );
+
+  /*
+    UNE HYPOTHÈSE PORTE SUR UN FAIT, JAMAIS SUR UNE CONDUITE. Le rapport
+    écrivait : « Cette constatation suppose que les visiteurs recherchent des
+    éléments rassurants avant de s'engager. » Ce n'est pas une hypothèse de
+    travail — c'est une psychologie d'acheteur inventée, présentée comme le
+    socle du constat.
+  */
+  t.check(
+    "une hypothèse porte sur un fait vérifiable",
+    /UNE HYPOTHÈSE PORTE SUR UN FAIT QU'ON AURAIT PU VÉRIFIER, JAMAIS SUR UNE\s+CONDUITE/.test(
+      consignes,
+    ),
+    true,
+  );
+  t.check(
+    "…et le contre-exemple réellement produit est cité",
+    /suppose que les visiteurs\s+recherchent des éléments rassurants/.test(consignes),
+    true,
+  );
+  t.check(
+    "…avec les trois conditions, faute de quoi le champ reste vide",
+    /Trois conditions, toutes les trois/.test(consignes),
+    true,
+  );
   t.check(
     "le diagnostic passe avant la preuve technique",
     /LE DIAGNOSTIC D'ABORD, LA PREUVE TECHNIQUE ENSUITE/.test(consignes),

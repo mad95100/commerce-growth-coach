@@ -608,4 +608,88 @@ export default defineSuite("Actions — exécution, issue et réversibilité", (
     /if \(!canauxQ\.data\) return undefined;/.test(ecran),
     true,
   );
+
+  // =========================================================================
+  // « GÉNÉRER LE TEXTE » ET « COPIER LE TEXTE PROPOSÉ » FONT CE QU'ILS DISENT
+  // =========================================================================
+  /*
+    Ces deux-là ne sont PAS decoratifs, contrairement à « Préparer la
+    correction » : `generateFix` appelle le modèle et écrit `auto_correction`
+    sur le constat ; le second bouton apparaît alors et copie `content` dans le
+    presse-papiers. La chaîne est complète, et ce contrôle la tient.
+  */
+  /*
+    LE CONTRÔLE NE DOIT PAS CONFONDRE L'INTERDICTION AVEC L'INFRACTION.
+
+    Les commentaires du module CITENT les anciennes phrases pour expliquer
+    pourquoi elles sont parties. Un balayage du fichier brut les compte donc
+    comme des infractions — ce contrôle est tombé sur ses propres explications
+    à sa première exécution. Seul le code exécuté est examiné.
+  */
+  const sansCommentaires = (src: string) =>
+    src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/^\s*\/\/.*$/gm, " ");
+  const fonctions = sansCommentaires(read("src/lib/audit.functions.ts"));
+  t.check(
+    "générer écrit bien une correction sur le constat",
+    /\.update\(\{ auto_correction: parsed \}\)/.test(fonctions),
+    true,
+  );
+  t.check(
+    "copier ne s'affiche que s'il y a un texte à copier",
+    /finding\.auto_correction && typeof finding\.auto_correction === "object" \?/.test(ecran),
+    true,
+  );
+  t.check(
+    "…et copie réellement le contenu",
+    /clipboard\.writeText\(ac\.content\)/.test(ecran),
+    true,
+  );
+
+  /*
+    CE QUE CE BOUTON DISAIT QUAND IL ÉCHOUAIT, ET QUI A SURVÉCU À TOUT LE RESTE.
+
+    Trois phrases vivaient dans son chemin d'échec — que rien ne parcourt en
+    temps normal, ce qui explique qu'elles aient traversé le passage au
+    vouvoiement sans être vues :
+
+        « Trop de demandes, réessaie dans une minute. »
+        « Crédits IA épuisés — passe à l'offre Pro pour continuer. »
+        « Réponse IA invalide »
+
+    Les deux premières TUTOIENT. La seconde promet en plus une offre Pro qui
+    N'EXISTE PAS : ni paiement, ni abonnement, rien à quoi passer. Envoyer
+    quelqu'un acheter une chose inexistante coûte plus qu'un silence. La
+    troisième est du vocabulaire de moteur.
+  */
+  for (const interdit of ["réessaie", "passe à l'offre", "Réponse IA invalide", "Crédits IA"]) {
+    t.check(`la génération ne dit plus « ${interdit} »`, fonctions.includes(interdit), false);
+  }
+  t.check(
+    "…et ne renvoie vers aucune offre payante inexistante",
+    /offre Pro|passez à Pro|abonnement Pro/i.test(fonctions),
+    false,
+  );
+  // Le message technique n'est pas perdu : il part au journal, où il sert à qui
+  // peut agir dessus.
+  t.check(
+    "le détail technique va au journal",
+    /console\.error\(`\[correction\] AI Gateway/.test(fonctions),
+    true,
+  );
+
+  // RIEN LIVRÉ, RIEN FACTURÉ. `proposeFix` tenait déjà cette règle ; ce chemin
+  // ne la tenait pas, et une génération qui échoue consommait une unité.
+  t.check(
+    "une génération qui échoue rend l'unité",
+    (fonctions.match(/refundQuota\(supabaseAdmin, userId, "fixes"\)/g) ?? []).length >= 3,
+    true,
+  );
+  // Le décompte reste AVANT l'appel : c'est ce qui empêche deux onglets de
+  // lancer deux générations sur la même unité.
+  t.check(
+    "…mais le décompte reste avant l'appel",
+    fonctions.indexOf('consumeQuota(supabaseAdmin, userId, "fixes")') <
+      fonctions.indexOf("aiChatCompletion({"),
+    true,
+  );
 });
