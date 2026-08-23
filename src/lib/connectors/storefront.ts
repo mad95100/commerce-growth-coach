@@ -385,6 +385,32 @@ const isOk = (page: FetchedPage | undefined) =>
   page?.status != null && page.status >= 200 && page.status < 400 && page.html != null;
 
 /**
+ * UNE ADRESSE QUI RÉPOND, SANS EXIGER SON CONTENU.
+ *
+ * LE DÉFAUT, ET IL EST GRAVE. Les pages de politique sont sondées en `HEAD` —
+ * on veut savoir si l'adresse existe, pas télécharger le texte. Un `HEAD` ne
+ * rend aucun corps : `html` y vaut `null` PAR CONSTRUCTION. Or elles étaient
+ * comptées avec `isOk`, qui exige justement `html != null`.
+ *
+ * Le compte valait donc TOUJOURS zéro, quel que soit le code renvoyé. Toute
+ * boutique — y compris celle dont les trois pages répondent 200 — était
+ * déclarée dépourvue de politiques, et la preuve affichait les trois 200 juste
+ * en dessous. Le marchand lisait « absentes » sous trois codes qui disent
+ * l'inverse.
+ *
+ * Deux dégâts, et le second est pire que le premier : on envoie recréer des
+ * pages existantes, et `trust.policy_pages_incomplete` — le cas « il en manque
+ * une ou deux » — était INATTEIGNABLE, puisque le compte ne quittait jamais
+ * zéro.
+ *
+ * `isOk` garde son sens : « nous avons lu un document ». C'est lui qui décide
+ * si le site a pu être observé, et une adresse sondée en `HEAD` ne prouve pas
+ * cela. Les deux questions sont distinctes, elles ont maintenant deux réponses.
+ */
+const repondALAdresse = (page: FetchedPage | undefined) =>
+  page?.status != null && page.status >= 200 && page.status < 400;
+
+/**
  * Observations du site public.
  *
  * Toutes sont des FAITS TECHNIQUES. Aucune ne porte de gain, de perte ni de
@@ -831,7 +857,7 @@ export function storefrontObservations(raw: StorefrontRaw): {
 
   // --- Confiance : pages de politique réellement servies --------------------
   const policies = raw.pages.filter((p) => p.role === "politique");
-  const policiesOk = policies.filter((p) => isOk(p));
+  const policiesOk = policies.filter((p) => repondALAdresse(p));
   if (policies.length > 0) {
     add(
       observe({

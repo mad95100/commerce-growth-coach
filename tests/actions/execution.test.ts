@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  OUTIL_PAR_CONSTAT,
+  correctionPossible,
+  type CanalCorrigible,
+} from "@/lib/corrections-possibles";
+import {
   EXECUTION_UNKNOWN_AFTER_MINUTES,
   PROPOSAL_TTL_MINUTES,
   canConfirmProposal,
@@ -493,4 +498,114 @@ export default defineSuite("Actions — exécution, issue et réversibilité", (
     true,
   );
   t.check("aucune donnée n'est supprimée", /DROP|DELETE|TRUNCATE/.test(migration), false);
+
+  // =========================================================================
+  // LE BOUTON NE PROMET QUE CE QUE LES OUTILS SAVENT FAIRE
+  // =========================================================================
+  /*
+    LE DÉFAUT, RELEVÉ SUR UN RAPPORT RÉEL. « Préparer la correction » était
+    offert sur CHAQUE constat. Le marchand cliquait, attendait, et lisait « Pas
+    de correction automatique ici » — quatre fois sur quatre.
+
+    La réponse était juste : nos outils réécrivent une fiche produit et pilotent
+    des publicités ; aucun ne touche au thème, aux pages, à la navigation ni aux
+    réglages de la boutique, c'est-à-dire là où se trouvent la plupart des
+    constats d'un premier audit. Mais elle coûtait un APPEL AU MODÈLE pour
+    apprendre non, et faisait du seul bouton mis en avant du rapport une
+    promesse non tenue. Un intitulé est un engagement : un bouton qui échoue
+    systématiquement apprend à ne pas cliquer sur les autres.
+  */
+  const rienDeConnecte: CanalCorrigible[] = [];
+  const toutConnecte: CanalCorrigible[] = ["shopify", "meta_ads", "google_ads"];
+
+  const verdict = (findingKey: string | null, canaux: CanalCorrigible[], category = "boutique") =>
+    correctionPossible({ findingKey, category, canauxConnectes: canaux });
+
+  // LES TROIS CAS OÙ UN OUTIL EXISTE VRAIMENT.
+  for (const cle of Object.keys(OUTIL_PAR_CONSTAT)) {
+    t.check(`${cle} est automatisable, canaux branchés`, verdict(cle, toutConnecte).possible, true);
+    // …et le refus change de nature quand le canal manque : là, brancher règle
+    // le problème. Le marchand doit pouvoir distinguer les deux.
+    const sansCanal = verdict(cle, rienDeConnecte);
+    t.check(`${cle} sans canal : refusé`, sansCanal.possible, false);
+    t.check(
+      `${cle} sans canal : on dit quoi brancher`,
+      !sansCanal.possible && /connect|Branchez/i.test(sansCanal.raison),
+      true,
+    );
+  }
+
+  // TOUT LE RESTE EST REFUSÉ, MÊME AVEC TOUS LES CANAUX BRANCHÉS. Ce sont
+  // exactement les quatre constats du rapport qui a révélé le défaut.
+  for (const cle of [
+    "ux.catalogue_invisible_depuis_accueil",
+    "parcours.entree_catalogue_absente",
+    "trust.policy_pages_missing",
+    "seo.description_absente",
+    "merchandising.catalogue_vide",
+  ]) {
+    const v = verdict(cle, toutConnecte);
+    t.check(`${cle} n'est pas automatisable`, v.possible, false);
+    // Et le refus dit POURQUOI, sans jargon ni action impossible.
+    t.check(
+      `${cle} : le refus explique ce que nos outils savent faire`,
+      !v.possible && /fiche produit/.test(v.raison),
+      true,
+    );
+  }
+
+  // UNE LISTE BLANCHE, PAS UNE LISTE NOIRE. Un constat inconnu — clé absente,
+  // règle disparue, catégorie inattendue — est refusé. Se tromper dans ce sens
+  // coûte un bouton qui manque, et les étapes manuelles sont juste au-dessus ;
+  // se tromper dans l'autre redonne le bouton qui échoue.
+  t.check("une clé inconnue est refusée", verdict("n.importe.quoi", toutConnecte).possible, false);
+  t.check(
+    "une catégorie sans outil est refusée",
+    correctionPossible({
+      findingKey: null,
+      category: "operations",
+      canauxConnectes: toutConnecte,
+    }).possible,
+    false,
+  );
+  // Le repli par catégorie ne sert QUE si la clé manque : une clé connue mais
+  // non automatisable ne doit pas être rattrapée par sa catégorie.
+  t.check(
+    "sans clé, la catégorie peut rattraper",
+    correctionPossible({
+      findingKey: null,
+      category: "acquisition",
+      canauxConnectes: toutConnecte,
+    }).possible,
+    true,
+  );
+  t.check(
+    "avec une clé non automatisable, la catégorie ne rattrape pas",
+    correctionPossible({
+      findingKey: "seo.description_absente",
+      category: "acquisition",
+      canauxConnectes: toutConnecte,
+    }).possible,
+    false,
+  );
+
+  // LE SERVEUR REFUSE AVANT DE PAYER, ET AVEC LA MÊME RÈGLE QUE L'ÉCRAN.
+  // Deux réponses différentes seraient pires que pas de réponse du tout.
+  const actions = read("src/lib/actions.functions.ts");
+  t.check("proposeFix consulte la faisabilité", /correctionPossible\(\{/.test(actions), true);
+  t.check(
+    "…avant de décompter le quota",
+    actions.indexOf("correctionPossible({") <
+      actions.indexOf('consumeQuota(supabaseAdmin, userId, "fixes")'),
+    true,
+  );
+  const ecran = read("src/routes/_authenticated/audits.$auditId.tsx");
+  t.check("l'écran consulte la même règle", /correctionPossible\(\{/.test(ecran), true);
+  // Tant que les canaux ne sont pas lus, on n'affirme rien : le bouton reste
+  // offert et le serveur tranche. Ne jamais masquer sur une donnée absente.
+  t.check(
+    "…et n'affirme rien tant que les canaux ne sont pas lus",
+    /if \(!canauxQ\.data\) return undefined;/.test(ecran),
+    true,
+  );
 });

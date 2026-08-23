@@ -759,6 +759,60 @@ export const RULES: Rule[] = [
   },
 
   // --- Merchandising -------------------------------------------------------
+  /*
+    LE FAIT LE PLUS DÉCISIF DU PRODUIT, ET IL N'ÉTAIT NULLE PART.
+
+    CE QUI A ÉTÉ RELEVÉ SUR UN RAPPORT RÉEL. Une boutique sans aucun produit a
+    reçu quatre constats : pas de titre de niveau 1, pas de navigation, pas de
+    pages de politique, pas de description pour les moteurs. Tous exacts. Aucun
+    ne disait la seule chose qui compte — IL N'Y A RIEN À VENDRE. Le mot
+    n'apparaissait que dans une note de bas de bloc, écrite par le modèle pour
+    justifier qu'aucune correction automatique n'était possible.
+
+    POURQUOI LE MOTEUR NE POUVAIT PAS LE DIRE. `shopify.product_count` existait
+    depuis toujours, mais UNIQUEMENT COMME DÉNOMINATEUR : les règles de
+    merchandising l'utilisent pour calculer des parts, et toutes se retirent
+    quand le catalogue est trop petit pour qu'une part veuille dire quelque
+    chose. Un catalogue vide passait donc entre toutes les mailles — chaque
+    règle avait raison de se taire, et personne ne parlait.
+
+    C'est l'ordre d'investigation qui était inversé : le rapport décrivait très
+    rigoureusement les conséquences d'un fait qu'il ne nommait pas.
+
+    CE QUE CETTE RÈGLE ABSORBE, ET CE QU'ELLE LAISSE. Elle retire les deux
+    constats qui deviennent absurdes sur un catalogue vide — on ne rend pas
+    visible ce qui n'existe pas. Elle NE retire pas la promesse d'accueil
+    manquante : un titre qui dit ce que vous vendez restera à écrire le jour où
+    les produits seront là, et le marchand peut le préparer dès maintenant.
+  */
+  {
+    id: "merchandising.catalogue_vide",
+    axis: "merchandising",
+    requires: ["shopify.product_count"],
+    absorbs: [
+      "ux.catalogue_invisible_depuis_accueil",
+      "merchandising.catalogue_present_mais_invisible",
+    ],
+    evaluate: (ctx) => {
+      const total = num(ctx, "shopify.product_count");
+      if (total === null || total > 0) return null;
+      const t = trace(ctx, ["shopify.product_count"]);
+      return emit(RULES_BY_ID["merchandising.catalogue_vide"], {
+        title: "Votre boutique ne propose aucun produit à la vente",
+        statement: "Votre catalogue Shopify ne contient aucun produit.",
+        why: "Aucune commande ne peut être passée tant qu'il n'y a rien à commander. Tous les autres points de ce rapport — la page d'accueil, la navigation, les pages de politique — portent sur la façon de présenter une offre : ils restent utiles, mais aucun ne peut produire une vente avant qu'un produit existe.",
+        // Le compte vient de Shopify, il est mesuré. Rien n'est déduit ici.
+        level: "prouve",
+        ...t,
+        // Le maximum, et il est justifié : rien de ce que le marchand ferait
+        // ailleurs ne peut aboutir tant que ce point tient.
+        impact: 5,
+        effort: 2,
+        recommendation:
+          "Créer un premier produit depuis Produits → Ajouter un produit, avec un titre, une photo, un prix et une description, puis le publier sur votre boutique en ligne. Un seul produit suffit à rendre le reste du rapport applicable.",
+      });
+    },
+  },
   {
     id: "merchandising.descriptions_missing",
     axis: "merchandising",

@@ -123,6 +123,64 @@ export default defineSuite("Éditorial — le produit parle comme un consultant"
     true,
   );
   t.check("…sans dramatisation", /Aucune dramatisation/.test(consignes), true);
+
+  /*
+    L'INTERDICTION PORTE SUR LA CLASSE, PAS SUR UNE LISTE DE PHRASES.
+
+    Relevé sur un rapport réel. La consigne bannit nommément « provoque le refus
+    de vos publicités ». Le modèle a écrit : « ce manque d'informations
+    juridiques et logistiques BLOQUE FRÉQUEMMENT L'APPROBATION de vos comptes
+    publicitaires sur les régies comme Google ou Meta ». Même affirmation,
+    synonyme différent, aucun refus mesuré — et la règle du moteur portait
+    pourtant la version prudente, que le modèle a réécrite.
+
+    Une liste d'exemples se contourne par un synonyme. Ce qui ne se contourne
+    pas, c'est un TEST que le modèle doit s'appliquer : quelle mesure de ce
+    rapport établit ce lien ? S'il ne peut pas la citer, la phrase tombe, quel
+    que soit le verbe.
+  */
+  t.check(
+    "l'interdit s'énonce comme un test, pas comme une liste",
+    /QUELLE MESURE de ce rapport l'établit/.test(consignes),
+    true,
+  );
+  t.check(
+    "…et le contournement par synonyme est nommé",
+    /Reformuler avec un synonyme ne lève pas l'interdiction/.test(consignes),
+    true,
+  );
+  t.check(
+    "…avec le contournement réellement constaté cité en exemple",
+    /bloque fréquemment l'approbation de vos comptes publicitaires/.test(consignes),
+    true,
+  );
+  t.check(
+    "…et la liste est déclarée non limitative",
+    /sans que la liste soit limitative/.test(consignes),
+    true,
+  );
+  // La métaphore aussi : « enveloppe vide » est passée entre « muette »,
+  // « invisible » et « morte », qui étaient les seules nommées.
+  t.check(
+    "la dramatisation est interdite par classe",
+    /c'est la CLASSE qui est interdite, pas une liste/.test(consignes),
+    true,
+  );
+  // ZÉRO COMMANDE EST UN FAIT ; SA CAUSE EST AUTRE CHOSE. Le rapport écrivait
+  // « n'enregistre aucune commande CAR elle est une enveloppe vide », puis
+  // déclarait deux paragraphes plus bas ne pas pouvoir trancher entre un
+  // problème de trafic et un problème d'achat. Il se contredisait lui-même.
+  t.check(
+    "une causalité non mesurée est interdite",
+    /N'écrivez jamais « X parce que Y » quand Y n'est pas mesuré/.test(consignes),
+    true,
+  );
+  // Et le marchand n'a pas échoué : « vous devez » était dans le verdict.
+  t.check(
+    "les consignes bannissent « ce que vous devez faire »",
+    /jamais « ce que vous devez faire »/.test(consignes),
+    true,
+  );
   t.check(
     "le diagnostic passe avant la preuve technique",
     /LE DIAGNOSTIC D'ABORD, LA PREUVE TECHNIQUE ENSUITE/.test(consignes),

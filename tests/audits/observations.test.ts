@@ -360,6 +360,72 @@ export default defineSuite("Sources — observations et diagnosticabilité", (t)
   t.check("les observations d'une source injoignable sont ignorées", allObservations([down]), []);
   t.check("et son silence devient un manque global", allGaps([down]).length, 1);
 
+  // --- Le même manque ne se dit qu'une fois ---------------------------------
+  /*
+    RELEVÉ SUR UN RAPPORT RÉEL. « Nous ne savons pas encore combien de personnes
+    visitent votre boutique » apparaissait DEUX FOIS, mot pour mot, dans la
+    liste « Ce que nous n'avons pas pu regarder ». Le compteur annonçait neuf
+    manques là où il y en avait huit.
+
+    La cause n'est pas une faute de raisonnement : deux collectes butent
+    légitimement sur la même donnée — le connecteur Shopify et la lecture de
+    l'entonnoir signalent tous deux l'absence de sessions. Chacune a raison de
+    le dire ; rien ne les rassemblait avant de montrer la liste.
+
+    Un rapport qui se répète paraît écrit par une machine qui ne se relit pas,
+    et le marchand n'a aucun moyen de savoir si c'est un doublon ou deux
+    problèmes différents portant le même nom.
+  */
+  const manque = (id: string, source: SourceReport["source"]) => ({
+    id,
+    label: "Sessions",
+    source,
+    reason: "raison",
+    wouldEnable: "quelque chose",
+  });
+  const rapport = (source: SourceReport["source"], ids: string[]): SourceReport => ({
+    source,
+    observations: [],
+    gaps: ids.map((id) => manque(id, source)),
+    reachable: true,
+  });
+
+  t.check(
+    "deux sources qui signalent le même manque ne le disent qu'une fois",
+    allGaps([
+      rapport("shopify", ["shopify.sessions_30d"]),
+      rapport("shopify", ["shopify.sessions_30d"]),
+    ]).length,
+    1,
+  );
+  t.check(
+    "deux manques différents restent deux",
+    allGaps([rapport("shopify", ["shopify.sessions_30d", "shopify.conversion_rate"])]).length,
+    2,
+  );
+  // LA PREMIÈRE OCCURRENCE EST GARDÉE : les rapports arrivent dans l'ordre de
+  // collecte, et le premier à constater le manque est le plus proche de la
+  // source.
+  t.check(
+    "c'est la première occurrence qui survit",
+    allGaps([
+      {
+        ...rapport("shopify", ["x.y"]),
+        gaps: [{ ...manque("x.y", "shopify"), reason: "première" }],
+      },
+      { ...rapport("google", ["x.y"]), gaps: [{ ...manque("x.y", "google"), reason: "seconde" }] },
+    ])[0].reason,
+    "première",
+  );
+  // ET LE SILENCE D'UNE SOURCE N'ÉCRASE PAS CELUI D'UNE AUTRE : deux sources
+  // muettes sont deux manques, ils portent des identifiants distincts.
+  t.check(
+    "deux sources muettes restent deux manques",
+    allGaps([shopifyUnreachable("boum"), { ...shopifyUnreachable("boum"), source: "google" }])
+      .length,
+    2,
+  );
+
   // --- Diagnosticabilité ----------------------------------------------------
   const availability = assessDiagnostics(full.observations);
   const availableIds = availability.available.map((a) => a.diagnostic.id);

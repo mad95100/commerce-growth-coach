@@ -250,22 +250,43 @@ export function allObservations(reports: SourceReport[]): Observation[] {
 
 /** Tous les manques, à plat. Une source injoignable est un manque global. */
 export function allGaps(reports: SourceReport[]): ObservationGap[] {
-  return reports.flatMap((r) =>
-    r.reachable
-      ? r.gaps
-      : [
-          {
-            id: `${r.source}.unreachable`,
-            label: SOURCE_LABELS[r.source],
-            source: r.source,
-            // LA CAUSE ÉTAIT CALCULÉE, PUIS JETÉE ICI. Le connecteur savait
-            // distinguer une autorisation révoquée d'une panne de fournisseur ;
-            // cette ligne écrivait la même phrase pour les deux, et c'est la
-            // seule que le marchand lise. Il n'apprenait donc jamais qu'il
-            // devait rebrancher — sur l'écran fait pour le lui dire.
-            reason: RAISON_PAR_CAUSE[r.cause ?? "injoignable"](SOURCE_LABELS[r.source]),
-            wouldEnable: `Tout le diagnostic ${SOURCE_LABELS[r.source]}.`,
-          },
-        ],
+  /*
+    LE MÊME MANQUE, DEUX FOIS, MOT POUR MOT.
+
+    Relevé sur un rapport réel : « Nous ne savons pas encore combien de
+    personnes visitent votre boutique » apparaissait DEUX FOIS dans la liste
+    « Ce que nous n'avons pas pu regarder », à l'identique. Le compteur annonçait
+    neuf manques là où il y en avait huit.
+
+    La cause est simple : deux collectes peuvent buter sur la même donnée — le
+    connecteur Shopify et la lecture de l'entonnoir signalent tous deux
+    l'absence de sessions. Chacune a raison de le dire ; rien ne les rassemblait.
+
+    LA PREMIÈRE OCCURRENCE EST GARDÉE, PAS LA DERNIÈRE : les rapports sont
+    parcourus dans l'ordre de collecte, et le premier à constater le manque est
+    celui dont la cause est la plus proche de la source.
+  */
+  const vus = new Set<string>();
+  const uniques = (gaps: ObservationGap[]) => gaps.filter((g) => !vus.has(g.id) && vus.add(g.id));
+
+  return uniques(
+    reports.flatMap((r) =>
+      r.reachable
+        ? r.gaps
+        : [
+            {
+              id: `${r.source}.unreachable`,
+              label: SOURCE_LABELS[r.source],
+              source: r.source,
+              // LA CAUSE ÉTAIT CALCULÉE, PUIS JETÉE ICI. Le connecteur savait
+              // distinguer une autorisation révoquée d'une panne de fournisseur ;
+              // cette ligne écrivait la même phrase pour les deux, et c'est la
+              // seule que le marchand lise. Il n'apprenait donc jamais qu'il
+              // devait rebrancher — sur l'écran fait pour le lui dire.
+              reason: RAISON_PAR_CAUSE[r.cause ?? "injoignable"](SOURCE_LABELS[r.source]),
+              wouldEnable: `Tout le diagnostic ${SOURCE_LABELS[r.source]}.`,
+            },
+          ],
+    ),
   );
 }

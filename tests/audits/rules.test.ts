@@ -172,16 +172,66 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
   );
 
   // --- 4. Catalogue vide ----------------------------------------------------
+  /*
+    CE CONTRÔLE ENCODAIT LE DÉFAUT QU'IL FALLAIT CORRIGER.
+
+    Il exigeait ZÉRO constat sur un catalogue vide. Sa moitié juste : aucune
+    PART ne doit être commentée — « 0 fiche sur 0 » n'est pas une mesure, et
+    chaque règle de merchandising a raison de se retirer.
+
+    Sa moitié fausse : il en concluait qu'il n'y avait rien à dire. Un rapport
+    réel l'a montré — une boutique sans aucun produit a reçu quatre constats
+    sur sa page d'accueil, sa navigation et son référencement, tous exacts, et
+    pas un seul ne disait qu'il n'y avait rien à vendre. Le moteur décrivait
+    très rigoureusement les conséquences d'un fait qu'il ne nommait pas.
+
+    Les deux moitiés sont donc séparées, et chacune vérifiée pour elle-même.
+  */
+  const catalogueVide = runRules(
+    ctx([
+      obs({ id: "shopify.product_count", value: 0, sample: 0 }),
+      obs({ id: "shopify.products_without_description", value: 0, sample: 0 }),
+      obs({ id: "shopify.products_out_of_stock", value: 0, sample: 0 }),
+    ]),
+  );
   t.check(
     "catalogue vide => aucune part de catalogue commentée",
-    runRules(
-      ctx([
-        obs({ id: "shopify.product_count", value: 0, sample: 0 }),
-        obs({ id: "shopify.products_without_description", value: 0, sample: 0 }),
-        obs({ id: "shopify.products_out_of_stock", value: 0, sample: 0 }),
-      ]),
-    ).length,
+    catalogueVide.filter((f) => f.ruleId !== "merchandising.catalogue_vide").length,
     0,
+  );
+  t.check(
+    "…mais le catalogue vide est nommé",
+    catalogueVide.some((f) => f.ruleId === "merchandising.catalogue_vide"),
+    true,
+  );
+  // C'est un COMPTE rendu par Shopify, pas une déduction : le niveau le dit.
+  t.check(
+    "…comme un fait mesuré",
+    catalogueVide.find((f) => f.ruleId === "merchandising.catalogue_vide")?.level,
+    "prouve",
+  );
+  // Et rien de ce que le marchand ferait ailleurs ne peut aboutir avant : le
+  // constat doit passer devant, pas se ranger au milieu des autres.
+  t.check(
+    "…avec l'impact maximal",
+    catalogueVide.find((f) => f.ruleId === "merchandising.catalogue_vide")?.impact,
+    5,
+  );
+
+  // UN CATALOGUE FOURNI NE DÉCLENCHE RIEN. La règle ne se lit que sur zéro :
+  // un seuil « catalogue trop petit » serait une opinion, pas une mesure.
+  t.check(
+    "un catalogue fourni ne déclenche pas la règle",
+    runRules(ctx([obs({ id: "shopify.product_count", value: 12, sample: 12 })])).some(
+      (f) => f.ruleId === "merchandising.catalogue_vide",
+    ),
+    false,
+  );
+  // Et un compte non lu n'est pas un compte à zéro.
+  t.check(
+    "un compte absent ne vaut pas un catalogue vide",
+    runRules(ctx([])).some((f) => f.ruleId === "merchandising.catalogue_vide"),
+    false,
   );
 
   // --- 5. La règle absolue : un fait technique reste technique -------------

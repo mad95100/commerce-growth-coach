@@ -134,7 +134,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/observations.test.ts",
-    minChecks: 100,
+    minChecks: 104,
     covers:
       "Couche commune source → observation → diagnostic : ce qui n'est pas observé ne produit aucune valeur (jamais un zéro qui passerait pour une mesure), chaque observation porte sa preuve et sa taille d'échantillon, et ce que les données ne permettent pas d'établir part dans le prompt comme une interdiction nommée.",
   },
@@ -308,7 +308,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "ui/editorial.test.ts",
-    minChecks: 315,
+    minChecks: 322,
     covers:
       "Le produit parle comme un consultant, pas comme une checklist. Les formules qui ne disent rien de la boutique regardée — « il est important de », « pensez à », « optimisez votre boutique » — sont interdites sur tous les écrans : elles ne sont fausses nulle part, ce qui les rend invisibles à un test de vérité, et interchangeables d'une boutique à l'autre, ce qui est exactement la différence entre une checklist et un diagnostic. Couvre aussi les consignes envoyées au modèle, qui ordonnaient le tutoiement et le ton de mentor encourageant alors que tout le reste du produit vouvoie, et la séparation à l'écran des deux axes qu'un lecteur pressé additionne : la priorité et la certitude.",
   },
@@ -326,7 +326,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/expertise-vitrine.test.ts",
-    minChecks: 60,
+    minChecks: 68,
     covers:
       "Le moteur parle de CETTE boutique, pas d'une boutique en général. La page de collection était téléchargée à chaque scan puis jetée sans être analysée, le titre d'onglet extrait et jamais rapporté, et la grande majorité des observations de vitrine n'était lue par AUCUNE règle : mesurées, transmises au modèle, et interdites d'emploi par le même prompt. Couvre la lecture de la collection, les règles qui consomment enfin ces observations, le viewport constaté même quand le scan mobile a été écourté, la corroboration qui seule autorise à relier l'absence de mention de livraison à un abandon mesuré, et l'exigence qui les tient toutes : une preuve porte un chiffre, une adresse ou une citation — jamais une phrase vraie de n'importe quel site.",
   },
@@ -368,7 +368,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/rules.test.ts",
-    minChecks: 100,
+    minChecks: 106,
     covers:
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
@@ -434,7 +434,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "actions/execution.test.ts",
-    minChecks: 60,
+    minChecks: 87,
     covers:
       "Chemin « corriger maintenant » : une écriture interrompue n'est jamais annoncée comme faite, deux propositions sur un même problème n'écrivent pas deux fois, une correction non appliquée est remboursée, et la réversibilité promise est réellement tenue.",
   },

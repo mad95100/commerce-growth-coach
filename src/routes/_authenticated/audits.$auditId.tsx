@@ -11,11 +11,13 @@ import { auditFailureText, canRetryNow } from "@/lib/audit-errors";
 import { AuditNarrative } from "@/components/AuditNarrative";
 import { readAudience, readCauses } from "@/lib/audit-narrative";
 import { updateFindingStatus, generateFix, processAudit, getAuditJob } from "@/lib/audit.functions";
+import { correctionPossible } from "@/lib/corrections-possibles";
 import {
   proposeFix,
   confirmAction,
   revertAction,
   listActionsForFindings,
+  connectedChannelsForAudit,
 } from "@/lib/actions.functions";
 import { ActionPreview } from "@/components/ActionPreview";
 import type { ActionProposal } from "@/lib/action-plan";
@@ -139,6 +141,7 @@ function AuditPage() {
   const confirmActionFn = useServerFn(confirmAction);
   const revertActionFn = useServerFn(revertAction);
   const listActionsFn = useServerFn(listActionsForFindings);
+  const canauxFn = useServerFn(connectedChannelsForAudit);
   const [fixingId, setFixingId] = useState<string | null>(null);
   const [proposingId, setProposingId] = useState<string | null>(null);
   const [applyingId, setApplyingId] = useState<string | null>(null);
@@ -327,6 +330,12 @@ function AuditPage() {
     queryFn: () => listActionsFn({ data: { findingIds } }),
   });
 
+  const canauxQ = useQuery({
+    queryKey: ["canaux-correction", auditId],
+    queryFn: () => canauxFn({ data: { auditId } }),
+    staleTime: 60_000,
+  });
+
   /**
    * Dernière action encore appliquée par problème — c'est elle qui est annulable.
    *
@@ -472,6 +481,33 @@ function AuditPage() {
   // sur ces points la première action est d'aller chercher la donnée, et
   // sûrement pas de corriger à l'aveugle.
   const unverified = findings.filter((f) => f.epistemic_level === "donnee_manquante");
+
+  /*
+    LE BOUTON N'EST PLUS OFFERT QUAND AUCUN OUTIL NE PEUT ABOUTIR.
+
+    « Préparer la correction » s'affichait sur chaque constat. Le marchand
+    cliquait, attendait, et lisait « Pas de correction automatique ici » —
+    quatre fois sur quatre sur un premier audit. La réponse était juste : nos
+    outils réécrivent une fiche produit et pilotent des publicités, ils ne
+    touchent ni au thème, ni aux pages, ni aux réglages de la boutique. Mais
+    elle coûtait un appel au modèle POUR APPRENDRE NON, et faisait du seul
+    bouton mis en avant du rapport une promesse non tenue.
+
+    La faisabilité est maintenant connue d'avance. Le refus prend la place du
+    bouton au lieu de le suivre, et il dit lequel des deux cas s'applique :
+    aucun outil n'existe, ou l'outil existe mais le canal n'est pas branché.
+  */
+  // Tant que les canaux ne sont pas lus, on n'affirme rien : le bouton reste
+  // offert, et le serveur tranchera — avec la même règle.
+  const refusDAvance = (f: Finding): string | undefined => {
+    if (!canauxQ.data) return undefined;
+    const verdict = correctionPossible({
+      findingKey: f.finding_key,
+      category: f.category,
+      canauxConnectes: canauxQ.data,
+    });
+    return verdict.possible ? undefined : verdict.raison;
+  };
 
   // Recalculée à chaque rendu : `auditQ` se rafraîchit toutes les trois
   // secondes tant que l'audit tourne, donc la durée avance toute seule sans
@@ -875,7 +911,7 @@ function AuditPage() {
                   onConfirmProposal={handleConfirmProposal}
                   onCancelProposal={handleCancelProposal}
                   proposal={proposals[f.id]}
-                  refus={refus[f.id]}
+                  refus={refus[f.id] ?? refusDAvance(f)}
                   appliedAction={appliedActionByFinding.get(f.id)}
                   unknownAction={unknownActionByFinding.get(f.id)}
                   onRevert={handleRevert}
@@ -923,7 +959,7 @@ function AuditPage() {
                           onConfirmProposal={handleConfirmProposal}
                           onCancelProposal={handleCancelProposal}
                           proposal={proposals[f.id]}
-                          refus={refus[f.id]}
+                          refus={refus[f.id] ?? refusDAvance(f)}
                           appliedAction={appliedActionByFinding.get(f.id)}
                           unknownAction={unknownActionByFinding.get(f.id)}
                           onRevert={handleRevert}

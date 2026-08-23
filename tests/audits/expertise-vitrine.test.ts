@@ -498,4 +498,123 @@ export default defineSuite("Vitrine — le moteur parle de CETTE boutique", (t) 
     }),
     "fait",
   );
+
+  // =========================================================================
+  // UNE ADRESSE QUI RÉPOND N'EST PAS UNE ADRESSE ABSENTE
+  // =========================================================================
+  /*
+    LE DÉFAUT, RELEVÉ SUR UN RAPPORT RÉEL — et c'est le plus coûteux des trois,
+    parce qu'il se voyait.
+
+    Le constat annonçait « Les pages de politique sont absentes ». La preuve,
+    juste en dessous, listait :
+
+        refund-policy (200), shipping-policy (200), terms-of-service (200)
+
+    200 veut dire que la page répond. Le rapport se contredisait sur deux
+    lignes consécutives.
+
+    LA CAUSE. Ces adresses sont sondées en `HEAD` — on veut savoir si elles
+    existent, pas télécharger leur texte. Un `HEAD` ne rend aucun corps, donc
+    `html` y vaut `null` PAR CONSTRUCTION. Or elles étaient comptées avec
+    `isOk`, qui exige justement `html != null` : le compte valait TOUJOURS
+    zéro, quel que soit le code renvoyé.
+
+    Deux dégâts. Toute boutique était déclarée dépourvue de politiques — on
+    envoyait donc recréer des pages existantes, ce qui fait douter de tout le
+    reste du rapport. Et `trust.policy_pages_incomplete`, le cas « il en manque
+    une ou deux », était INATTEIGNABLE : le compte ne quittait jamais zéro.
+  */
+  const politique = (chemin: string, status: number | null): FetchedPage => ({
+    url: `https://boutique.test/policies/${chemin}`,
+    role: "politique",
+    status,
+    elapsedMs: null,
+    bytes: null,
+    // Comme le scan réel : un `HEAD` ne rend pas de corps.
+    html: null,
+  });
+
+  const compteDesPolitiques = (pages: FetchedPage[]) =>
+    storefrontObservations(
+      raw({ pages: [page("accueil", "https://boutique.test/", "<h1>Ok</h1>"), ...pages] }),
+    ).observations.find((o) => o.id === "storefront.policy_pages")?.value ?? null;
+
+  t.check(
+    "trois adresses qui répondent comptent pour trois",
+    compteDesPolitiques([
+      politique("refund-policy", 200),
+      politique("shipping-policy", 200),
+      politique("terms-of-service", 200),
+    ]),
+    3,
+  );
+  t.check(
+    "une redirection est une page qui existe",
+    compteDesPolitiques([politique("refund-policy", 301)]),
+    1,
+  );
+  t.check(
+    "une adresse absente ne compte pas",
+    compteDesPolitiques([politique("refund-policy", 404)]),
+    0,
+  );
+  t.check(
+    "une adresse sans réponse non plus",
+    compteDesPolitiques([politique("refund-policy", null)]),
+    0,
+  );
+  // LE CAS INTERMÉDIAIRE REDEVIENT ATTEIGNABLE, et c'est lui qui portait le
+  // constat le plus utile : « il vous manque celle des retours ».
+  t.check(
+    "deux sur trois se comptent bien deux",
+    compteDesPolitiques([
+      politique("refund-policy", 200),
+      politique("shipping-policy", 200),
+      politique("terms-of-service", 404),
+    ]),
+    2,
+  );
+  t.check(
+    "…et la règle du manque partiel se déclenche",
+    runRules({
+      observations: storefrontObservations(
+        raw({
+          pages: [
+            page("accueil", "https://boutique.test/", "<h1>Ok</h1>"),
+            politique("refund-policy", 200),
+            politique("shipping-policy", 200),
+            politique("terms-of-service", 404),
+          ],
+        }),
+      ).observations,
+      gaps: [],
+    } as RuleContext).some((f) => f.ruleId === "trust.policy_pages_incomplete"),
+    true,
+  );
+
+  // ET LA PREUVE RESTE COHÉRENTE AVEC LE COMPTE : c'est leur désaccord qui
+  // rendait le défaut visible au marchand.
+  const preuve = storefrontObservations(
+    raw({
+      pages: [
+        page("accueil", "https://boutique.test/", "<h1>Ok</h1>"),
+        politique("refund-policy", 200),
+        politique("shipping-policy", 200),
+        politique("terms-of-service", 200),
+      ],
+    }),
+  ).observations.find((o) => o.id === "storefront.policy_pages")?.evidence;
+  t.check("la preuve annonce le même compte", preuve?.startsWith("3 page(s)"), true);
+
+  // UNE ADRESSE SONDÉE EN `HEAD` NE PROUVE PAS QUE LE SITE EST LISIBLE.
+  // `isOk` garde son sens — « nous avons lu un document » — et c'est lui qui
+  // décide si quoi que ce soit a pu être observé.
+  t.check(
+    "des politiques seules ne rendent pas le site observable",
+    storefrontObservations(raw({ pages: [politique("refund-policy", 200)] })).gaps.some(
+      (g) => g.id === "storefront.reachable",
+    ),
+    true,
+  );
 });

@@ -13,6 +13,7 @@ import {
 // Import de type uniquement : effacé à la compilation, donc aucun code serveur
 // n'atterrit dans le bundle client.
 import type { Db } from "@/lib/actions.server";
+import type { CanalCorrigible } from "@/lib/corrections-possibles";
 
 const FINDING_INPUT = z.object({ findingId: z.string().uuid() });
 const ACTION_INPUT = z.object({ actionId: z.string().uuid() });
@@ -22,6 +23,8 @@ type StoreInfo = { name: string; niche: string | null; url: string | null };
 type FindingInfo = {
   id: string;
   category: string;
+  /** Clé du moteur, quand le constat en porte une. Décide de la faisabilité. */
+  findingKey: string | null;
   severity: string;
   title: string;
   root_cause: string | null;
@@ -101,6 +104,7 @@ async function loadFindingContext(
     finding: {
       id: finding.id,
       category: finding.category,
+      findingKey: (finding.finding_key as string | null) ?? null,
       severity: finding.severity,
       title: finding.title,
       root_cause: finding.root_cause,
@@ -127,6 +131,31 @@ export const proposeFix = createServerFn({ method: "POST" })
 
     const { finding, store, storeId } = await loadFindingContext(supabase, data.findingId);
     const channels = await loadChannels(supabase, storeId);
+
+    /*
+      LE REFUS SE DÉCIDE AVANT DE PAYER, PAS APRÈS.
+
+      Le chemin partait droit sur le modèle, et lui demandait quel outil
+      appliquer. Sur un constat qui touche au thème, aux pages ou aux réglages
+      de la boutique — c'est-à-dire la plupart d'un premier audit — il
+      répondait, correctement, qu'aucun outil ne convenait. Le marchand avait
+      alors attendu plusieurs secondes et dépensé un appel POUR APPRENDRE NON.
+
+      L'inventaire des outils est connu de nous, pas du modèle : il n'a pas
+      besoin d'être deviné. Le même module sert à l'écran, qui n'affiche plus le
+      bouton dans ce cas — les deux ne peuvent donc pas se contredire.
+    */
+    const { correctionPossible } = await import("@/lib/corrections-possibles");
+    const faisable = correctionPossible({
+      findingKey: finding.findingKey,
+      category: finding.category,
+      canauxConnectes: [
+        ...(channels.shopify ? (["shopify"] as const) : []),
+        ...(channels.meta ? (["meta_ads"] as const) : []),
+        ...(channels.google ? (["google_ads"] as const) : []),
+      ],
+    });
+    if (!faisable.possible) return { kind: "no_action", reason: faisable.raison };
 
     // Décompté avant l'appel au modèle, qui est la partie payante.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -424,6 +453,39 @@ export const revertAction = createServerFn({ method: "POST" })
     }
 
     return result;
+  });
+
+/**
+ * Canaux réellement connectés à la boutique d'un audit.
+ *
+ * L'écran a besoin de savoir, AVANT d'afficher un bouton, si une correction
+ * automatique est envisageable. La règle est pure (`corrections-possibles.ts`)
+ * mais elle a besoin de cette entrée, et le navigateur n'a pas le droit de lire
+ * les colonnes de jetons — il ne lit donc que les NOMS des canaux actifs.
+ *
+ * Aucun secret ne sort d'ici : trois booléens, rien d'autre.
+ */
+export const connectedChannelsForAudit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ auditId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }): Promise<CanalCorrigible[]> => {
+    // L'appartenance est portée par RLS : un audit qui n'est pas au demandeur
+    // ne rend aucune ligne, et la liste reste vide.
+    const { data: audit } = await context.supabase
+      .from("audits")
+      .select("store_id")
+      .eq("id", data.auditId)
+      .maybeSingle();
+    if (!audit) return [];
+
+    const { data: conns } = await context.supabase
+      .from("data_connections")
+      .select("provider")
+      .eq("store_id", audit.store_id)
+      .eq("status", "active");
+
+    const actifs = new Set((conns ?? []).map((c) => c.provider));
+    return (["shopify", "meta_ads", "google_ads"] as const).filter((c) => actifs.has(c));
   });
 
 /** Actions liées à une liste de problèmes, pour afficher l'état dans le rapport. */
