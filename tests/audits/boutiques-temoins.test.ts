@@ -1,5 +1,5 @@
 import { defineSuite } from "../harness";
-import { analyse, type RuleContext } from "@/lib/audit-rules";
+import { analyse, COMMERCIAL_AXES, type RuleContext } from "@/lib/audit-rules";
 import { groupByCause } from "@/lib/root-cause";
 import { audienceInputFrom, deduceAudience, findIncoherences } from "@/lib/audience";
 import { JARGON } from "@/lib/plain-language";
@@ -385,4 +385,132 @@ export default defineSuite("Moteur — boutiques témoins, verdict de bout en bo
   // Et surtout : aucun portrait de client tiré de rien.
   const portrait4 = deduceAudience(audienceInputFrom([], [], null));
   t.check("inconnue — aucun portrait n'est déduit du vide", portrait4, null);
+
+  // =========================================================================
+  // BOUTIQUE 5 — IRRÉPROCHABLE SUR LE PAPIER, ET QUI NE VEND RIEN
+  // =========================================================================
+  /*
+    LE DÉFAUT QUE CETTE BOUTIQUE A RÉVÉLÉ, ET POURQUOI IL A SURVÉCU AUX TESTS.
+
+    Dix produits décrits et illustrés, des prix, une vitrine complète — titre,
+    navigation, appel à l'action, trois pages de politique, viewport mobile.
+    ZÉRO commande, ZÉRO euro, AUCUNE session mesurée.
+
+    Le score sortait à **100/100**. Exactement le verdict absurde que le seuil
+    de couverture avait été créé pour empêcher, et il l'a franchi
+    légitimement : cinq axes sur dix étaient mesurés.
+
+    POURQUOI LE GARDE-FOU N'A PAS MORDU. Il exigeait qu'au moins un axe
+    « commercial » soit mesuré, et comptait `offre` parmi eux. Or `offre`
+    devient « mesuré » dès que `shopify.price_min` existe — dès qu'un catalogue
+    porte des prix, donc avant la première visite. `axisOfObservation` porte
+    pourtant son propre avertissement : ce rattachement « ne sert qu'à savoir si
+    un axe a été REGARDÉ, jamais à calculer un score ». La représentativité
+    était fondée sur un drapeau qui ne mesure que le regard.
+
+    POURQUOI AUCUN TEST NE L'A VU. Tous les contrôles de score travaillaient sur
+    des `AxisScore[]` FABRIQUÉS À LA MAIN. Aucun ne partait d'observations pour
+    arriver à une note, et c'est précisément entre les deux que le défaut
+    vivait. Cette boutique part donc des observations.
+  */
+  const vitrineIrreprochable: Observation[] = [
+    // Ce que la boutique CONTIENT — connu avant la première visite.
+    obs("shopify.product_count", 10),
+    obs("shopify.products_without_description", 0),
+    obs("shopify.products_without_image", 0),
+    obs("shopify.price_min", 20),
+    obs("shopify.price_max", 29),
+    obs("shopify.price_median", 24.5),
+    obs("storefront.policy_pages", 3, { source: "storefront" }), // → confiance
+    obs("storefront.mobile_viewport", 1, { source: "storefront" }), // → ux
+    obs("storefront.accueil_h1_mots", 5, { source: "storefront" }),
+    obs("storefront.accueil_cta", 2, { source: "storefront" }),
+    obs("storefront.response_ms", 250, { source: "storefront" }), // → technique
+    obs("storefront.accueil_title", 4, { source: "storefront" }), // → seo
+    obs("storefront.structured_data", 1, { source: "storefront" }),
+    // Ce que la boutique OBTIENT : rien, et rien n'est mesuré.
+    obs("shopify.orders_30d", 0),
+    obs("shopify.revenue_30d", 0),
+  ];
+  /*
+    LE MANQUE DE SESSIONS EST DÉCLARÉ, comme le fait le vrai collecteur. Ce
+    détail n'en est pas un : `data.traffic_unmeasured` — qui AVEUGLE la
+    conversion — ne se déclenche pas sur l'absence de `sessions_30d`, mais sur
+    la présence du TROU correspondant. Une première version de ce fixture
+    l'omettait ; la conversion passait alors pour « mesurée » à partir d'un
+    compte de commandes à zéro, et le contrôle est tombé.
+
+    C'est une fragilité réelle, pas un artefact de test, et elle est vérifiée
+    plus bas : la protection de l'axe conversion tient au trou déclaré.
+  */
+  const trouSessions = [trou("shopify.sessions_30d", "Sessions et visiteurs")];
+  const r5 = analyse({
+    observations: vitrineIrreprochable,
+    gaps: trouSessions,
+  } as RuleContext);
+  const mesures5 = r5.axes.filter((a) => a.score !== null);
+
+  t.check(
+    "vitrine irréprochable — la couverture par le nombre est bien atteinte",
+    mesures5.length >= r5.axes.length / 2,
+    true,
+  );
+  t.check("vitrine irréprochable — et pourtant aucune note", r5.score, null);
+  // LE POINT EXACT : `offre` est mesuré, et cela ne suffit pas.
+  t.check(
+    "…alors même que l'offre est « mesurée » depuis les prix",
+    r5.axes.find((a) => a.axis === "offre")?.measured,
+    true,
+  );
+  // Ce qui manque n'est pas un axe de plus : c'est un RÉSULTAT.
+  for (const axe of COMMERCIAL_AXES) {
+    t.check(
+      `…et aucun résultat commercial n'est mesuré (${axe})`,
+      r5.axes.find((a) => a.axis === axe)?.measured,
+      false,
+    );
+  }
+  // ZÉRO COMMANDE N'EST PAS TRANSFORMÉ EN NOTE NULLE. L'absence de note et une
+  // note de 0 disent deux choses opposées : « nous ne savons pas juger » et
+  // « nous avons jugé, c'est mauvais ».
+  t.check("…et surtout pas une note de 0", r5.score === 0, false);
+
+  // CE QUI PROTÈGE LA CONVERSION EST LE TROU DÉCLARÉ, PAS L'ABSENCE DE DONNÉE.
+  // Sans le trou, `orders_30d = 0` suffit à faire passer l'axe pour mesuré —
+  // un compte de commandes n'est pas un taux, et zéro commande sans
+  // dénominateur ne dit pas si la boutique ne reçoit personne ou ne transforme
+  // pas. Le jour où un collecteur omettrait ce trou, la note reviendrait.
+  const sansTrouDeclare = analyse({ observations: vitrineIrreprochable, gaps: [] } as RuleContext);
+  t.check(
+    "sans trou déclaré, la conversion passe pour mesurée",
+    sansTrouDeclare.axes.find((a) => a.axis === "conversion")?.measured,
+    true,
+  );
+  t.check(
+    "…c'est donc bien l'aveuglement qui protège la note",
+    r5.axes.find((a) => a.axis === "conversion")?.measured,
+    false,
+  );
+
+  /*
+    LA MÊME BOUTIQUE, LE JOUR OÙ ELLE VEND. Le garde-fou refuse de noter une
+    vitrine ; il n'interdit pas de noter un commerce. Sans cette contrepartie,
+    la correction aurait rendu le score inatteignable en pratique — ce qui est
+    l'autre façon de le rendre inutile.
+  */
+  const memeBoutiqueQuiVend = analyse({
+    observations: [
+      ...vitrineIrreprochable.filter((o) => o.id !== "shopify.orders_30d"),
+      obs("shopify.orders_30d", 120),
+      obs("shopify.sessions_30d", 4000),
+      obs("shopify.conversion_rate", 0.03, { unit: "percent" }),
+    ],
+    gaps: [],
+  } as RuleContext);
+  t.check("la même boutique qui vend retrouve une note", memeBoutiqueQuiVend.score !== null, true);
+  t.check(
+    "…parce qu'un résultat commercial est enfin mesuré",
+    COMMERCIAL_AXES.some((axe) => memeBoutiqueQuiVend.axes.find((a) => a.axis === axe)?.measured),
+    true,
+  );
 });

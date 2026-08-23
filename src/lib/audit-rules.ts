@@ -2043,16 +2043,42 @@ export function axisOfObservation(id: string): AuditAxis | null {
 export const MIN_MEASURED_AXES_SHARE = 0.5;
 
 /**
- * Axes qui décrivent le COMMERCE, et non la construction du site.
+ * Axes qu'on ne peut mesurer QUE si la boutique a une activité réelle.
  *
- * La distinction n'est pas théorique : elle sépare ce qu'on lit en
- * téléchargeant une page de ce qu'on ne sait qu'en ayant des ventes, des
- * visites ou de la dépense publicitaire.
+ * POURQUOI `offre` N'EN FAIT PAS PARTIE, ET C'EST TOUT LE SUJET.
+ *
+ * La première version de cette liste contenait `offre`, au motif qu'un prix
+ * relève du commerce. Une exécution l'a démentie : sur une boutique avec dix
+ * produits correctement décrits, une vitrine complète, ZÉRO commande, ZÉRO euro
+ * et AUCUNE session mesurée, le score sortait à **100/100** — exactement le
+ * verdict absurde que le seuil de couverture avait été créé pour empêcher.
+ *
+ * La cause tient en une ligne : `offre` devient « mesuré » dès que
+ * `shopify.price_min` existe, c'est-à-dire dès qu'un catalogue a des prix. Or
+ * `axisOfObservation` porte lui-même l'avertissement — « volontairement
+ * grossier : ce rattachement ne sert qu'à savoir si un axe a été REGARDÉ,
+ * jamais à calculer un score ». Fonder la représentativité sur ce drapeau
+ * revenait à confondre « nous avons regardé » avec « nous savons ».
+ *
+ * Un prix est une PROPRIÉTÉ de l'offre : il existe avant la première visite, et
+ * il ne dit rien de ce que la boutique obtient. Un taux de retour client, une
+ * conversion, une dépense publicitaire sont des RÉSULTATS : ils n'existent pas
+ * sans activité.
+ *
+ * Les trois axes retenus ont d'ailleurs une propriété que `offre` n'a pas :
+ * ils sont AVEUGLÉS par `blocksAxes` dès que leur donnée d'activité manque —
+ * une conversion sans trafic mesuré n'est pas notée. Exiger qu'au moins l'un
+ * d'eux ait survécu à cet aveuglement, c'est exiger qu'au moins une chose soit
+ * sue de ce que la boutique FAIT, et pas seulement de ce qu'elle CONTIENT.
+ *
+ * Ce n'est donc pas un second seuil arbitraire posé à côté du premier : les
+ * deux conditions portent sur des choses différentes. Le seuil de couverture
+ * demande « en avons-nous regardé assez ? » ; celle-ci demande « ce que nous
+ * avons regardé dit-il quelque chose du commerce ? ».
  */
 export const COMMERCIAL_AXES: readonly AuditAxis[] = [
   "acquisition",
   "conversion",
-  "offre",
   "retention",
 ] as const;
 

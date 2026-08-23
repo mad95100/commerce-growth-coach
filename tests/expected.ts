@@ -284,7 +284,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/boutiques-temoins.test.ts",
-    minChecks: 120,
+    minChecks: 134,
     covers:
       "Le moteur jugé sur son verdict, pas sur ses pièces. Chaque module a ses contrôles et ils passent tous — ce n'est pas la même chose que dire que le moteur a raison. Les défauts les plus graves de ce projet ne sont jamais nés DANS un module mais entre deux : « Conversion 100/100 » sur une boutique sans un seul visiteur (la règle ne s'était pas déclenchée, le calcul de score n'avait donc rien à déduire, et les deux ensemble affirmaient une excellence sur un sujet inconnu), « 9999 % » parce qu'un module rendait un ratio là où un autre attendait un pourcentage. Quatre boutiques telles qu'on en rencontre — sans trafic, premium sans réassurance, du trafic et pas de ventes, aucune source qui répond — traversent la chaîne entière et le verdict est jugé : jamais d'axe noté sans donnée, jamais de constat sans preuve, jamais de pourcentage hors bornes, jamais un mot du moteur dans une phrase lue par le marchand, et jamais une cause plus sûre que son symptôme le moins sûr.",
   },
@@ -368,7 +368,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/rules.test.ts",
-    minChecks: 114,
+    minChecks: 117,
     covers:
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },

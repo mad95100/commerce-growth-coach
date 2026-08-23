@@ -401,6 +401,51 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
     t.check(`${commercial} mesuré rend la note`, globalScore(avecCommerce) !== null, true);
   }
 
+  /*
+    ET L'OFFRE NE COMPTE PAS COMME UN RÉSULTAT COMMERCIAL.
+
+    Elle y figurait dans la première version de ce garde-fou, au motif qu'un
+    prix relève du commerce. Une exécution l'a démentie : sur une boutique aux
+    dix produits décrits, vitrine complète, ZÉRO commande et AUCUNE session, le
+    score sortait à 100/100. `offre` devient « mesuré » dès que
+    `shopify.price_min` existe — donc avant la première visite.
+
+    Un prix est une PROPRIÉTÉ de l'offre ; une conversion, une dépense ou un
+    taux de retour sont des RÉSULTATS. La disponibilité d'un axe n'est pas sa
+    représentativité.
+  */
+  t.check(
+    "l'offre ne compte pas comme un résultat commercial",
+    COMMERCIAL_AXES.includes("offre"),
+    false,
+  );
+  const avecOffreSeule = vitrineSeule.map((a) => (a.axis === "offre" ? axeNote("offre", 100) : a));
+  t.check(
+    "une offre mesurée depuis les prix ne rend pas la note",
+    globalScore(avecOffreSeule),
+    null,
+  );
+
+  /*
+    UNE DONNÉE MANQUANTE N'EST JAMAIS COMPTÉE COMME UN ZÉRO. C'est la faute qui
+    coûterait le plus cher ici : elle ferait chuter la moyenne d'une boutique
+    dont on ne sait rien, et le marchand lirait une mauvaise note là où il n'y a
+    pas de note du tout.
+  */
+  const avecConversion = vitrineSeule.map((a) =>
+    a.axis === "conversion" ? axeNote("conversion", 80) : a,
+  );
+  t.check(
+    "les axes non mesurés ne pèsent pas dans la moyenne",
+    globalScore(avecConversion),
+    Math.round((100 + 92 + 100 + 78 + 60 + 80) / 6),
+  );
+  t.check(
+    "…et ne sont donc pas comptés comme des zéros",
+    globalScore(avecConversion) !== Math.round((100 + 92 + 100 + 78 + 60 + 80) / 10),
+    true,
+  );
+
   // ET LE GARDE-FOU NE DÉPEND D'AUCUN CONSTAT EN PARTICULIER. Un catalogue vide
   // n'annule pas la note à lui seul — c'est la couverture qui décide, pas un
   // constat. Une boutique qui vend garde sa note même avec un catalogue mince.
