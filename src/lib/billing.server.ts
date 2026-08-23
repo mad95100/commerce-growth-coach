@@ -11,6 +11,7 @@ import {
   remainingQuota,
   type PlanTier,
   type QuotaKey,
+  QUOTAS_SUSPENDUS_POUR_TEST,
 } from "@/lib/plans";
 
 /**
@@ -186,7 +187,17 @@ export class QuotaExhaustedError extends Error {
  */
 export async function consumeQuota(admin: Db, userId: string, key: QuotaKey): Promise<void> {
   const tier = await loadTier(admin, userId);
-  if (remainingQuota(tier, key, 0) === null) return;
+  /*
+    PENDANT LA SUSPENSION DE TEST, ON COMPTE SANS REFUSER.
+
+    Le raccourci ci-dessous existe pour le plan payant, qui n'a pas de plafond :
+    incrémenter un compteur que personne ne lit serait une écriture inutile.
+    Mais la suspension rend TOUS les plans sans limite — et si l'on sortait
+    ici, la carte d'utilisation afficherait éternellement zéro. Le marchand
+    croirait n'avoir rien consommé, et le jour où les plafonds reviennent, son
+    compteur repartirait faux.
+  */
+  if (!QUOTAS_SUSPENDUS_POUR_TEST && remainingQuota(tier, key, 0) === null) return;
 
   const column = QUOTA_COLUMN[key];
 

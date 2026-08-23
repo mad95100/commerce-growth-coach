@@ -78,8 +78,30 @@ export function effectiveTier(
   return subscription.tier === "pro" ? "pro" : "free";
 }
 
-/** Limite mensuelle d'un compteur pour un plan. `null` = sans limite. */
+/**
+ * PHASE DE TEST : LES COMPTEURS NE BLOQUENT PLUS.
+ *
+ * POURQUOI CE DRAPEAU EXISTE, ET POURQUOI IL EST ISOLÉ ICI. Le produit n'a ni
+ * paiement ni offre payante ; le plafond de trois diagnostics par mois arrêtait
+ * donc les essais du propriétaire sans qu'aucun encaissement ne soit possible en
+ * face. Le désactiver en supprimant les plafonds aurait effacé l'architecture
+ * qui les porte — et il faudrait la réécrire au moment de la facturation.
+ *
+ * Un seul interrupteur, un seul endroit. Le repasser à `false` rétablit
+ * exactement le comportement d'avant : les plafonds sont intacts juste
+ * au-dessus, les compteurs continuent d'être incrémentés, et l'affichage
+ * continue de dire ce qui a été consommé. Seul le REFUS est suspendu.
+ */
+export const QUOTAS_SUSPENDUS_POUR_TEST = true;
+
+/**
+ * Limite mensuelle d'un compteur pour un plan. `null` = sans limite.
+ *
+ * Pendant la phase de test, rend `null` pour tous les compteurs : la
+ * consommation reste comptée et affichée, elle ne refuse plus rien.
+ */
 export function quotaLimit(tier: PlanTier, key: QuotaKey): number | null {
+  if (QUOTAS_SUSPENDUS_POUR_TEST) return null;
   return PLAN_LIMITS[tier][key];
 }
 

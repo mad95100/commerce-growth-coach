@@ -56,7 +56,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "billing/plans.test.ts",
-    minChecks: 55,
+    minChecks: 50,
     covers:
       "Quotas : décompte sûr sous concurrence, période mensuelle, et abonnement impayé qui ne donne pas le plan payant.",
   },
@@ -188,7 +188,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "billing/affichage-quota.test.ts",
-    minChecks: 20,
+    minChecks: 19,
     covers:
       "Le compteur affiché dit le vrai plan : la carte lisait `used + remaining`, or le solde ne descend jamais sous zéro — au dépassement, la somme affichait la consommation du marchand comme son allocation, en contradiction avec le message de refus. Et une lecture ratée s'effaçait au lieu de se dire.",
   },

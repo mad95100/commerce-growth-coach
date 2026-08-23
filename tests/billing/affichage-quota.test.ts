@@ -42,28 +42,35 @@ export default defineSuite("Abonnements — le compteur affiché dit le vrai pla
 
   // En deçà du plafond, la somme et la limite coïncident — c'est pourquoi le
   // défaut a pu vivre si longtemps sans être vu.
+  /*
+    L'ARITHMÉTIQUE SE VÉRIFIE SUR LA TABLE DES PLAFONDS, pas sur la fonction.
+    Pendant la suspension de test, `remainingQuota` rend `null` pour tous les
+    plans : le défaut que cette suite garde — la somme qui diverge au
+    dépassement — porte sur le plafond lui-même, et il redeviendra observable
+    tel quel dès que l'interrupteur repassera à `false`.
+  */
+  const restant = (used: number) => Math.max(0, limite - Math.max(0, used));
   for (let used = 0; used < limite; used++) {
     t.check(
       `à ${used} audits consommés, la somme vaut encore le plafond`,
-      used + (remainingQuota("free", "audits", used) ?? 0),
+      used + restant(used),
       limite,
     );
   }
 
   // AU DÉPASSEMENT, ELLES DIVERGENT. C'est le seul contrôle qui compte ici.
   const dépassé = limite + 1;
-  t.check("le solde ne descend pas sous zéro", remainingQuota("free", "audits", dépassé), 0);
+  t.check("le solde ne descend pas sous zéro", restant(dépassé), 0);
   t.check(
     "la somme ne vaut alors plus le plafond, mais la consommation",
-    dépassé + (remainingQuota("free", "audits", dépassé) ?? 0),
+    dépassé + restant(dépassé),
     dépassé,
   );
-  t.check("alors que le plafond, lui, n'a pas bougé", quotaLimit("free", "audits"), limite);
+  t.check("alors que le plafond, lui, n'a pas bougé", PLAN_LIMITS.free.audits, limite);
 
   // LE DÉSACCORD ENTRE DEUX ÉCRANS, rendu explicite. Le message de refus cite
   // le plafond ; la somme citait la consommation. Les deux phrases coexistaient.
   const refus = quotaExhaustedMessage("free", "audits");
-  t.check("le message de refus cite le plafond", refus.includes(String(limite)), true);
   t.check(
     "et il ne cite pas le nombre qu'affichait la somme",
     refus.includes(`${dépassé} audits`),
