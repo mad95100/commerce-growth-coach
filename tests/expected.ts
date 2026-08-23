@@ -68,7 +68,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/jobs.test.ts",
-    minChecks: 81,
+    minChecks: 87,
     covers:
       "Audit asynchrone : réclamation atomique contre la double exécution, reprise par bail expirant, tentatives bornées.",
   },
@@ -134,7 +134,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/observations.test.ts",
-    minChecks: 104,
+    minChecks: 115,
     covers:
       "Couche commune source → observation → diagnostic : ce qui n'est pas observé ne produit aucune valeur (jamais un zéro qui passerait pour une mesure), chaque observation porte sa preuve et sa taille d'échantillon, et ce que les données ne permettent pas d'établir part dans le prompt comme une interdiction nommée.",
   },
@@ -158,7 +158,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/google-attribution.test.ts",
-    minChecks: 75,
+    minChecks: 79,
     covers:
       "Google Ads dans le chemin de diagnostic, et l'attribution entre canaux : Meta faible avec Google fort ne condamne pas l'acquisition entière, deux canaux faibles désignent ce qu'ils partagent plutôt que les régies, un seul canal mesuré fait baisser la certitude, et le trafic payant est la somme des canaux — sur Meta seul la fuite après clic serait manquée.",
   },
@@ -218,7 +218,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/organic-attribution.test.ts",
-    minChecks: 70,
+    minChecks: 71,
     covers:
       "Origine réelle des commandes, lue sur les commandes elles-mêmes sans permission nouvelle : le seul contrepoids indépendant au ROAS déclaré par les régies. Un clic payant depuis Google n'est jamais compté en recherche naturelle, les ventes en caisse sortent du calcul, et rien n'est publié tant que la majorité des commandes est sans trace — une absence de référent n'est pas du trafic direct.",
   },
@@ -302,7 +302,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/montee-en-gamme.test.ts",
-    minChecks: 30,
+    minChecks: 34,
     covers:
       "Ce qu'un rapport n'a pas le droit d'affirmer. Le score était calculé sur des catégories jamais instruites — une catégorie sans constat valait 78, qu'elle ait été examinée et trouvée saine ou qu'aucune donnée n'ait permis de la regarder ; une boutique dont aucune source n'avait répondu obtenait donc une note honorable sur du vide. Couvre aussi la devise jamais inventée, les boutons qui ne promettent plus une correction automatique là où aucun outil ne sait écrire, et les manques de collecte enfin montrés sur un audit ABOUTI — avec les quatre questions dans l'ordre où elles se posent, au lieu de s'arrêter à « donnée manquante ».",
   },
@@ -332,7 +332,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/fournisseur-ia.test.ts",
-    minChecks: 110,
+    minChecks: 117,
     covers:
       "Le fournisseur d'analyse : quota, secours, et ce qu'on en dit. Un audit réel a échoué sur `429 RESOURCE_EXHAUSTED`, quota `generate_content_free_tier_requests`, limite 20 par JOUR — et le marchand lisait « notre fournisseur était saturé, relancez dans une dizaine de minutes, c'est passager ». Trois affirmations fausses sur quatre : le compteur est journalier, dix minutes n'y changeaient rien, et le fournisseur n'était pas saturé. Cette suite sépare les deux 429, borne le déclenchement du secours aux statuts qu'un autre modèle peut réparer, exige que le secours rejoue le MÊME appel — même prompt, même schéma, même outil forcé, seul le nom du modèle change — et vérifie qu'un échec du fournisseur n'emporte pas les manques de collecte enregistrés avant lui.",
   },
@@ -374,7 +374,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "integrations/shopify-connecte.test.ts",
-    minChecks: 45,
+    minChecks: 46,
     covers:
       "La boucle « Connectez Shopify » après un OAuth réussi, signalée en production. L'autorisation, l'échange du jeton et l'écriture étaient sains : le durcissement RLS avait redonné le droit de lecture COLONNE PAR COLONNE en omettant `metadata`, et PostgreSQL refuse la requête entière dès qu'une colonne demandée n'est pas accordée. Le panneau lisait `connsQ.data ?? []` : une lecture refusée devenait « aucune connexion », et le marchand se voyait proposer de refaire ce qu'il venait de réussir. Le contrôle confronte désormais les colonnes DEMANDÉES aux colonnes ACCORDÉES. Il fige aussi la distinction entre les deux symptômes — le moteur lit avec le rôle de service, donc l'audit tournait — et les deux méprises du classement d'échec : notre clé refusée accusait Shopify, une panne Shopify accusait le fournisseur d'analyse.",
   },

@@ -153,6 +153,60 @@ export default defineSuite("Fournisseur d'analyse — quota, secours et vérité
   t.check("et il invite bien à relancer", /relancez/i.test(debit), true);
   t.check("les deux 429 ne disent pas la même chose", quota === debit, false);
 
+  /*
+    NE PAS INVENTER L'ÉTAT DE L'ERREUR — C'EST LA MÊME RÈGLE QUE POUR LE
+    DIAGNOSTIC, APPLIQUÉE À NOS PROPRES PANNES.
+
+    Le message d'un 5xx affirmait « ce n'est pas une saturation passagère » puis
+    conseillait de « relancer dans l'heure plutôt que tout de suite ». Un code
+    500, 502 ou 503 n'établit AUCUN des deux : il dit qu'une erreur s'est
+    produite chez le fournisseur, pas si elle durera dix secondes ou deux jours.
+    Le délai d'une heure était une invention, et la première phrase écartait
+    précisément l'explication la plus fréquente d'un 502.
+
+    Ce qui EST établi : le code vient du fournisseur, il n'a donc pas été
+    déclenché par le contenu de la boutique.
+  */
+  const panne = auditFailureText("AI Gateway 503: service unavailable");
+  t.check(
+    "un 5xx n'affirme pas que ce n'est pas passager",
+    /pas une saturation/.test(panne),
+    false,
+  );
+  t.check("…et n'invente aucun délai d'attente", /dans l'heure/.test(panne), false);
+  t.check(
+    "…il dit que nous ne savons pas",
+    /nous ne savons pas si c'est passager/i.test(panne),
+    true,
+  );
+  // L'origine est située par l'étiquette « à qui c'est », pas répétée dans le
+  // conseil : la redire deux fois dans le même message affaiblissait les deux.
+  t.check("…tout en situant l'origine", /service externe que nous appelons/.test(panne), true);
+
+  // « momentanément » était affirmé pour TOUTE panne partenaire, y compris
+  // celles qui durent. Nous savons d'où vient l'erreur, pas combien de temps.
+  t.check(
+    "aucun message ne qualifie une panne externe de momentanée",
+    /momentanément/.test(panne),
+    false,
+  );
+
+  // ET AUCUN MESSAGE NE RENVOIE VERS UNE OFFRE PAYANTE QUI N'EXISTE PAS.
+  const plafond = auditFailureText("Quota d'audits atteint pour cette période");
+  t.check(
+    "le plafond ne propose pas de passer à une offre supérieure",
+    /offre supérieure|passer à une offre/i.test(plafond),
+    false,
+  );
+
+  // UNE ERREUR INCONNUE RESTE UNE ERREUR INCONNUE.
+  const mystere = auditFailureText("quelque chose d'inattendu s'est produit");
+  t.check(
+    "un échec inclassable ne s'invente pas de cause",
+    /nous n'avons pas su dire précisément pourquoi/.test(mystere),
+    true,
+  );
+
   // =========================================================================
   // 3. LE SECOURS NE PART QUE QUAND IL PEUT SERVIR
   // =========================================================================

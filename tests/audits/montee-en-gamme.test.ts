@@ -158,9 +158,34 @@ export default defineSuite("Montée en gamme — ce qu'un rapport n'affirme pas"
     ÉCHOUÉ. Sur un audit abouti, le rapport restait muet sur ce qui n'avait pas
     pu être regardé — et le marchand pouvait croire le tour complet.
   */
+  /*
+    LA RÈGLE : les manques sont montrés sur un audit ABOUTI, pas seulement sur
+    un audit échoué. Ce contrôle épinglait le titre du bloc — « Ce que nous
+    n'avons pas pu regarder » —, or il y en a désormais trois, parce que les
+    trois natures de manque ne se lisent pas de la même façon.
+  */
   t.check(
     "les manques sont montrés aussi sur un audit abouti",
-    /Ce que nous n'avons pas pu regarder/.test(rapport),
+    /Données pas encore disponibles/.test(rapport),
+    true,
+  );
+  // ET LES TROIS NATURES SONT DISTINCTES À L'ÉCRAN. Une source tombée n'est pas
+  // une limitation assumée : seule la première rend le rapport partiel.
+  t.check("un rapport partiel se déclare", /Ce diagnostic est partiel/.test(rapport), true);
+  t.check(
+    "…et ne se déclenche que sur une panne de collecte",
+    /pannesDeCollecte\.length > 0 &&/.test(rapport),
+    true,
+  );
+  t.check(
+    "les limitations de mesure ont leur propre bloc",
+    /Ce que nous ne mesurons pas encore/.test(rapport),
+    true,
+  );
+  // Une limitation ne se corrige pas côté marchand : ne pas lui demander d'agir.
+  t.check(
+    "…qui ne lui demande pas de corriger ce qui ne dépend pas de lui",
+    /Comment le vérifier vous-même/.test(rapport),
     true,
   );
   t.check(

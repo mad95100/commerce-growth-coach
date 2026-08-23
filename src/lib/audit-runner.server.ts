@@ -145,69 +145,122 @@ export async function executeAuditWork(input: {
   /** Le message technique, pour le journal. Jamais montré tel quel. */
   const raison = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-  if (creds.shopify) {
+  /*
+    TROIS SOURCES, TROIS ATTENTES QUI SE SUPERPOSENT AU LIEU DE S'ADDITIONNER.
+
+    Shopify, Meta et Google étaient interrogés L'UN APRÈS L'AUTRE. Aucun des
+    trois n'a pourtant besoin des deux autres : ils ne partagent ni jeton, ni
+    donnée, ni ordre. Leurs délais s'additionnaient donc sans raison — jusqu'à
+    quarante-cinq secondes d'attente là où quinze suffisent, avant même que le
+    modèle ne soit appelé.
+
+    Seul le scan du site public dépend de Shopify : il lui emprunte les pages
+    d'arrivée réellement vendeuses et les identifiants du catalogue. Il reste
+    donc APRÈS, et c'est la seule séquence que la donnée impose.
+
+    CE QUI NE CHANGE PAS, ET QUI COMPTE PLUS QUE LA VITESSE : chaque source
+    garde son propre `try/catch`. Une source qui tombe produit un rapport
+    `reachable: false` et n'emporte pas les autres. Chaque tâche est donc écrite
+    pour NE JAMAIS LEVER — c'est ce qui rend `Promise.all` sûr ici, là où il
+    ferait autrement tomber les trois pour une seule.
+
+    L'ORDRE D'AJOUT EST PRÉSERVÉ À LA LETTRE : `allGaps` déduplique en gardant
+    la PREMIÈRE occurrence, et la première est celle dont la cause est la plus
+    proche de la source. Les résultats sont donc rassemblés d'abord, poussés
+    ensuite, dans l'ordre d'avant.
+  */
+  type Recolte = {
+    rapports: SourceReport[];
+    landings?: Awaited<
+      ReturnType<typeof import("@/lib/connectors/shopify-observe.server").fetchShopifyObservations>
+    >["landings"];
+    productTexts?: Awaited<
+      ReturnType<typeof import("@/lib/connectors/shopify-observe.server").fetchShopifyObservations>
+    >["productTexts"];
+    productHandles?: string[];
+  };
+
+  const recolteShopify = async (): Promise<Recolte> => {
+    if (!creds.shopify) return { rapports: [] };
     try {
       const { fetchShopifyObservations } = await import("@/lib/connectors/shopify-observe.server");
       // Deux sources d'un seul appel : l'état de la boutique, et l'origine des
       // commandes — la seule mesure d'acquisition qui ne vienne pas des régies
       // elles-mêmes, donc la seule qui puisse les contredire.
-      const shopifyReports = await fetchShopifyObservations(
-        creds.shopify.shop,
-        creds.shopify.encryptedToken,
-      );
-      reports.push(shopifyReports.shopify, shopifyReports.organic);
-      landings = shopifyReports.landings;
-      productTexts = shopifyReports.productTexts;
-      // LE CATALOGUE COMPLET, POUR QUE LE SCAN NE LISE PLUS QUE LA VITRINE.
-      // Ces identifiants viennent du même appel, sous la même permission déjà
-      // accordée. Sans eux, le scan ne découvre des fiches qu'en suivant les
-      // liens de l'accueil — donc uniquement ce que la boutique met en avant.
-      catalogueHandles = shopifyReports.productHandles;
+      const r = await fetchShopifyObservations(creds.shopify.shop, creds.shopify.encryptedToken);
+      return {
+        rapports: [r.shopify, r.organic],
+        landings: r.landings,
+        productTexts: r.productTexts,
+        // LE CATALOGUE COMPLET, POUR QUE LE SCAN NE LISE PLUS QUE LA VITRINE.
+        // Ces identifiants viennent du même appel, sous la même permission déjà
+        // accordée. Sans eux, le scan ne découvre des fiches qu'en suivant les
+        // liens de l'accueil — donc uniquement ce que la boutique met en avant.
+        productHandles: r.productHandles,
+      };
     } catch (err) {
       console.error("[audit] collecte Shopify impossible :", err);
-      reports.push(
-        { source: "shopify", observations: [], gaps: [], reachable: false, error: raison(err) },
-        { source: "organic", observations: [], gaps: [], reachable: false, error: raison(err) },
-      );
+      return {
+        rapports: [
+          { source: "shopify", observations: [], gaps: [], reachable: false, error: raison(err) },
+          { source: "organic", observations: [], gaps: [], reachable: false, error: raison(err) },
+        ],
+      };
     }
-  }
+  };
 
-  if (creds.meta) {
+  const recolteMeta = async (): Promise<Recolte> => {
+    if (!creds.meta) return { rapports: [] };
     try {
       const { fetchMetaObservations } = await import("@/lib/connectors/meta-observe.server");
-      reports.push(await fetchMetaObservations(creds.meta.accountId, creds.meta.encryptedToken));
+      return {
+        rapports: [await fetchMetaObservations(creds.meta.accountId, creds.meta.encryptedToken)],
+      };
     } catch (err) {
       console.error("[audit] collecte Meta impossible :", err);
-      reports.push({
-        source: "meta",
-        observations: [],
-        gaps: [],
-        reachable: false,
-        error: raison(err),
-      });
+      return {
+        rapports: [
+          { source: "meta", observations: [], gaps: [], reachable: false, error: raison(err) },
+        ],
+      };
     }
-  }
+  };
 
   // Google appartient au chemin de diagnostic, pas aux statistiques : sans
-  // lui, une boutique dont Meta va mal et Google va bien reçoit « ton
+  // lui, une boutique dont Meta va mal et Google va bien reçoit « votre
   // acquisition ne fonctionne pas » — faux, et coûteux.
-  if (creds.google) {
+  const recolteGoogle = async (): Promise<Recolte> => {
+    if (!creds.google) return { rapports: [] };
     try {
       const { fetchGoogleObservations } = await import("@/lib/connectors/google-observe.server");
-      reports.push(
-        await fetchGoogleObservations(creds.google.customerId, creds.google.encryptedRefreshToken),
-      );
+      return {
+        rapports: [
+          await fetchGoogleObservations(
+            creds.google.customerId,
+            creds.google.encryptedRefreshToken,
+          ),
+        ],
+      };
     } catch (err) {
       console.error("[audit] collecte Google impossible :", err);
-      reports.push({
-        source: "google",
-        observations: [],
-        gaps: [],
-        reachable: false,
-        error: raison(err),
-      });
+      return {
+        rapports: [
+          { source: "google", observations: [], gaps: [], reachable: false, error: raison(err) },
+        ],
+      };
     }
-  }
+  };
+
+  const [surShopify, surMeta, surGoogle] = await Promise.all([
+    recolteShopify(),
+    recolteMeta(),
+    recolteGoogle(),
+  ]);
+
+  reports.push(...surShopify.rapports, ...surMeta.rapports, ...surGoogle.rapports);
+  landings = surShopify.landings ?? landings;
+  productTexts = surShopify.productTexts ?? productTexts;
+  catalogueHandles = surShopify.productHandles ?? catalogueHandles;
 
   // LE SITE PUBLIC. L'angle mort le plus coûteux : le moteur diagnostiquait la
   // conversion sans avoir jamais ouvert la page que le visiteur reçoit. Une
@@ -797,23 +850,35 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     })),
   };
 
-  const complet = await supabase
-    .from("audits")
-    .update({ ...conclusion, ...enrichissement })
-    .eq("id", auditId);
+  /*
+    LES CONSTATS D'ABORD, LE STATUT ENSUITE. C'EST L'ORDRE QUI FAIT LA VÉRITÉ.
 
-  if (complet.error) {
-    // Repli sur la seule conclusion. Le rapport reste complet et lisible ;
-    // seule la comparaison avec l'audit suivant sera moins riche — et elle sait
-    // déjà dire « nous n'avions pas cette information » plutôt que d'inventer.
-    console.error(
-      "[audit] enrichissement indisponible, conclusion écrite seule :",
-      complet.error.message,
-    );
-    const { error } = await supabase.from("audits").update(conclusion).eq("id", auditId);
-    // Si MÊME la conclusion échoue, il faut lever : l'audit resterait « en
-    // cours » indéfiniment, et le passage périodique le reprendrait sans fin.
-    if (error) throw new Error(`Conclusion de l'audit impossible : ${error.message}`);
+    LE DÉFAUT. `status: "completed"` était écrit AVANT l'insertion des constats.
+    Deux conséquences, et la seconde est grave.
+
+    D'abord une course : l'écran interroge le statut toutes les trois secondes
+    et lit les constats séparément. Entre les deux écritures, il pouvait voir un
+    audit « terminé » et une liste VIDE — le marchand découvrait un rapport sans
+    un seul constat sur un audit que le serveur venait de réussir.
+
+    Ensuite, et c'est pire : si l'insertion échouait, l'audit restait
+    `completed`. Un rapport définitivement vide, présenté comme abouti. Une
+    erreur transformée en résultat apparemment valide — exactement ce qu'un
+    diagnostic ne doit jamais faire.
+
+    Inversées, les deux écritures rendent le statut honnête : « terminé »
+    signifie désormais que TOUT est lisible. Si l'insertion échoue, l'audit
+    n'est pas conclu, la tentative est comptée comme un échec, et la reprise
+    fait son travail.
+
+    L'EFFACEMENT PRÉALABLE EST CE QUI REND LA REPRISE SÛRE. Les constats
+    précèdent maintenant une écriture qui peut échouer : sans lui, une seconde
+    tentative empilerait ses constats sur ceux de la première, et le marchand
+    lirait chaque problème en double.
+  */
+  if (analysis.findings.length > 0) {
+    const { error: purge } = await supabase.from("audit_findings").delete().eq("audit_id", auditId);
+    if (purge) throw new Error(`Constats précédents non effaçables : ${purge.message}`);
   }
 
   if (analysis.findings.length > 0) {
@@ -855,5 +920,24 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     });
     const { error: fErr } = await supabase.from("audit_findings").insert(rows);
     if (fErr) throw fErr;
+  }
+
+  const complet = await supabase
+    .from("audits")
+    .update({ ...conclusion, ...enrichissement })
+    .eq("id", auditId);
+
+  if (complet.error) {
+    // Repli sur la seule conclusion. Le rapport reste complet et lisible ;
+    // seule la comparaison avec l'audit suivant sera moins riche — et elle sait
+    // déjà dire « nous n'avions pas cette information » plutôt que d'inventer.
+    console.error(
+      "[audit] enrichissement indisponible, conclusion écrite seule :",
+      complet.error.message,
+    );
+    const { error } = await supabase.from("audits").update(conclusion).eq("id", auditId);
+    // Si MÊME la conclusion échoue, il faut lever : l'audit resterait « en
+    // cours » indéfiniment, et le passage périodique le reprendrait sans fin.
+    if (error) throw new Error(`Conclusion de l'audit impossible : ${error.message}`);
   }
 }

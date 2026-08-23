@@ -425,6 +425,63 @@ export default defineSuite("Audits — exécution asynchrone et reprise", async 
   t.check("sans date de départ, rien n'est affirmé", decrireAttente(null), null);
   t.check("une date illisible non plus", decrireAttente("pas une date"), null);
 
+  // =========================================================================
+  // 8. « TERMINÉ » DOIT VOULOIR DIRE « TOUT EST LISIBLE »
+  // =========================================================================
+  /*
+    LA CAUSE RACINE DU DERNIER PARCOURS RÉEL, ET ELLE TENAIT À UN ORDRE.
+
+    `status: "completed"` était écrit AVANT l'insertion des constats. Deux
+    conséquences, et la seconde est de loin la plus grave.
+
+    D'abord une course : l'écran interroge le statut toutes les trois secondes
+    et lit les constats par une autre requête. Entre les deux écritures, il
+    pouvait voir un audit « terminé » et une liste VIDE — un rapport sans un
+    seul constat sur un audit que le serveur venait de réussir.
+
+    Ensuite : si l'insertion échouait, l'audit restait `completed`. Un rapport
+    définitivement vide, présenté comme abouti. Une erreur transformée en
+    résultat apparemment valide — la seule chose qu'un diagnostic ne doit jamais
+    faire.
+
+    Inversées, les deux écritures rendent le statut honnête. Si l'insertion
+    échoue, l'audit n'est pas conclu, la tentative compte comme un échec, et la
+    reprise fait son travail.
+  */
+  const runner = read("src/lib/audit-runner.server.ts");
+  // Chercher la RÈGLE, pas sa mise en page : le formateur replie ou déplie
+  // cette chaîne d'appels selon sa longueur.
+  const iPurge = runner.search(/from\("audit_findings"\)\s*\.delete\(\)/);
+  const iConstats = runner.indexOf('from("audit_findings").insert(rows)');
+  const iStatut = runner.indexOf("const complet = await supabase");
+
+  t.check("les constats sont écrits", iConstats > -1, true);
+  t.check("le statut est écrit", iStatut > -1, true);
+  t.check("les constats précèdent le statut", iConstats < iStatut, true);
+  // ET L'EFFACEMENT PRÉCÈDE L'INSERTION : les constats passent maintenant avant
+  // une écriture qui peut échouer. Sans purge, une seconde tentative empilerait
+  // ses constats sur ceux de la première, et chaque problème s'afficherait deux
+  // fois.
+  t.check("une purge précède l'insertion", iPurge > -1 && iPurge < iConstats, true);
+  // Une insertion en échec doit LEVER, sinon l'audit se conclurait sans constats.
+  t.check(
+    "une insertion en échec interrompt la conclusion",
+    /if \(fErr\) throw fErr;/.test(runner),
+    true,
+  );
+
+  // L'ÉCRAN NE PEUT PAS AFFICHER UNE LISTE PÉRIMÉE. Le travail peut être terminé
+  // par le passage planifié — onglet en arrière-plan, ordinateur en veille —
+  // et rien n'invalidait alors la lecture des constats.
+  const ecranRapport = read("src/routes/_authenticated/audits.$auditId.tsx");
+  t.check(
+    "les constats se relisent tant que l'audit tourne",
+    /refetchInterval: \(\) => \(auditQ\.data\?\.status === "running" \? 3000 : false\)/.test(
+      ecranRapport,
+    ),
+    true,
+  );
+
   // ET L'ÉCRAN S'EN SERT RÉELLEMENT.
   const ecran = read("src/routes/_authenticated/audits.$auditId.tsx");
   t.check(

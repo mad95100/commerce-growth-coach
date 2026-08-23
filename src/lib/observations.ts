@@ -109,6 +109,49 @@ export function observationValue(observations: Observation[], id: string): numbe
  * dire « je ne peux pas trancher, il me manque X » au lieu de trancher quand
  * même — le seul comportement qui distingue un diagnostic d'une devinette.
  */
+/**
+ * POURQUOI UNE DONNÉE MANQUE — ET C'EST TROIS CHOSES, PAS UNE.
+ *
+ * LE DÉFAUT. `data_gaps` mélangeait dans une seule liste, sous un seul titre,
+ * des situations qui n'ont rien à voir :
+ *
+ *   « Nous ne mesurons pas la vitesse réelle chez vos visiteurs »
+ *     — nous ne SAVONS pas faire, aujourd'hui. Rien n'a échoué.
+ *   « Nous ne savons pas combien de personnes visitent votre boutique »
+ *     — la donnée existe peut-être, mais pas pour cette boutique.
+ *   « Shopify n'a pas répondu »
+ *     — notre appel a ÉCHOUÉ. C'est une panne.
+ *
+ * Le marchand lisait les trois de la même façon, et la troisième — la seule qui
+ * signale que le rapport repose sur moins que prévu — se noyait entre deux
+ * limitations assumées. Un audit dont une source est tombée n'est pas un audit
+ * complet, et rien ne le disait.
+ *
+ * `panne` est la seule des trois qui rend le rapport PARTIEL : les deux autres
+ * sont des absences attendues, connues d'avance, qui n'ôtent rien à ce qui a
+ * été mesuré.
+ */
+export type GapNature =
+  /** Notre appel a échoué. Le rapport est partiel. */
+  | "panne"
+  /** Nous ne savons pas mesurer cela, quelle que soit la boutique. */
+  | "limitation"
+  /** La donnée n'existe pas encore pour CETTE boutique. */
+  | "absente";
+
+/**
+ * Données que nous ne savons pas mesurer, sur aucune boutique.
+ *
+ * Ce ne sont pas des manques de la boutique : ce sont les nôtres, et les
+ * présenter autrement ferait chercher au marchand une correction qui n'existe
+ * pas de son côté.
+ */
+export const LIMITATIONS_DE_MESURE = new Set([
+  "storefront.core_web_vitals",
+  "storefront.mobile_rendering",
+  "storefront.checkout_funnel",
+]);
+
 export type ObservationGap = {
   /** Identifiant de la donnée absente, même forme que les observations. */
   id: string;
@@ -118,7 +161,38 @@ export type ObservationGap = {
   reason: string;
   /** Ce qu'on pourrait diagnostiquer si on l'avait. */
   wouldEnable: string;
+  /**
+   * Ce que le manque SIGNIFIE. Facultatif à la construction — les vingt-huit
+   * endroits qui fabriquent un trou n'ont pas à le savoir — et déduit par
+   * `natureDuTrou` partout où il est lu.
+   */
+  nature?: GapNature;
 };
+
+/**
+ * Nature d'un trou, déduite quand elle n'est pas déclarée.
+ *
+ * L'identifiant suffit : `*.unreachable` est produit par `allGaps` quand une
+ * source n'a pas répondu, et la liste des limitations est fermée. Tout le reste
+ * est une donnée qui n'existe pas encore pour cette boutique.
+ */
+export function natureDuTrou(gap: ObservationGap): GapNature {
+  if (gap.nature) return gap.nature;
+  if (gap.id.endsWith(".unreachable")) return "panne";
+  if (LIMITATIONS_DE_MESURE.has(gap.id)) return "limitation";
+  return "absente";
+}
+
+/**
+ * `true` si le diagnostic repose sur moins que ce qui était prévu.
+ *
+ * Une limitation connue d'avance ne rend pas un rapport partiel : nous n'avons
+ * jamais promis de mesurer la vitesse chez le visiteur. Une source qui tombe,
+ * si — et c'est la seule chose que le marchand ne peut pas deviner seul.
+ */
+export function rapportPartiel(gaps: ObservationGap[]): boolean {
+  return gaps.some((g) => natureDuTrou(g) === "panne");
+}
 
 /**
  * POURQUOI UNE SOURCE N'A PAS RÉPONDU.

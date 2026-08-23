@@ -341,9 +341,21 @@ export default defineSuite("Shopify connecté — la chaîne, de l'OAuth au diag
   );
   t.check("…et dit dans quel ordre corriger", /corrigez-les d'abord/.test(rapport), true);
   // La colonne est du JSON : une entrée à moitié écrite ne doit pas s'afficher.
+  /*
+    LA RÈGLE, PAS SON ÉCRITURE. Ce contrôle recopiait l'expression exacte du
+    filtre. Elle a changé de forme — un `if` de sortie anticipée, pour laisser
+    place au calcul de la nature du manque — sans que rien de ce qu'elle
+    protège n'ait bougé : une entrée à moitié écrite n'est pas rendue.
+  */
   t.check(
     "les manques illisibles sont écartés, pas rendus",
-    /label && reason && id \? \[\{ id, label, reason \}\] : \[\]/.test(rapport),
+    /if \(!label \|\| !reason \|\| !id\) return \[\];/.test(rapport),
+    true,
+  );
+  // Et chaque manque lu porte sa nature, qui décide dans quel bloc il tombe.
+  t.check(
+    "…et chaque manque lisible porte sa nature",
+    /natureDuTrou\(\{ id, label, reason/.test(rapport),
     true,
   );
 

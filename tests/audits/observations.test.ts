@@ -3,6 +3,8 @@ import { join } from "node:path";
 import {
   OBSERVATION_SOURCES,
   allGaps,
+  natureDuTrou,
+  rapportPartiel,
   allObservations,
   formatObservation,
   observationValue,
@@ -24,6 +26,7 @@ import {
   type ShopifyRaw,
 } from "../../src/lib/connectors/shopify-observe";
 import { defineSuite } from "../harness";
+import type { ObservationGap } from "@/lib/observations";
 
 /**
  * Sources → observations → diagnostics possibles.
@@ -419,6 +422,77 @@ export default defineSuite("Sources — observations et diagnosticabilité", (t)
   );
   // ET LE SILENCE D'UNE SOURCE N'ÉCRASE PAS CELUI D'UNE AUTRE : deux sources
   // muettes sont deux manques, ils portent des identifiants distincts.
+  // --- Trois natures de manque, jamais confondues --------------------------
+  /*
+    LE DÉFAUT. `data_gaps` mélangeait dans une seule liste, sous un seul titre,
+    des situations qui n'ont rien à voir :
+
+      « Nous ne mesurons pas la vitesse réelle chez vos visiteurs »
+        — nous ne SAVONS pas faire. Rien n'a échoué.
+      « Nous ne savons pas combien de personnes visitent votre boutique »
+        — la donnée existe peut-être, mais pas pour cette boutique.
+      « Shopify n'a pas répondu »
+        — notre appel a ÉCHOUÉ.
+
+    Le marchand lisait les trois de la même façon, et la troisième — la seule
+    qui signale que le rapport repose sur moins que prévu — se noyait entre deux
+    limitations assumées.
+  */
+  const trou = (id: string): ObservationGap => ({
+    id,
+    label: id,
+    source: "shopify",
+    reason: "peu importe",
+    wouldEnable: "quelque chose",
+  });
+
+  t.check("une source tombée est une panne", natureDuTrou(trou("shopify.unreachable")), "panne");
+  t.check(
+    "ce que nous ne savons pas mesurer est une limitation",
+    natureDuTrou(trou("storefront.core_web_vitals")),
+    "limitation",
+  );
+  t.check("le rendu mobile aussi", natureDuTrou(trou("storefront.mobile_rendering")), "limitation");
+  t.check(
+    "le tunnel de commande aussi",
+    natureDuTrou(trou("storefront.checkout_funnel")),
+    "limitation",
+  );
+  t.check(
+    "une donnée que la boutique n'a pas encore est absente",
+    natureDuTrou(trou("shopify.sessions_30d")),
+    "absente",
+  );
+  // UNE ERREUR API NE DEVIENT PAS UNE « DONNÉE MANQUANTE ». C'est la confusion
+  // la plus coûteuse : elle fait chercher au marchand une donnée à obtenir là
+  // où c'est notre appel qui a échoué.
+  t.check(
+    "la nature déclarée prime sur la déduction",
+    natureDuTrou({ ...trou("shopify.sessions_30d"), nature: "panne" }),
+    "panne",
+  );
+
+  // SEULE UNE PANNE REND LE RAPPORT PARTIEL. Nous n'avons jamais promis de
+  // mesurer la vitesse chez le visiteur : ne pas le faire n'ôte rien à ce qui
+  // a été mesuré.
+  t.check("une panne rend le rapport partiel", rapportPartiel([trou("meta.unreachable")]), true);
+  t.check(
+    "une limitation ne le rend pas partiel",
+    rapportPartiel([trou("storefront.core_web_vitals")]),
+    false,
+  );
+  t.check("une donnée absente non plus", rapportPartiel([trou("shopify.sessions_30d")]), false);
+  t.check("et un rapport sans manque ne l'est pas", rapportPartiel([]), false);
+  t.check(
+    "une seule panne suffit, au milieu de limitations",
+    rapportPartiel([
+      trou("storefront.core_web_vitals"),
+      trou("shopify.sessions_30d"),
+      trou("google.unreachable"),
+    ]),
+    true,
+  );
+
   t.check(
     "deux sources muettes restent deux manques",
     allGaps([shopifyUnreachable("boum"), { ...shopifyUnreachable("boum"), source: "google" }])

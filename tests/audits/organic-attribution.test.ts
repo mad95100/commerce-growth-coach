@@ -422,9 +422,21 @@ export default defineSuite("Organique — origine réelle des commandes", (t) =>
     ].sort(),
   );
   const runner = read("src/lib/audit-runner.server.ts");
+  // LA RÈGLE : un seul appel Shopify produit DEUX rapports — l'état de la
+  // boutique et l'origine des commandes — et les deux atteignent le moteur.
+  // La collecte étant désormais menée de front, ils sont rendus par la tâche
+  // puis poussés dans l'ordre d'avant : `allGaps` déduplique en gardant la
+  // PREMIÈRE occurrence, et cet ordre décide donc quelle cause survit.
   t.check(
     "l'audit verse bien les deux rapports au moteur",
-    runner.includes("reports.push(shopifyReports.shopify, shopifyReports.organic)"),
+    /rapports: \[r\.shopify, r\.organic\]/.test(runner),
+    true,
+  );
+  t.check(
+    "…et l'ordre d'ajout est préservé",
+    /reports\.push\(\s*\.\.\.surShopify\.rapports,\s*\.\.\.surMeta\.rapports,\s*\.\.\.surGoogle\.rapports,?\s*\)/.test(
+      runner,
+    ),
     true,
   );
   t.check(

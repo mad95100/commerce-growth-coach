@@ -401,9 +401,40 @@ export default defineSuite("Google Ads — observations et attribution", (t) => 
   t.check("l'audit collecte Shopify", runner.includes("fetchShopifyObservations"), true);
   t.check("Meta", runner.includes("fetchMetaObservations"), true);
   t.check("et Google", runner.includes("fetchGoogleObservations"), true);
+  // LA RÈGLE : aucun canal n'est interrogé sans identifiants. La collecte est
+  // passée de trois blocs successifs à trois tâches menées de front — la garde
+  // s'écrit donc en sortie anticipée, elle n'a pas disparu.
   t.check(
     "chaque canal n'est lu que s'il est connecté",
-    runner.includes("if (creds.google)"),
+    /if \(!creds\.google\) return \{ rapports: \[\] \};/.test(runner),
+    true,
+  );
+  /*
+    CE QUE LA MISE EN PARALLÈLE NE DOIT SURTOUT PAS EMPORTER.
+
+    Shopify, Meta et Google étaient interrogés l'un après l'autre : leurs délais
+    s'additionnaient sans raison, aucun des trois n'ayant besoin des deux
+    autres. Ils partent désormais ensemble.
+
+    Mais `Promise.all` rejette dès la PREMIÈRE tâche qui lève — il ferait donc
+    tomber les trois sources pour une seule, exactement l'inverse de la garantie
+    la plus ancienne du moteur. Chaque tâche est donc écrite pour ne jamais
+    lever : elle rend un rapport `reachable: false` et rien d'autre.
+  */
+  t.check("les trois sources partent ensemble", /await Promise\.all\(\[/.test(runner), true);
+  for (const source of ["Shopify", "Meta", "Google"]) {
+    t.check(
+      `…et ${source} garde son propre filet`,
+      new RegExp(`console\\.error\\("\\[audit\\] collecte ${source} impossible`).test(runner),
+      true,
+    );
+  }
+  // Le scan du site public reste APRÈS Shopify : il lui emprunte les pages
+  // d'arrivée et les identifiants du catalogue. C'est la seule séquence que la
+  // donnée impose, et elle doit le rester.
+  t.check(
+    "le scan de vitrine reste après la collecte Shopify",
+    runner.indexOf("await Promise.all([") < runner.indexOf("scanStorefront("),
     true,
   );
   t.check(

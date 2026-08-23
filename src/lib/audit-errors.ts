@@ -264,10 +264,24 @@ const FAILURES: Record<AuditFailureKind, Omit<AuditFailure, "kind">> = {
     whose: "nous",
     next: "Rien à faire de votre côté, et surtout pas de reconnecter votre boutique : elle n'est pas en cause. Relancez l'audit plus tard ; votre passage ne vous a pas été décompté.",
   },
+  /*
+    CE QUE NOUS SAVONS D'UN 5xx, ET RIEN DE PLUS.
+
+    Ce message affirmait « ce n'est pas une saturation passagère » puis
+    conseillait de « relancer dans l'heure plutôt que tout de suite ». Un code
+    500, 502 ou 503 n'établit AUCUN des deux : il dit qu'une erreur s'est
+    produite chez le fournisseur, pas si elle durera dix secondes ou deux jours.
+    Le délai d'une heure était une invention, et la première phrase écartait
+    précisément l'explication la plus fréquente d'un 502.
+
+    Ce qui est établi : le code vient du fournisseur, il n'a donc pas été
+    déclenché par le contenu de la boutique. Cela suffit à dire au marchand
+    qu'il n'a rien à corriger chez lui — et rien de plus.
+  */
   modele_en_panne: {
-    what: "Notre fournisseur d'analyse a renvoyé une erreur.",
+    what: "Notre fournisseur d'analyse a renvoyé une erreur de son côté.",
     whose: "partenaire",
-    next: "Ce n'est pas une saturation passagère : relancez l'audit dans l'heure plutôt que tout de suite. Vos données et votre boutique ne sont pas en cause.",
+    next: "Nous ne savons pas si c'est passager : le code renvoyé ne le dit pas. Relancez l'audit ; s'il échoue encore, laissez passer un moment avant le prochain essai. Vos données et votre boutique ne sont pas en cause.",
   },
   quota_fournisseur: {
     what: "Nous avons atteint le nombre d'analyses que notre fournisseur nous autorise pour aujourd'hui.",
@@ -297,7 +311,10 @@ const FAILURES: Record<AuditFailureKind, Omit<AuditFailure, "kind">> = {
   modele_surcharge: {
     what: "Notre fournisseur d'analyse était saturé au moment de votre audit.",
     whose: "partenaire",
-    next: "Relancez l'audit dans une dizaine de minutes. C'est passager et cela ne vient ni de vous ni de vos données.",
+    // Ici le mot « passager » EST établi : un débit limité l'est par
+    // définition — c'est ce que veut dire limiter un débit. À la différence
+    // d'un 5xx, dont le code ne dit rien de la durée.
+    next: "Relancez l'audit dans une dizaine de minutes : un débit limité est passager par nature. Cela ne vient ni de vous ni de vos données.",
   },
   reponse_invalide: {
     what: "L'analyse a été produite mais nous n'avons pas pu la lire entièrement.",
@@ -317,7 +334,9 @@ const FAILURES: Record<AuditFailureKind, Omit<AuditFailure, "kind">> = {
   quota: {
     what: "Vous avez atteint le nombre d'audits inclus dans votre offre pour cette période.",
     whose: "vous",
-    next: "Votre compteur repart au début de la prochaine période. Vous pouvez aussi passer à une offre supérieure depuis les réglages.",
+    // NE RENVOIE VERS AUCUNE OFFRE PAYANTE : il n'en existe pas. Envoyer
+    // quelqu'un acheter une chose inexistante coûte plus qu'un silence.
+    next: "Votre compteur repart au début de la prochaine période.",
   },
   trop_de_tentatives: {
     what: "Nous avons essayé plusieurs fois sans y parvenir, et nous nous sommes arrêtés.",
@@ -339,7 +358,10 @@ const FAILURES: Record<AuditFailureKind, Omit<AuditFailure, "kind">> = {
 const WHOSE_LABEL: Record<AuditFailure["whose"], string> = {
   nous: "Cela vient de chez nous.",
   vous: "Une action de votre part est nécessaire.",
-  partenaire: "Cela vient d'un service externe, momentanément.",
+  // « momentanément » était affirmé pour toute panne partenaire, y compris
+  // celles qui durent. Nous savons d'où vient l'erreur, pas combien de temps
+  // elle durera.
+  partenaire: "Cela vient d'un service externe que nous appelons.",
 };
 
 /** Ce qu'il faut afficher à la place du message technique. */

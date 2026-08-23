@@ -56,6 +56,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
 import { decrireAttente } from "@/lib/audit-jobs";
+import { natureDuTrou } from "@/lib/observations";
 
 export const Route = createFileRoute("/_authenticated/audits/$auditId")({
   head: () => ({ meta: [{ title: "Audit — EcomPilot AI" }] }),
@@ -321,6 +322,24 @@ function AuditPage() {
       );
       return data as Finding[];
     },
+    /*
+      LES CONSTATS SE RELISENT TANT QUE L'AUDIT TOURNE.
+
+      Cette requête ne se rafraîchissait jamais d'elle-même : elle n'était
+      invalidée qu'après une action du marchand, ou après un `processAudit`
+      lancé par CET onglet. Or le travail peut très bien être terminé par le
+      passage planifié — onglet en arrière-plan, ordinateur en veille, autre
+      onglet ayant réclamé le travail. Dans ce cas rien n'invalidait rien :
+      `auditQ` basculait sur « terminé », cessait de sonder, et l'écran
+      affichait la mise en page d'un audit abouti sur une liste chargée quand
+      il n'y avait encore rien.
+
+      Le serveur écrit désormais les constats AVANT le statut, ce qui supprime
+      la course à la source. Ce sondage est la seconde moitié : sans lui, la
+      liste resterait celle du premier chargement, quel que soit l'ordre des
+      écritures.
+    */
+    refetchInterval: () => (auditQ.data?.status === "running" ? 3000 : false),
   });
 
   const findingIds = (findingsQ.data ?? []).map((f) => f.id);
@@ -461,9 +480,26 @@ function AuditPage() {
         const label = texte(o.label);
         const reason = texte(o.reason);
         const id = texte(o.id) ?? label;
-        return label && reason && id ? [{ id, label, reason }] : [];
+        if (!label || !reason || !id) return [];
+        // La nature déclarée est respectée ; sinon elle se déduit de l'identifiant.
+        const nature = natureDuTrou({ id, label, reason, source: "shopify", wouldEnable: "" });
+        return [{ id, label, reason, nature }];
       })
     : [];
+
+  /*
+    UN RAPPORT DONT UNE SOURCE EST TOMBÉE N'EST PAS UN RAPPORT COMPLET.
+
+    Les trois natures de manque étaient jusqu'ici fondues dans une seule liste,
+    sous un seul titre. Le marchand lisait « nous ne mesurons pas la vitesse
+    chez vos visiteurs » — une limitation assumée, connue d'avance — juste à
+    côté de « Shopify n'a pas répondu », qui signifie que le diagnostic repose
+    sur moins que prévu. Seule la seconde change ce qu'il faut penser du
+    rapport, et c'est la seule qu'il ne pouvait pas deviner.
+  */
+  const pannesDeCollecte = manquesDeCollecte.filter((g) => g.nature === "panne");
+  const limitationsDeMesure = manquesDeCollecte.filter((g) => g.nature === "limitation");
+  const donneesAbsentes = manquesDeCollecte.filter((g) => g.nature === "absente");
 
   const storeName = (audit?.stores as { name?: string | null } | undefined)?.name?.trim() || null;
 
@@ -795,14 +831,47 @@ function AuditPage() {
             l'obtenir, ce que cela rouvrirait — au lieu de s'arrêter à
             « donnée manquante ».
           */}
-          {manquesDeCollecte.length > 0 && (
+          {/*
+            LE RAPPORT DIT LUI-MÊME QU'IL EST PARTIEL.
+
+            Une source qui tombe ne rend pas l'audit faux : ce qui a été mesuré
+            reste mesuré. Mais le diagnostic repose alors sur moins que prévu, et
+            c'est la seule chose que le marchand ne peut pas deviner en lisant le
+            rapport. Une limitation assumée — nous ne mesurons pas la vitesse
+            chez le visiteur — ne déclenche PAS ce bandeau : nous ne l'avons
+            jamais promise.
+          */}
+          {pannesDeCollecte.length > 0 && (
+            <div className="mt-6 flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-semibold">Ce diagnostic est partiel</p>
+                <p className="mt-1 text-muted-foreground">
+                  {pannesDeCollecte.length === 1
+                    ? "Une source de données n'a pas répondu pendant l'analyse."
+                    : `${pannesDeCollecte.length} sources de données n'ont pas répondu pendant l'analyse.`}{" "}
+                  Ce qui suit reste établi sur ce qui a pu être lu, mais une partie du diagnostic
+                  n'a pas pu être faite.
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {pannesDeCollecte.map((g) => (
+                    <li key={g.id} className="text-muted-foreground">
+                      {g.label} — {g.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {donneesAbsentes.length > 0 && (
             <details className="group mt-6 rounded-xl border border-border bg-card">
               <summary className="flex cursor-pointer items-center gap-2 p-4 text-sm font-semibold">
                 <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
-                Ce que nous n'avons pas pu regarder ({manquesDeCollecte.length})
+                Données pas encore disponibles ({donneesAbsentes.length})
               </summary>
               <ul className="space-y-4 border-t border-border p-4">
-                {manquesDeCollecte.map((g) => {
+                {donneesAbsentes.map((g) => {
                   const e = explain(g.id, g.label, g.reason);
                   return (
                     <li key={g.id} className="border-l-2 border-border pl-3">
@@ -814,6 +883,40 @@ function AuditPage() {
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         Ce que cela rouvrirait : {e.unlocks}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          )}
+
+          {/*
+            CE QUE NOUS NE MESURONS PAS ENCORE, ET QUI NE VIENT PAS DE LA
+            BOUTIQUE. Ranger ces trois-là avec les données manquantes faisait
+            chercher au marchand une correction qui n'existe pas de son côté.
+          */}
+          {limitationsDeMesure.length > 0 && (
+            <details className="group mt-4 rounded-xl border border-border bg-card">
+              <summary className="flex cursor-pointer items-center gap-2 p-4 text-sm font-semibold">
+                <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                Ce que nous ne mesurons pas encore ({limitationsDeMesure.length})
+              </summary>
+              <ul className="space-y-4 border-t border-border p-4">
+                {limitationsDeMesure.map((g) => {
+                  const e = explain(g.id, g.label, g.reason);
+                  return (
+                    <li key={g.id} className="border-l-2 border-border pl-3">
+                      <p className="text-sm font-medium">{e.what}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{e.why}</p>
+                      <p className="mt-1.5 text-sm">
+                        {/*
+                          PAS « ce que vous pouvez faire » : ces trois mesures
+                          ne sont pas à sa portée, elles sont hors de la nôtre.
+                          Ce qu'il peut, c'est aller voir par lui-même.
+                        */}
+                        <span className="font-medium">Comment le vérifier vous-même : </span>
+                        <span className="text-muted-foreground">{e.how}</span>
                       </p>
                     </li>
                   );
