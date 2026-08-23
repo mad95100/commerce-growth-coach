@@ -284,7 +284,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/catalogue-vide-bout-en-bout.test.ts",
-    minChecks: 73,
+    minChecks: 89,
     covers:
       "product_count = 0, de la mesure au texte final. Le rapport réel affichait « Votre boutique ne propose aucun produit à la vente » en constat [1] et, deux constats plus bas, « Ce que nous supposons : Le catalogue contient des produits actifs et publiés dans l'administration Shopify, mais aucun lien n'a été créé pour les afficher sur la page d'accueil ». Deux phrases contradictoires dans le même rapport, dont la seconde inventait une cause alternative là où la vraie était établie et envoyait le marchand créer des liens vers des produits inexistants. Aucun test unitaire ne pouvait le voir : le défaut ne vivait DANS aucune couche, il vivait entre elles — le prompt demandait, `sanitizeAuditPayload` recopiait, et rien ne confrontait jamais le texte rendu aux chiffres comptés. Cette suite part des données brutes de Shopify, traverse observations, règles, priorisation, bloc envoyé au modèle, puis injecte la réponse de production mot pour mot et vérifie que la contradiction est retirée et remplacée par ce qui a été compté. Elle vérifie aussi les deux moitiés qu'on perd en corrigeant trop fort : une phrase qui NIE l'existence est conservée, et sans mesure du catalogue la même hypothèse redevient légitime.",
   },
@@ -326,7 +326,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/raisonnement.test.ts",
-    minChecks: 75,
+    minChecks: 80,
     covers:
       "Le passage du symptôme au raisonnement. Les causes racines étaient calculées, justes, et ignorées par le classement — le plan pouvait proposer de corriger un effet avant la cause qui le produit. Couvre l'effet de dépendance et ses trois garde-fous (il multiplie la formule, donc il passe par le poids de preuve ; il est plafonné ; une donnée insuffisante ne peut pas en profiter), les diagnostics de convergence qui remplacent leurs constituants au lieu de s'y ajouter, les trois états de disponibilité — disponible, épuisé, illisible — jamais réduits à deux, le prix, les variantes et les métadonnées enfin lus, et la portée des preuves : aucun constat de vitrine ne prétend avoir inspecté le site entier.",
   },

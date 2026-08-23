@@ -577,15 +577,43 @@ export default defineSuite("Raisonnement — dépendances, convergence, données
       false,
     );
   }
-  // Aucun montant inventé : seule une règle porte un montant, et il vient d'une
-  // dépense réellement mesurée.
-  const avecMontant = RULES.map((r) => r.evaluate.toString()).filter((s) => s.includes("amount:"));
-  t.check("une seule règle chiffre un montant", avecMontant.length, 1);
-  t.check(
-    "…et elle le prend dans une dépense mesurée",
-    avecMontant[0].includes("value: spend"),
-    true,
-  );
+  /*
+    AUCUN MONTANT INVENTÉ — LA RÈGLE, PAS LEUR NOMBRE.
+
+    Ce contrôle exigeait qu'UNE SEULE règle porte un montant. C'était vrai tant
+    qu'il n'y en avait qu'une ; ce n'est pas ce qu'il protège. Une seconde règle
+    chiffre désormais la dépense publicitaire d'une boutique sans catalogue — un
+    montant tout aussi mesuré que le premier.
+
+    Ce qui doit tenir, quel qu'en soit le nombre : un montant vient TOUJOURS
+    d'une observation, jamais d'un littéral ni d'un facteur choisi. Un nombre
+    écrit à la main dans un `amount` serait une estimation déguisée en mesure.
+  */
+  const reglesAvecMontant = RULES.filter((r) => r.evaluate.toString().includes("amount:"));
+  t.check("des règles chiffrent un montant", reglesAvecMontant.length >= 1, true);
+  for (const r of reglesAvecMontant) {
+    const corps = r.evaluate.toString();
+    // La valeur du montant, telle qu'elle est écrite.
+    const valeurs = [...corps.matchAll(/amount:[^}]*?value:\s*([^,\n}]+)/g)].map((m) =>
+      m[1].trim(),
+    );
+    t.check(`${r.id} — son montant a bien une valeur`, valeurs.length >= 1, true);
+    for (const v of valeurs) {
+      // Un littéral numérique nu serait un chiffre inventé.
+      t.check(
+        `${r.id} — son montant n'est pas un nombre écrit à la main`,
+        /^-?\d+(\.\d+)?$/.test(v),
+        false,
+      );
+    }
+    // Et la devise n'est jamais supposée : elle vient de la donnée ou le
+    // montant n'est pas publié.
+    t.check(
+      `${r.id} — sa devise vient de la donnée`,
+      /currency:\s*(spend|devise|[a-zA-Z]+\.currency|[a-zA-Z]+\?\.currency)/.test(corps),
+      true,
+    );
+  }
 
   // Un compteur à zéro reste une mesure ; une donnée absente reste absente.
   t.check(

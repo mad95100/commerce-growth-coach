@@ -140,6 +140,63 @@ const obsSimple = (id: string, value: number) =>
     sample: 200,
   }) as Observation;
 
+/** Une boutique qui vend vraiment, pour le sens inverse. */
+const produit = (i: number) => ({
+  id: i,
+  handle: `p${i}`,
+  title: `Sac ${i}`,
+  body_html:
+    "<p>Une description correcte et suffisamment longue pour passer le seuil du moteur.</p>",
+  status: "active",
+  images: [{ src: "https://x/i.jpg" }],
+  variants: [
+    { id: i, price: String(40 + i), inventory_quantity: 8, inventory_management: "shopify" },
+  ],
+});
+const commande = (i: number) => ({
+  id: i,
+  total_price: "60.00",
+  total_discounts: "0",
+  financial_status: "paid",
+  created_at: new Date().toISOString(),
+  customer: { id: i },
+  discount_codes: [],
+  refunds: [],
+  line_items: [{ id: i, quantity: 1 }],
+});
+
+/** Une vitrine saine, pour que seuls le catalogue et l'activité varient. */
+const VITRINE_SAINE = {
+  ...VITRINE,
+  pages: [
+    page(
+      "accueil",
+      "https://ecom-pilot-test.myshopify.com/",
+      `<html><head><title>Boutique</title><meta name="description" content="d">
+<meta name="viewport" content="width=device-width"></head><body><h1>Des sacs en cuir</h1>
+<nav><a href="/collections/a">A</a></nav><a href="/collections/a">Découvrir</a>
+<p>Livraison suivie, retours 30 jours, paiement sécurisé.</p></body></html>`,
+    ),
+    sonde("refund-policy", 200),
+    sonde("shipping-policy", 200),
+    sonde("terms-of-service", 200),
+  ],
+} as unknown as StorefrontRaw;
+
+const depensePub = (id: string, valeur: number): Observation =>
+  ({
+    id,
+    source: id.startsWith("meta.") ? "meta" : "google",
+    domain: "acquisition",
+    label: id,
+    value: valeur,
+    unit: "currency",
+    currency: "EUR",
+    periodDays: 30,
+    evidence: `dépense relevée pour ${id}`,
+    sample: 1000,
+  }) as Observation;
+
 export default defineSuite("Catalogue vide — de la mesure au texte final", (t) => {
   // =========================================================================
   // 1. LA COLLECTE : le fait est compté, pas déduit
@@ -475,6 +532,153 @@ export default defineSuite("Catalogue vide — de la mesure au texte final", (t)
       0,
     );
   }
+
+  // =========================================================================
+  // 4 ter. LA NOTE, PROUVÉE DANS LES DEUX SENS PAR LES COLLECTEURS RÉELS
+  // =========================================================================
+  /*
+    J'AVAIS AFFIRMÉ CE CAS INATTEIGNABLE. IL NE L'ÉTAIT PAS.
+
+    J'avais conclu qu'un catalogue vide ne pouvait jamais obtenir de note en
+    production, et que le score élevé obtenu par balayage synthétique venait de
+    fixtures contournant les garde-fous des collecteurs. C'était faux.
+
+    Une boutique au catalogue VIDE qui fait de la PUBLICITÉ sortait à 91/100 par
+    le chemin réel. L'axe acquisition est commercial, il se mesure depuis Meta et
+    Google, et il n'a AUCUN rapport avec le catalogue : le garde-fou commercial
+    était donc satisfait, et la moyenne des axes propres sortait flatteuse. Ce
+    n'est pas un cas de laboratoire — c'est la situation de toute boutique qui
+    paie pour envoyer du monde sur une vitrine où il n'y a rien à acheter.
+
+    LE PRINCIPE QUI CORRIGE, et il ne vise aucun constat en particulier : une
+    note résume la façon dont une boutique transforme son OFFRE en chiffre
+    d'affaires. Sans offre, il n'y a rien à résumer.
+
+    Ce bloc part des COLLECTEURS, pas d'axes fabriqués : c'est la seule preuve
+    qui vaut, puisque c'est exactement là que mon raisonnement s'était trompé.
+  */
+  const sansProduit = (extra: Observation[] = []) => {
+    const shop = shopifyObservations({
+      currency: "EUR",
+      productCount: 0,
+      products: [],
+      orders: [],
+      abandonedCheckouts: null,
+      funnel: null,
+    } as unknown as Parameters<typeof shopifyObservations>[0]);
+    const vitr = storefrontObservations(VITRINE_SAINE);
+    return analyse({
+      observations: [...shop.observations, ...vitr.observations, ...extra],
+      gaps: [...shop.gaps, ...vitr.gaps],
+    });
+  };
+
+  t.check("catalogue vide seul — aucune note", sansProduit().score, null);
+  t.check(
+    "catalogue vide + publicité Meta — aucune note",
+    sansProduit([depensePub("meta.spend_30d", 900)]).score,
+    null,
+  );
+  t.check(
+    "catalogue vide + publicité Google — aucune note",
+    sansProduit([depensePub("google.spend_30d", 700)]).score,
+    null,
+  );
+  t.check(
+    "catalogue vide + les deux régies — aucune note",
+    sansProduit([depensePub("meta.spend_30d", 900), depensePub("google.spend_30d", 700)]).score,
+    null,
+  );
+  // ET L'AXE ACQUISITION EST BIEN MESURÉ : ce n'est pas la couverture qui
+  // refuse la note, c'est l'absence d'offre à noter.
+  t.check(
+    "…alors même que l'acquisition est mesurée",
+    sansProduit([depensePub("meta.spend_30d", 900)]).axes.find((a) => a.axis === "acquisition")
+      ?.measured,
+    true,
+  );
+
+  /*
+    L'ABSENCE DE NOTE NE DIT RIEN DU PROBLÈME, et celui-ci est le plus coûteux
+    qu'un marchand puisse avoir : de l'argent qui part chaque jour pour amener
+    des visiteurs devant une vitrine sans offre. Aucune règle ne le voyait —
+    `acquisition.spend_without_purchase` exige des commandes,
+    `merchandising.catalogue_vide` ignore la publicité, et leur croisement
+    n'existait pas.
+  */
+  const avecPub = sansProduit([depensePub("meta.spend_30d", 900)]);
+  const depense = avecPub.findings.find((f) => f.ruleId === "acquisition.depense_sans_catalogue");
+  t.check("la dépense sans catalogue produit un constat", depense !== undefined, true);
+  t.check("…mesuré, pas déduit", depense?.level, "prouve");
+  t.check(
+    "…qui cite le montant réellement dépensé",
+    /900 EUR/.test(depense?.statement ?? ""),
+    true,
+  );
+  t.check(
+    "…et il passe en tête du rapport",
+    avecPub.priorities[0]?.ruleId,
+    "acquisition.depense_sans_catalogue",
+  );
+  // LE MONTANT DÉPENSÉ EST MESURÉ ; CE QU'IL AURAIT PU RAPPORTER NE L'EST PAS.
+  t.check(
+    "…sans promettre ce que cette dépense aurait rapporté",
+    /aurait rapporté|aurait généré|manque à gagner/i.test(depense?.why ?? ""),
+    false,
+  );
+  // DEUX DEVISES NE S'ADDITIONNENT PAS.
+  const deuxDevises = sansProduit([
+    depensePub("meta.spend_30d", 900),
+    { ...depensePub("google.spend_30d", 700), currency: "USD" } as Observation,
+  ]).findings.find((f) => f.ruleId === "acquisition.depense_sans_catalogue");
+  t.check(
+    "deux devises différentes ne produisent aucun total",
+    /\d+\s+(EUR|USD)/.test(deuxDevises?.statement ?? ""),
+    false,
+  );
+
+  /*
+    LE SENS INVERSE. Un garde-fou qui refuserait toujours de noter serait
+    l'autre façon de le rendre inutile : une boutique qui vend, dont le
+    catalogue est fourni et dont les chiffres sont cohérents, DOIT obtenir sa
+    note.
+  */
+  const boutiqueQuiVend = analyse({
+    observations: [
+      ...shopifyObservations({
+        currency: "EUR",
+        productCount: 24,
+        products: Array.from({ length: 24 }, (_, i) => produit(i + 1)),
+        orders: Array.from({ length: 130 }, (_, i) => commande(i + 1)),
+        abandonedCheckouts: null,
+        funnel: null,
+      } as unknown as Parameters<typeof shopifyObservations>[0]).observations,
+      ...storefrontObservations(VITRINE_SAINE).observations,
+      obsSimple("shopify.sessions_30d", 4000),
+      {
+        ...obsSimple("shopify.conversion_rate", 0),
+        value: 130 / 4000,
+        unit: "percent",
+      } as Observation,
+    ],
+    gaps: [],
+  });
+  t.check(
+    "catalogue rempli + activité cohérente — une note existe",
+    boutiqueQuiVend.score !== null,
+    true,
+  );
+  t.check("…et elle est bonne", (boutiqueQuiVend.score ?? 0) >= 80, true);
+  t.check(
+    "…sans constat de catalogue vide",
+    boutiqueQuiVend.findings.some((f) => f.ruleId === "merchandising.catalogue_vide"),
+    false,
+  );
+  t.check(
+    "…ni de dépense sans catalogue",
+    boutiqueQuiVend.findings.some((f) => f.ruleId === "acquisition.depense_sans_catalogue"),
+    false,
+  );
 
   // =========================================================================
   // 5. CE QUE LE FILTRE NE DOIT PAS FAIRE

@@ -33,6 +33,7 @@
  * Module PUR : aucune entrée-sortie, aucun appel réseau, aucune horloge.
  */
 
+import { findObservation } from "@/lib/observations";
 import type { Observation, ObservationGap } from "@/lib/observations";
 // Le seuil de lenteur appartient au module qui la mesure. L'importer plutôt
 // que le recopier évite qu'un jour la règle et la mesure ne parlent plus du
@@ -641,6 +642,64 @@ export const RULES: Rule[] = [
     ses deux sources ne disent pas la même chose, ce qui est en soi un problème
     qu'il peut aller regarder.
   */
+  /*
+    PAYER POUR ENVOYER DU MONDE SUR UNE BOUTIQUE OÙ IL N'Y A RIEN À ACHETER.
+
+    Découvert en cherchant à produire un score absurde : une boutique au
+    catalogue VIDE mais qui fait de la publicité sortait à 91/100. Le score est
+    désormais refusé — mais l'absence de note ne dit rien du problème, et
+    celui-ci est le plus coûteux qu'un marchand puisse avoir : de l'argent qui
+    part chaque jour pour amener des visiteurs devant une vitrine sans offre.
+
+    Aucune règle ne le voyait. `acquisition.spend_without_purchase` demande des
+    commandes pour se prononcer ; `merchandising.catalogue_vide` ignore la
+    publicité. Le croisement des deux n'existait pas.
+
+    LE MONTANT EST CONNU, il est donc dit. Ce que nous ne disons pas : combien
+    de ventes cela aurait pu produire — cela demanderait de savoir ce que la
+    boutique vendrait, et elle ne vend rien.
+  */
+  {
+    id: "acquisition.depense_sans_catalogue",
+    axis: "acquisition",
+    requires: ["shopify.product_count"],
+    evaluate: (ctx) => {
+      const produits = num(ctx, "shopify.product_count");
+      if (produits === null || produits > 0) return null;
+
+      const meta = findObservation(ctx.observations, "meta.spend_30d");
+      const google = findObservation(ctx.observations, "google.spend_30d");
+      const depenses = [meta, google].filter(
+        (o): o is Observation => !!o && o.value !== null && o.value > 0,
+      );
+      if (depenses.length === 0) return null;
+
+      // Deux régies dans deux devises ne s'additionnent pas. Sans devise
+      // commune, on nomme le fait sans avancer de total.
+      const devises = new Set(depenses.map((o) => o.currency ?? null));
+      const total = depenses.reduce((sum, o) => sum + (o.value ?? 0), 0);
+      const devise = devises.size === 1 ? (depenses[0].currency ?? null) : null;
+
+      const t = trace(ctx, depenses.map((o) => o.id).concat("shopify.product_count"));
+      return emit(RULES_BY_ID["acquisition.depense_sans_catalogue"], {
+        title: "Vous payez de la publicité vers une boutique sans produit",
+        statement:
+          devise !== null
+            ? `${Math.round(total)} ${devise} de dépense publicitaire sur la période, alors que le catalogue ne contient aucun produit.`
+            : "De la dépense publicitaire est en cours alors que le catalogue ne contient aucun produit.",
+        why: "Cette dépense amène des visiteurs devant une boutique où rien ne peut être acheté. C'est le seul point de ce rapport qui coûte de l'argent chaque jour où il reste en l'état.",
+        level: "prouve",
+        ...t,
+        impact: 5,
+        effort: 1,
+        // Le montant dépensé est mesuré ; ce qu'il aurait pu rapporter ne l'est
+        // pas — cela demanderait de savoir ce que la boutique vendrait.
+        amount: devise !== null ? { value: Math.round(total), currency: devise } : undefined,
+        recommendation:
+          "Mettre les campagnes en pause le temps de publier au moins un produit. La dépense reprendra quand il y aura quelque chose à vendre ; elle ne rattrapera pas ce qui a été dépensé d'ici là.",
+      });
+    },
+  },
   {
     id: "data.taux_incoherent",
     axis: "data",
@@ -2265,7 +2324,36 @@ export const COMMERCIAL_AXES: readonly AuditAxis[] = [
   "retention",
 ] as const;
 
-export function globalScore(axes: AxisScore[]): number | null {
+/**
+ * Faits qui rendent TOUTE note dépourvue de sens, quelle que soit la couverture.
+ *
+ * LE CAS QUI A IMPOSÉ CETTE LISTE, et je l'avais déclaré inatteignable à tort.
+ * Une boutique au catalogue VIDE mais qui fait de la publicité obtenait
+ * **91/100** par le chemin réel des collecteurs. L'axe acquisition est
+ * commercial, il est mesuré depuis Meta et Google, et il n'a aucun rapport avec
+ * le catalogue : le garde-fou commercial était donc satisfait, et la moyenne des
+ * axes propres sortait flatteuse.
+ *
+ * Ce n'est pas un cas de laboratoire : c'est la situation de toute boutique qui
+ * paie pour envoyer du monde sur une vitrine où il n'y a rien à acheter.
+ *
+ * LE PRINCIPE, ET IL NE VISE PAS UN CONSTAT PARTICULIER : une note résume la
+ * façon dont une boutique transforme son OFFRE en chiffre d'affaires. Sans
+ * offre, il n'y a rien à résumer — tous les axes ne décrivent plus qu'une
+ * coquille. Ce n'est pas « le catalogue vide est grave », c'est « il n'y a pas
+ * de commerce à noter ».
+ */
+const FAITS_QUI_ANNULENT_LA_NOTE: ReadonlyArray<{
+  observation: string;
+  annuleQuand: (valeur: number) => boolean;
+}> = [{ observation: "shopify.product_count", annuleQuand: (v) => v === 0 }];
+
+export function globalScore(axes: AxisScore[], observations: Observation[] = []): number | null {
+  for (const fait of FAITS_QUI_ANNULENT_LA_NOTE) {
+    const o = observations.find((obs) => obs.id === fait.observation);
+    if (o && o.value !== null && Number.isFinite(o.value) && fait.annuleQuand(o.value)) return null;
+  }
+
   // On filtre sur le SCORE, pas sur `measured` : c'est la seule forme que le
   // compilateur sait vérifier, et elle rend impossible d'additionner un axe
   // sans note même si les deux champs venaient un jour à diverger.
@@ -2486,7 +2574,7 @@ export function analyse(ctx: RuleContext): RuleReport {
     findings,
     priorities,
     axes,
-    score: globalScore(axes),
+    score: globalScore(axes, ctx.observations),
     plan: buildActionPlan(priorities),
     unresolved: [
       ...findings.filter((f) => f.level === "donnee_insuffisante").map((f) => f.statement),
