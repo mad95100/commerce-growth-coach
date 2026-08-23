@@ -152,7 +152,17 @@ const DECLARE_LA_NON_MESURE =
  * laisseraient repasser tout ce que cette distinction vient d'écarter.
  */
 const VERBE_D_EXISTENCE =
-  /\b(exist\w*|enregistr\w*|cr[ée]{1,2}\w*|publi\w*|trouv\w*|figur\w*|contien\w*|comport\w*|recens\w*|ajout\w*|import\w*|saisi\w*|r[ée]f[ée]renc\w*)\b/i;
+  /\b(exist\w*|enregistr\w*|cr[ée]{1,2}\w*|publi\w*|trouv\w*|figur\w*|contien\w*|comport\w*|recens\w*|ajout\w*|import\w*|saisi\w*|r[ée]f[ée]renc\w*|vide|inexistant\w*|introuvable\w*|absent\w*)\b/i;
+
+/**
+ * Marques d'un propos FUTUR ou CONDITIONNEL.
+ *
+ * « Une fois vos produits créés, ils pourront être mis en avant » ne prétend
+ * rien de l'instant : elle décrit ce qui deviendra possible. C'est même la
+ * bonne façon d'annoncer la suite à un marchand dont le catalogue est vide.
+ */
+const AU_FUTUR =
+  /\b(une fois|quand|lorsque|d[èe]s que|apr[èe]s (avoir|que)|pourr\w+|serai?[tez]?|seront|viendr\w+|deviendr\w+|permettr\w+)\b/i;
 
 export const FAITS_OPPOSABLES: FaitOpposable[] = [
   {
@@ -211,8 +221,32 @@ export type Confrontation = {
  * Elle est cherchée dans une fenêtre étroite AUTOUR du mot — des deux côtés,
  * parce que « vos produits ne sont pas créés » place la négation après.
  */
+/**
+ * UNE NÉGATION NE TRAVERSE PAS UNE FRONTIÈRE DE PROPOSITION.
+ *
+ * Trouvé au quatrième jeu adversarial : « Aucune commande : vos fiches ne
+ * convertissent pas. » Le « Aucune » porte sur les COMMANDES ; il se trouvait
+ * simplement dans la fenêtre qui précède « fiches », et protégeait donc une
+ * affirmation sur le catalogue qui n'était pas la sienne. C'est la faute
+ * d'origine, à plus courte portée.
+ *
+ * La fenêtre est donc coupée à la dernière ponctuation forte : au-delà, la
+ * négation appartient à une autre proposition.
+ */
+function coupeALaProposition(avant: string): string {
+  const frontiere = Math.max(
+    avant.lastIndexOf(":"),
+    avant.lastIndexOf(";"),
+    avant.lastIndexOf(","),
+    avant.lastIndexOf("—"),
+  );
+  return frontiere === -1 ? avant : avant.slice(frontiere + 1);
+}
+
 function motNie(phrase: string, position: number, longueur: number): boolean {
-  const avant = phrase.slice(Math.max(0, position - PORTEE_DE_LA_NEGATION), position);
+  const avant = coupeALaProposition(
+    phrase.slice(Math.max(0, position - PORTEE_DE_LA_NEGATION), position),
+  );
   // UNE NÉGATION QUI PRÉCÈDE LE MOT NIE TOUJOURS SON EXISTENCE : « aucun
   // produit », « pas de fiche », « 0 produit ». Aucune ambiguïté possible.
   if (NIE.test(avant)) return true;
@@ -254,6 +288,11 @@ export function confronter(texte: string, faits: FaitOpposable[]): Confrontation
         trouve.index + trouve[0].length + PORTEE_DE_LA_NEGATION * 2,
       );
       if (DECLARE_LA_NON_MESURE.test(fenetre) && !VERBE_D_EXISTENCE.test(fenetre)) continue;
+
+      // PARLER DU FUTUR N'EST PAS AFFIRMER LE PRÉSENT. « Une fois vos produits
+      // créés, ils pourront être mis en avant » annonce la suite ; elle ne
+      // prétend pas que les produits sont là.
+      if (AU_FUTUR.test(phrase)) continue;
 
       const nie = motNie(phrase, trouve.index, trouve[0].length);
 

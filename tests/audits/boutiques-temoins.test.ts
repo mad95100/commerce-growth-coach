@@ -503,7 +503,7 @@ export default defineSuite("Moteur — boutiques témoins, verdict de bout en bo
       ...vitrineIrreprochable.filter((o) => o.id !== "shopify.orders_30d"),
       obs("shopify.orders_30d", 120),
       obs("shopify.sessions_30d", 4000),
-      obs("shopify.conversion_rate", 0.03, { unit: "percent" }),
+      obs("shopify.conversion_rate", 120 / 4000, { unit: "percent" }),
     ],
     gaps: [],
   } as RuleContext);
@@ -582,7 +582,11 @@ export default defineSuite("Moteur — boutiques témoins, verdict de bout en bo
     ...CATALOGUE_FOURNI,
     obs("shopify.sessions_30d", 4000),
     obs("shopify.orders_30d", 120),
-    obs("shopify.conversion_rate", 3, { unit: "percent" }),
+    // LE TAUX EST UN RATIO, PAS UN POURCENTAGE. Ce fixture portait `3` — soit
+    // 300 % — et la nouvelle règle de cohérence l'a attrapé : elle a comparé le
+    // taux annoncé aux 120 commandes sur 4 000 sessions et refusé de noter la
+    // conversion. Le contrôle échouait donc pour la bonne raison.
+    obs("shopify.conversion_rate", 120 / 4000, { unit: "percent" }),
   ]);
   t.check("4. trafic et commandes — une note existe", quiVend !== null, true);
   t.check("…et elle est nettement meilleure", (quiVend ?? 0) > (trafficSansVente ?? 0), true);
@@ -683,5 +687,64 @@ export default defineSuite("Moteur — boutiques témoins, verdict de bout en bo
     "…et le catalogue vide en fait partie",
     sansNote.findings.some((f) => f.ruleId === "merchandising.catalogue_vide"),
     true,
+  );
+
+  /*
+    DEUX SOURCES QUI SE CONTREDISENT : NOUS N'EN CROYONS AUCUNE.
+
+    Trouvé par balayage systématique des trente-neuf règles. Le moteur acceptait
+    `shopify.conversion_rate` tel quel, sans jamais le confronter aux comptes de
+    commandes et de sessions dont il dispose pourtant. Un taux annoncé
+    incohérent d'un ordre de grandeur passait sans un mot, l'axe conversion
+    n'était pas déduit, et le score global s'en trouvait flatté.
+
+    Ce n'est pas un cas d'école : le taux vient de ShopifyQL, les commandes de
+    l'API REST, et les deux ne partagent ni fenêtre ni définition exacte.
+  */
+  const incoherent = analyse({
+    observations: [
+      ...VITRINE_SAINE,
+      ...CATALOGUE_FOURNI,
+      obs("shopify.sessions_30d", 8000),
+      obs("shopify.orders_30d", 3),
+      // 90 % annoncés là où 3 commandes sur 8 000 sessions donnent 0,04 %.
+      obs("shopify.conversion_rate", 0.9, { unit: "percent" }),
+    ],
+    gaps: [],
+  } as RuleContext);
+  const constatIncoherence = incoherent.findings.find((f) => f.ruleId === "data.taux_incoherent");
+  t.check(
+    "une incohérence entre sources produit un constat",
+    constatIncoherence !== undefined,
+    true,
+  );
+  t.check(
+    "…qui cite les deux chiffres",
+    /3 commande/.test(constatIncoherence?.statement ?? ""),
+    true,
+  );
+  // NOUS NE CHOISISSONS PAS QUELLE SOURCE CROIRE : l'axe est aveuglé, comme il
+  // l'est déjà quand le trafic n'est pas mesuré.
+  t.check(
+    "…et la conversion n'est plus notée",
+    incoherent.axes.find((a) => a.axis === "conversion")?.measured,
+    false,
+  );
+  // UN ÉCART LÉGER RESTE TOLÉRÉ : les fenêtres et définitions ne coïncident pas
+  // exactement, et un seuil trop serré rendrait la conversion innotable partout.
+  const leger = analyse({
+    observations: [
+      ...VITRINE_SAINE,
+      ...CATALOGUE_FOURNI,
+      obs("shopify.sessions_30d", 4000),
+      obs("shopify.orders_30d", 120),
+      obs("shopify.conversion_rate", (120 / 4000) * 1.5, { unit: "percent" }),
+    ],
+    gaps: [],
+  } as RuleContext);
+  t.check(
+    "un écart léger ne déclenche rien",
+    leger.findings.some((f) => f.ruleId === "data.taux_incoherent"),
+    false,
   );
 });

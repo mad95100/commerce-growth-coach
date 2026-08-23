@@ -160,6 +160,18 @@ export const THRESHOLDS = {
    * Exprimé en RATIO, comme l'observation : 0,005 = un demi pour cent.
    */
   CONVERSION_RATE_ANORMALE: 0.005,
+  /**
+   * Écart toléré entre le taux annoncé et le taux recalculé.
+   *
+   * `shopify.conversion_rate` vient de ShopifyQL ; `orders_30d` et
+   * `sessions_30d` viennent d'ailleurs. Les trois peuvent diverger un peu — les
+   * fenêtres et les définitions ne coïncident pas exactement — mais pas d'un
+   * ordre de grandeur. Au-delà, l'une des deux sources se trompe, et nous ne
+   * savons pas laquelle.
+   *
+   * Un facteur trois absorbe les écarts légitimes et attrape les autres.
+   */
+  ECART_TAUX_TOLERE: 3,
   /** Part de fiches sans description au-delà de laquelle c'est systémique. */
   DESCRIPTIONS_MISSING_SHARE: 0.3,
   /** Part de produits en rupture au-delà de laquelle l'offre se vide. */
@@ -609,6 +621,63 @@ export const RULES: Rule[] = [
     pas à quelle marche la perte se produit — et n'oppose aucune moyenne de
     marché, que le produit s'interdit.
   */
+  /*
+    DEUX SOURCES QUI SE CONTREDISENT : NOUS N'EN CROYONS AUCUNE.
+
+    TROUVÉ PAR BALAYAGE. Le moteur acceptait `shopify.conversion_rate` tel quel,
+    sans jamais le confronter au compte de commandes et de sessions dont il
+    dispose pourtant. Un taux de 90 % annoncé sur trois commandes et huit mille
+    sessions — soit 0,04 % en réalité — passait sans un mot, l'axe conversion
+    n'était pas déduit, et le score global sortait à 84 sur une boutique qui ne
+    vend rien.
+
+    Ce n'est pas un cas d'école : le taux vient de ShopifyQL, les commandes de
+    l'API REST, et les deux ne partagent ni fenêtre ni définition exacte. Un
+    écart léger est normal ; un ordre de grandeur signifie qu'une des deux
+    sources se trompe.
+
+    Nous ne choisissons pas laquelle. L'axe conversion est AVEUGLÉ — le
+    mécanisme existe déjà pour le trafic non mesuré — et le marchand apprend que
+    ses deux sources ne disent pas la même chose, ce qui est en soi un problème
+    qu'il peut aller regarder.
+  */
+  {
+    id: "data.taux_incoherent",
+    axis: "data",
+    requires: ["shopify.conversion_rate", "shopify.sessions_30d", "shopify.orders_30d"],
+    evaluate: (ctx) => {
+      const taux = num(ctx, "shopify.conversion_rate");
+      const sessions = num(ctx, "shopify.sessions_30d");
+      const orders = num(ctx, "shopify.orders_30d");
+      if (taux === null || sessions === null || orders === null) return null;
+      if (sessions <= 0 || taux <= 0) return null;
+
+      const recalcule = orders / sessions;
+      if (recalcule <= 0) return null;
+      const ecart = Math.max(taux / recalcule, recalcule / taux);
+      if (ecart < THRESHOLDS.ECART_TAUX_TOLERE) return null;
+
+      const t = trace(ctx, [
+        "shopify.conversion_rate",
+        "shopify.sessions_30d",
+        "shopify.orders_30d",
+      ]);
+      const pct = (v: number) => `${Math.round(v * 1000) / 10} %`;
+      return emit(RULES_BY_ID["data.taux_incoherent"], {
+        title: "Vos deux sources de vente ne donnent pas le même chiffre",
+        statement: `Le taux de transformation rapporté est de ${pct(taux)}, alors que ${orders} commande(s) pour ${sessions} sessions donnent ${pct(recalcule)}.`,
+        why: "Ces deux chiffres viennent de deux endroits différents de Shopify. Tant qu'ils se contredisent à ce point, nous ne savons pas lequel dit vrai — et nous préférons ne rien conclure sur votre transformation plutôt que de bâtir un diagnostic sur le mauvais.",
+        level: "prouve",
+        ...t,
+        impact: 3,
+        effort: 2,
+        // Sans savoir quel chiffre croire, la conversion ne peut pas être notée.
+        blocksAxes: ["conversion"],
+        recommendation:
+          "Ouvrir Analyses dans Shopify et comparer le nombre de commandes de la période avec celui de votre liste de commandes. Si les deux diffèrent, c'est le plus souvent qu'une partie des commandes n'est pas comptée dans les statistiques — les commandes en brouillon ou passées hors ligne, par exemple.",
+      });
+    },
+  },
   {
     id: "conversion.taux_anormalement_bas",
     axis: "conversion",
@@ -886,6 +955,10 @@ export const RULES: Rule[] = [
       "trust.avis_absents_fiche",
       "produit.achat_impossible",
       "data.disponibilite_non_lisible",
+      // Trouvée par un balayage systématique des trente-huit règles : cette
+      // convergence parle de fiches produit qui reçoivent du trafic. Sur un
+      // catalogue vide, il n'y a pas de fiche à recevoir quoi que ce soit.
+      "conversion.fiche_sans_reponse_avec_trafic",
     ],
     evaluate: (ctx) => {
       const total = num(ctx, "shopify.product_count");

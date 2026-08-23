@@ -427,6 +427,30 @@ export default defineSuite("Catalogue vide — de la mesure au texte final", (t)
     );
   }
 
+  const doitTomberEncore = [
+    // Comparatif : suppose une base existante
+    "Vos produits sont moins visibles que ceux de vos concurrents.",
+    "Votre catalogue mériterait d'être mieux structuré.",
+    // Conditionnel employé comme affirmation sur le présent
+    "Vos articles gagneraient à être reliés depuis l'accueil.",
+    // Question rhétorique
+    "Pourquoi vos produits ne sont-ils pas mis en avant ?",
+    // NÉGATION QUI APPARTIENT À UNE AUTRE PROPOSITION. Le « Aucune » porte sur
+    // les commandes ; il protégeait une affirmation sur le catalogue qui n'était
+    // pas la sienne — la faute d'origine, à plus courte portée.
+    "Aucune commande : vos fiches ne convertissent pas.",
+    // Quantification
+    "La plupart de vos références manquent de description.",
+    "Chacun de vos produits mériterait une photo supplémentaire.",
+  ];
+  for (const phrase of doitTomberEncore) {
+    t.check(
+      `hostile — « ${phrase.slice(0, 44)}… » est retirée`,
+      confronter(phrase, opposables).retire.length > 0,
+      true,
+    );
+  }
+
   const doitSurvivre = [
     "Aucun produit n'est enregistré.",
     "Nous avons compté 0 produit.",
@@ -437,6 +461,12 @@ export default defineSuite("Catalogue vide — de la mesure au texte final", (t)
     "Il est possible que des produits existent en brouillon, non publiés.",
     "Créez un produit, puis publiez-le sur votre boutique en ligne.",
     "La page d'accueil ne porte aucun titre de niveau 1.",
+    // « est vide » NIE l'existence aussi sûrement que « aucun ».
+    "Le catalogue est vide : rien ne peut être commandé.",
+    // PARLER DU FUTUR N'EST PAS AFFIRMER LE PRÉSENT — et c'est même la bonne
+    // façon d'annoncer la suite à un marchand dont le catalogue est vide.
+    "Une fois vos produits créés, ils pourront être mis en avant sur l'accueil.",
+    "Nous ne pouvons pas déterminer si des produits existent en brouillon.",
   ];
   for (const phrase of doitSurvivre) {
     t.check(
