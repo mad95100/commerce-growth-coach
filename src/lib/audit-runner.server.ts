@@ -4,6 +4,7 @@ import { computeCategoryScores, computeGlobalScore, computePotential } from "@/l
 import { analyseFindings, applyTechnicalFrontier } from "@/lib/finding-graph";
 import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-history";
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
+import { confronter, faitsEtablis } from "@/lib/faits-opposables";
 import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
 import {
   analyse as analyseRules,
@@ -710,6 +711,73 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
   const parsed = sanitizeAuditPayload(rawPayload);
   if (parsed.repairs.length > 0) {
     console.info(`[audit] ${parsed.repairs.length} correction(s) de forme :`, parsed.repairs);
+  }
+
+  /*
+    AUCUNE PHRASE NE PEUT CONTREDIRE UN FAIT QUE NOUS AVONS COMPTÉ.
+
+    LE DÉFAUT, RELEVÉ SUR UN RAPPORT RÉEL. Le catalogue de la boutique avait été
+    compté : ZÉRO produit. Le fait était mesuré, classé PREMIER, et présent dans
+    le bloc envoyé au modèle — le rapport le reprenait d'ailleurs correctement.
+    Deux constats plus bas, il affichait néanmoins :
+
+      « Ce que nous supposons : Le catalogue contient des produits actifs et
+        publiés dans l'administration Shopify, mais aucun lien n'a été créé
+        pour les afficher sur la page d'accueil. »
+
+    Le rapport se contredisait à l'intérieur de lui-même, inventait une cause
+    alternative là où la vraie était déjà établie, et envoyait le marchand créer
+    des liens vers des produits qui n'existent pas.
+
+    POURQUOI LE PROMPT NE POUVAIT PAS SUFFIRE. Les consignes interdisent déjà
+    d'inventer. Le modèle les a suivies pour le constat principal puis
+    contredites dans un champ que RIEN ne vérifiait : `sanitizeAuditPayload`
+    recopie `assumptions` mot pour mot. La seule barrière était une phrase de
+    consigne — c'est-à-dire aucune.
+
+    La confrontation a lieu ICI parce que c'est le seul endroit qui tient à la
+    fois le texte rendu et les observations qui le démentent. Elle porte sur les
+    quatre champs rédigés librement : ce n'est pas dans `assumptions` seul qu'une
+    contradiction peut se loger.
+  */
+  const opposables = faitsEtablis(allObservations(reports));
+  if (opposables.length > 0) {
+    const contredits: string[] = [];
+    for (const f of parsed.findings) {
+      const champs = [
+        // `root_cause` et `impact_description` sont facultatifs dans le
+        // schéma : un champ absent n'a rien à contredire.
+        ["root_cause", f.root_cause ?? ""] as const,
+        ["impact_description", f.impact_description ?? ""] as const,
+        ["assumptions", f.evidence.assumptions] as const,
+        ["title", f.title] as const,
+      ];
+      for (const [nom, valeur] of champs) {
+        const { texte, retire } = confronter(valeur, opposables);
+        if (retire.length === 0) continue;
+        contredits.push(...retire.map((r) => `${nom} — ${r}`));
+        if (nom === "assumptions") f.evidence.assumptions = texte;
+        else if (nom === "root_cause") f.root_cause = texte;
+        else if (nom === "impact_description") f.impact_description = texte;
+        else f.title = texte;
+      }
+    }
+    const verdict = confronter(parsed.verdict, opposables);
+    if (verdict.retire.length > 0) {
+      parsed.verdict = verdict.texte;
+      contredits.push(...verdict.retire.map((r) => `verdict — ${r}`));
+    }
+    const resume = confronter(parsed.summary, opposables);
+    if (resume.retire.length > 0) {
+      parsed.summary = resume.texte;
+      contredits.push(...resume.retire.map((r) => `summary — ${r}`));
+    }
+    if (contredits.length > 0) {
+      console.warn(
+        `[audit] ${contredits.length} affirmation(s) contredisant un fait mesuré, retirée(s) :`,
+        contredits,
+      );
+    }
   }
 
   // BARRIÈRE MÉCANIQUE. Le prompt DEMANDE au modèle de ne pas reproposer ce qui

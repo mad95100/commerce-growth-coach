@@ -1487,8 +1487,24 @@ export const RULES: Rule[] = [
         ...t,
         impact: 5,
         effort: 2,
+        /*
+          LA RECOMMANDATION NE PRÉSUPPOSE PAS CE QUE LE MOTEUR A COMPTÉ.
+
+          Elle disait « ajoutez une section de collections mises en avant ».
+          Sur une boutique dont le catalogue est VIDE — un fait mesuré, classé
+          premier dans le même rapport — ce conseil demande de mettre en avant
+          des produits qui n'existent pas. C'est là que le rapport se mettait à
+          raconter une histoire de produits mal reliés, et le modèle n'avait
+          qu'à la suivre : sa contradiction naissait ici, pas dans sa plume.
+
+          Le catalogue est lu à la source. Vide, la promesse et le geste restent
+          à préparer — ils resteront à écrire le jour où les produits seront là
+          — mais on ne demande plus de relier un catalogue absent.
+        */
         recommendation:
-          "Traiter les trois d'un seul geste, dans l'éditeur de thème : un titre qui dit ce que vous vendez et pour qui, un bouton d'action juste en dessous, et une section de collections mises en avant. C'est la même section du thème pour les trois.",
+          num(ctx, "shopify.product_count") === 0
+            ? "Traiter le titre et le bouton d'action dans l'éditeur de thème : un titre qui dit ce que vous vendez et pour qui, un bouton juste en dessous. La mise en avant des collections viendra quand le catalogue portera des produits."
+            : "Traiter les trois d'un seul geste, dans l'éditeur de thème : un titre qui dit ce que vous vendez et pour qui, un bouton d'action juste en dessous, et une section de collections mises en avant. C'est la même section du thème pour les trois.",
       });
     },
   },
@@ -2132,10 +2148,39 @@ export function globalScore(axes: AxisScore[]): number | null {
     n'annule pas la note à lui seul, et une boutique qui vend garde la sienne
     même si son catalogue est mince.
   */
-  const commerceMesure = axes.some((a) => a.score !== null && COMMERCIAL_AXES.includes(a.axis));
-  if (!commerceMesure) return null;
+  const notesCommerciales = axes
+    .filter((a) => COMMERCIAL_AXES.includes(a.axis))
+    .map((a) => a.score)
+    .filter((s): s is number => s !== null);
+  if (notesCommerciales.length === 0) return null;
 
-  return Math.round(notes.reduce((sum, n) => sum + n, 0) / notes.length);
+  const moyenne = Math.round(notes.reduce((sum, n) => sum + n, 0) / notes.length);
+  const moyenneCommerciale = Math.round(
+    notesCommerciales.reduce((sum, n) => sum + n, 0) / notesCommerciales.length,
+  );
+
+  /*
+    UNE BOUTIQUE NE VA PAS MIEUX QUE SON COMMERCE.
+
+    LE CAS QUI A IMPOSÉ CE PLAFOND, mesuré par exécution : quatre mille sessions
+    sur la période, ZÉRO commande, un catalogue complet et une vitrine
+    irréprochable. La règle `conversion.traffic_without_orders` s'était bien
+    déclenchée et avait fait tomber l'axe conversion à 58. Le score global
+    sortait pourtant à 94 : six axes de construction à 100 — merchandising,
+    offre, confiance, SEO, technique, UX — noyaient l'unique axe qui disait que
+    rien ne se vendait.
+
+    Chaque étape était juste. La moyenne, elle, était fausse : elle traite comme
+    commensurables des choses qui ne le sont pas. Les axes de construction disent
+    si le site est bien FAIT ; les axes commerciaux disent si l'affaire
+    FONCTIONNE. Les premiers sont des moyens, le second est la fin.
+
+    Le plafond énonce cela sans pondération arbitraire : la note globale ne peut
+    pas dépasser ce que le commerce obtient. Il ne joue que dans un sens — une
+    boutique qui vend bien mais dont le référencement est mauvais garde sa
+    moyenne, parce que là c'est bien la moyenne qui décrit son état.
+  */
+  return Math.min(moyenne, moyenneCommerciale);
 }
 
 // ---------------------------------------------------------------------------

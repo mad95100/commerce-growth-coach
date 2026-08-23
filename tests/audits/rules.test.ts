@@ -435,16 +435,59 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
   const avecConversion = vitrineSeule.map((a) =>
     a.axis === "conversion" ? axeNote("conversion", 80) : a,
   );
+  // Un axe non mesuré compté comme zéro ferait chuter la note d'une boutique
+  // dont on ne sait rien : le marchand lirait une mauvaise note là où il n'y a
+  // pas de note du tout.
   t.check(
     "les axes non mesurés ne pèsent pas dans la moyenne",
-    globalScore(avecConversion),
-    Math.round((100 + 92 + 100 + 78 + 60 + 80) / 6),
-  );
-  t.check(
-    "…et ne sont donc pas comptés comme des zéros",
-    globalScore(avecConversion) !== Math.round((100 + 92 + 100 + 78 + 60 + 80) / 10),
+    globalScore(avecConversion)! > Math.round((100 + 92 + 100 + 78 + 60 + 80) / 10),
     true,
   );
+  t.check("…et ne sont donc pas comptés comme des zéros", globalScore(avecConversion), 80);
+
+  /*
+    UNE BOUTIQUE NE VA PAS MIEUX QUE SON COMMERCE.
+
+    LE CAS MESURÉ PAR EXÉCUTION : quatre mille sessions, ZÉRO commande, un
+    catalogue complet et une vitrine irréprochable. La règle
+    `conversion.traffic_without_orders` s'était bien déclenchée et avait fait
+    tomber l'axe conversion à 58 — et le score global sortait à 94, parce que
+    six axes de construction à 100 le noyaient.
+
+    Chaque étape etait juste ; la moyenne était fausse. Elle traite comme
+    commensurables des choses qui ne le sont pas : les axes de construction
+    disent si le site est bien FAIT, les axes commerciaux si l'affaire
+    FONCTIONNE. Les premiers sont des moyens, le second est la fin.
+  */
+  const commerceEnPanne = vitrineSeule.map((a) =>
+    a.axis === "conversion" ? axeNote("conversion", 58) : a,
+  );
+  const moyenneBrute = Math.round((100 + 92 + 100 + 78 + 60 + 58) / 6);
+  t.check("la moyenne brute serait flatteuse", moyenneBrute > 80, true);
+  t.check(
+    "…mais la note ne dépasse pas ce que le commerce obtient",
+    globalScore(commerceEnPanne),
+    58,
+  );
+
+  // LE PLAFOND NE JOUE QUE DANS UN SENS. Une boutique qui vend bien mais dont
+  // le référencement est mauvais garde sa moyenne : là, c'est bien la moyenne
+  // qui décrit son état.
+  const commerceExcellent = [
+    axeNote("conversion", 95),
+    axeNote("acquisition", 90),
+    axeNote("seo", 20),
+    axeNote("technique", 40),
+    axeNote("trust", 30),
+    axeNote("merchandising", 35),
+    axeNote("offre", null),
+    axeNote("ux", null),
+    axeNote("retention", null),
+    axeNote("data", null),
+  ];
+  const moyenneBasse = Math.round((95 + 90 + 20 + 40 + 30 + 35) / 6);
+  t.check("un commerce sain n'efface pas le reste", globalScore(commerceExcellent), moyenneBasse);
+  t.check("…et la note reste bien en dessous du commerce seul", moyenneBasse < 90, true);
 
   // ET LE GARDE-FOU NE DÉPEND D'AUCUN CONSTAT EN PARTICULIER. Un catalogue vide
   // n'annule pas la note à lui seul — c'est la couverture qui décide, pas un
@@ -459,10 +502,12 @@ export default defineSuite("Audit — moteur de règles déterministes", (t) => 
   );
   // La note reste la moyenne des axes MESURÉS, garde-fou franchi : le seuil
   // décide s'il y a une note, jamais laquelle.
+  // La note reste bornée par le commerce : ici la conversion à 55 est en
+  // dessous de la moyenne des mesurés, c'est donc elle qui décide.
   t.check(
-    "la note est bien la moyenne des axes mesurés",
+    "la note ne dépasse pas ce que le commerce obtient",
     globalScore(catalogueVideMaisCommerceMesure),
-    Math.round((100 + 92 + 100 + 78 + 60 + 55) / 6),
+    55,
   );
 
   // L'AXE AVEUGLÉ N'EST PAS NOTÉ. Sans trafic mesuré, une note de conversion

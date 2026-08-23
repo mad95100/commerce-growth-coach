@@ -48,6 +48,25 @@ RÈGLES SUR LES DONNÉES (non négociables) :
   elle découle de ce que vous avez lu, et elle CHANGE ce que le marchand doit
   faire. Si l'une manque, laissez le champ vide — une hypothèse qui n'oriente
   aucune décision affaiblit le constat qu'elle accompagne au lieu de l'étayer.
+
+  UNE HYPOTHÈSE NE PEUT PAS CONTREDIRE UN CHIFFRE QUE NOUS AVONS COMPTÉ. C'est
+  la seule règle absolue de ce champ, et elle a été enfreinte en production :
+  sur une boutique dont le catalogue avait été compté à ZÉRO produit — fait
+  mesuré, classé premier, présent dans votre contexte — le rapport a écrit
+  « Le catalogue contient des produits actifs et publiés dans l'administration
+  Shopify, mais aucun lien n'a été créé pour les afficher ». Deux constats plus
+  haut, il disait le contraire.
+
+  Avant d'écrire une hypothèse, cherchez dans les CONSTATS ÉTABLIS le chiffre
+  qui porte sur le même sujet. S'il existe, il gagne : reprenez-le, et tirez-en
+  les conséquences au lieu d'inventer une cause de rechange. Un catalogue compté
+  à zéro ne peut pas « contenir des produits mal reliés » — il est vide, et
+  c'est déjà l'explication.
+
+  Ce que vous pouvez encore supposer sur ce sujet : ce que le chiffre ne dit
+  pas. « Des produits existent peut-être en brouillon, non publiés » reste une
+  hypothèse valable si rien ne l'a mesuré — elle ne contredit pas le compte,
+  elle l'explique.
 - Ne promettez jamais un revenu garanti : donnez une fourchette, et dites dans impact_description d'où elle vient.
 
 AUCUN COMPORTEMENT DE VISITEUR SANS MESURE DE COMPORTEMENT :

@@ -513,4 +513,88 @@ export default defineSuite("Moteur — boutiques témoins, verdict de bout en bo
     COMMERCIAL_AXES.some((axe) => memeBoutiqueQuiVend.axes.find((a) => a.axis === axe)?.measured),
     true,
   );
+
+  // =========================================================================
+  // SIX BOUTIQUES, SIX COUVERTURES — LA NOTE JUGÉE PAR EXÉCUTION
+  // =========================================================================
+  /*
+    Ces six cas partent des OBSERVATIONS et traversent la chaîne entière. C'est
+    la seule façon de répondre à la question qui compte : la note décrit-elle
+    l'état du commerce, ou la facilité des contrôles disponibles ?
+
+    Le cas 3 est celui qui a imposé le plafond commercial. Quatre mille sessions,
+    ZÉRO commande, catalogue complet, vitrine irréprochable : la règle
+    `conversion.traffic_without_orders` se déclenchait bien et faisait tomber
+    l'axe conversion, mais six axes de construction à 100 le noyaient — 94/100
+    sur une boutique qui ne vend rien.
+  */
+  const VITRINE_SAINE = [
+    obs("storefront.policy_pages", 3, { source: "storefront" }),
+    obs("storefront.mobile_viewport", 1, { source: "storefront" }),
+    obs("storefront.response_ms", 250, { source: "storefront" }),
+    obs("storefront.accueil_title", 4, { source: "storefront" }),
+    obs("storefront.structured_data", 1, { source: "storefront" }),
+    obs("storefront.accueil_h1_mots", 5, { source: "storefront" }),
+    obs("storefront.accueil_cta", 2, { source: "storefront" }),
+  ];
+  const CATALOGUE_FOURNI = [
+    obs("shopify.product_count", 12),
+    obs("shopify.products_without_description", 0),
+    obs("shopify.products_without_image", 0),
+    obs("shopify.price_min", 20),
+    obs("shopify.price_max", 60),
+    obs("shopify.price_median", 35),
+  ];
+  const SANS_SESSIONS = [trou("shopify.sessions_30d", "Sessions et visiteurs")];
+
+  const note = (observations: Observation[], gaps: ObservationGap[] = []) =>
+    analyse({ observations, gaps } as RuleContext).score;
+
+  t.check(
+    "1. catalogue vide — aucune note",
+    note(
+      [...VITRINE_SAINE, obs("shopify.product_count", 0), obs("shopify.orders_30d", 0)],
+      SANS_SESSIONS,
+    ),
+    null,
+  );
+  t.check(
+    "2. catalogue rempli mais aucune session — aucune note",
+    note([...VITRINE_SAINE, ...CATALOGUE_FOURNI, obs("shopify.orders_30d", 0)], SANS_SESSIONS),
+    null,
+  );
+
+  // 3. DU TRAFIC ET PAS UNE VENTE. La note existe — nous savons quelque chose du
+  // commerce — mais elle ne peut pas dépasser ce que ce commerce obtient.
+  const trafficSansVente = note([
+    ...VITRINE_SAINE,
+    ...CATALOGUE_FOURNI,
+    obs("shopify.sessions_30d", 4000),
+    obs("shopify.orders_30d", 0),
+  ]);
+  t.check("3. du trafic, aucune commande — une note existe", trafficSansVente !== null, true);
+  t.check("…mais elle n'est pas flatteuse", (trafficSansVente ?? 100) < 70, true);
+
+  // 4. LA MÊME BOUTIQUE QUI VEND. Le plafond ne doit pas rendre la note
+  // inatteignable : ce serait l'autre façon de la rendre inutile.
+  const quiVend = note([
+    ...VITRINE_SAINE,
+    ...CATALOGUE_FOURNI,
+    obs("shopify.sessions_30d", 4000),
+    obs("shopify.orders_30d", 120),
+    obs("shopify.conversion_rate", 3, { unit: "percent" }),
+  ]);
+  t.check("4. trafic et commandes — une note existe", quiVend !== null, true);
+  t.check("…et elle est nettement meilleure", (quiVend ?? 0) > (trafficSansVente ?? 0), true);
+
+  t.check(
+    "5. des commandes mais trop peu d'axes — aucune note",
+    note([obs("shopify.orders_30d", 120), obs("shopify.sessions_30d", 4000)]),
+    null,
+  );
+  t.check(
+    "6. techniquement parfaite, commercialement inactive — aucune note",
+    note([...VITRINE_SAINE, ...CATALOGUE_FOURNI], SANS_SESSIONS),
+    null,
+  );
 });

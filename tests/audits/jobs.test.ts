@@ -33,6 +33,9 @@ import {
   loadAuditJob,
 } from "../../src/lib/audit-jobs.server";
 import { defineSuite } from "../../tests/harness";
+import { AI_TIMEOUT_MS } from "@/lib/ai-gateway.server";
+import { PARTENAIRE_TIMEOUT_MS } from "@/lib/fetch-borne.server";
+import { SCAN_BUDGET_MS } from "@/lib/connectors/storefront.server";
 import { readFileSync } from "node:fs";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
@@ -424,6 +427,49 @@ export default defineSuite("Audits — exécution asynchrone et reprise", async 
   // MIEUX VAUT NE RIEN DIRE DE LA DURÉE QUE D'ANNONCER « IL Y A NAN MINUTES ».
   t.check("sans date de départ, rien n'est affirmé", decrireAttente(null), null);
   t.check("une date illisible non plus", decrireAttente("pas une date"), null);
+
+  // =========================================================================
+  // 7 bis. LE BUDGET D'UNE TENTATIVE TIENT SOUS SON BAIL
+  // =========================================================================
+  /*
+    POURQUOI CE CONTRÔLE EXISTE. Le bail de cinq minutes est ce qui empêche deux
+    exécutions simultanées : tant qu'il court, personne d'autre ne peut réclamer
+    l'audit. Si une tentative pouvait durer PLUS que son bail, le passage
+    planifié la réclamerait pendant qu'elle tourne encore — deux analyses, deux
+    appels facturés, et deux jeux de constats écrits sur la même ligne.
+
+    Rien ne le garantissait : les délais vivent dans quatre modules qui ne se
+    connaissent pas, et personne n'additionnait. Relever `AI_TIMEOUT_MS` à 150 s
+    suffirait à faire passer le pire cas au-dessus du bail, sans qu'aucun
+    contrôle ne bronche.
+
+    LE PIRE CAS, ÉTAPE PAR ÉTAPE :
+      collecte des trois sources, menées de front     PARTENAIRE_TIMEOUT_MS
+      scan du site public, après Shopify              SCAN_BUDGET_MS
+      appel au modèle                                 AI_TIMEOUT_MS
+      appel au modèle de secours                      AI_TIMEOUT_MS
+  */
+  const pireCasParTentative =
+    PARTENAIRE_TIMEOUT_MS + SCAN_BUDGET_MS + AI_TIMEOUT_MS + AI_TIMEOUT_MS;
+
+  t.check("le pire cas d'une tentative tient sous le bail", pireCasParTentative < LEASE_MS, true);
+  // Avec de la marge : un bail atteint de justesse se franchirait au premier
+  // ralentissement réseau non compté ici.
+  t.check("…avec au moins une minute de marge", LEASE_MS - pireCasParTentative >= 60_000, true);
+
+  // ET LA DURÉE ANNONCÉE RESTE UNE DURÉE COURANTE, PAS UNE GARANTIE. Le pire cas
+  // la dépasse largement — c'est pourquoi l'écran affiche le temps écoulé et dit
+  // ce qui se passe au-delà, au lieu de promettre.
+  t.check(
+    "la durée annoncée est bien inférieure au pire cas",
+    DUREE_ANNONCEE_MS < pireCasParTentative,
+    true,
+  );
+  t.check(
+    "…et l'écran ne la présente pas comme une garantie",
+    /habituellement/.test(read("src/routes/_authenticated/audits.$auditId.tsx")),
+    true,
+  );
 
   // =========================================================================
   // 8. « TERMINÉ » DOIT VOULOIR DIRE « TOUT EST LISIBLE »

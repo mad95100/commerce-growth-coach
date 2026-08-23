@@ -277,6 +277,41 @@ export default defineSuite("Éditorial — le produit parle comme un consultant"
     /Trois conditions, toutes les trois/.test(consignes),
     true,
   );
+
+  /*
+    ET SURTOUT : UNE HYPOTHÈSE NE CONTREDIT PAS UN CHIFFRE COMPTÉ.
+
+    Enfreint en production. Sur une boutique dont le catalogue avait été compté à
+    ZÉRO — fait mesuré, classé premier, présent dans le contexte du modèle — le
+    rapport a écrit « Le catalogue contient des produits actifs et publiés ».
+    Deux constats plus haut, il disait le contraire.
+
+    La consigne ne suffit pas et ne suffira jamais seule : `faits-opposables.ts`
+    retire mécaniquement ces phrases. Elle reste utile en amont — mieux vaut que
+    le modèle ne l'écrive pas que de la lui retirer après coup.
+  */
+  t.check(
+    "une hypothèse ne peut pas contredire un chiffre compté",
+    /UNE HYPOTHÈSE NE PEUT PAS CONTREDIRE UN CHIFFRE QUE NOUS AVONS COMPTÉ/.test(consignes),
+    true,
+  );
+  t.check(
+    "…avec le cas réellement produit en exemple",
+    /Le catalogue contient des produits actifs et publiés/.test(consignes),
+    true,
+  );
+  t.check(
+    "…et le chiffre l'emporte sur l'hypothèse",
+    /S'il existe, il gagne/.test(consignes),
+    true,
+  );
+  // LA MOITIÉ QU'IL NE FAUT PAS PERDRE : ce que le chiffre ne dit pas reste
+  // supposable. Sinon la consigne interdirait de raisonner.
+  t.check(
+    "…mais ce que le chiffre ne dit pas reste supposable",
+    /Ce que vous pouvez encore supposer sur ce sujet/.test(consignes),
+    true,
+  );
   t.check(
     "le diagnostic passe avant la preuve technique",
     /LE DIAGNOSTIC D'ABORD, LA PREUVE TECHNIQUE ENSUITE/.test(consignes),

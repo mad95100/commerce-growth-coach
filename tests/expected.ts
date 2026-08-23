@@ -68,7 +68,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/jobs.test.ts",
-    minChecks: 87,
+    minChecks: 91,
     covers:
       "Audit asynchrone : réclamation atomique contre la double exécution, reprise par bail expirant, tentatives bornées.",
   },
@@ -283,8 +283,14 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Ce que l'écran dit quand la lecture échoue. Le tableau de bord confondait « il n'y a rien » et « je n'ai pas réussi à lire » : sur échec de requête il annonçait « Aucune boutique » et proposait d'en recréer une — un marchand voyait sa boutique disparaître. L'échec est désormais testé avant le vide, porte son propre message et son propre geste, et la redirection automatique vers la création n'a lieu que sur un succès.",
   },
   {
+    file: "audits/catalogue-vide-bout-en-bout.test.ts",
+    minChecks: 30,
+    covers:
+      "product_count = 0, de la mesure au texte final. Le rapport réel affichait « Votre boutique ne propose aucun produit à la vente » en constat [1] et, deux constats plus bas, « Ce que nous supposons : Le catalogue contient des produits actifs et publiés dans l'administration Shopify, mais aucun lien n'a été créé pour les afficher sur la page d'accueil ». Deux phrases contradictoires dans le même rapport, dont la seconde inventait une cause alternative là où la vraie était établie et envoyait le marchand créer des liens vers des produits inexistants. Aucun test unitaire ne pouvait le voir : le défaut ne vivait DANS aucune couche, il vivait entre elles — le prompt demandait, `sanitizeAuditPayload` recopiait, et rien ne confrontait jamais le texte rendu aux chiffres comptés. Cette suite part des données brutes de Shopify, traverse observations, règles, priorisation, bloc envoyé au modèle, puis injecte la réponse de production mot pour mot et vérifie que la contradiction est retirée et remplacée par ce qui a été compté. Elle vérifie aussi les deux moitiés qu'on perd en corrigeant trop fort : une phrase qui NIE l'existence est conservée, et sans mesure du catalogue la même hypothèse redevient légitime.",
+  },
+  {
     file: "audits/boutiques-temoins.test.ts",
-    minChecks: 134,
+    minChecks: 142,
     covers:
       "Le moteur jugé sur son verdict, pas sur ses pièces. Chaque module a ses contrôles et ils passent tous — ce n'est pas la même chose que dire que le moteur a raison. Les défauts les plus graves de ce projet ne sont jamais nés DANS un module mais entre deux : « Conversion 100/100 » sur une boutique sans un seul visiteur (la règle ne s'était pas déclenchée, le calcul de score n'avait donc rien à déduire, et les deux ensemble affirmaient une excellence sur un sujet inconnu), « 9999 % » parce qu'un module rendait un ratio là où un autre attendait un pourcentage. Quatre boutiques telles qu'on en rencontre — sans trafic, premium sans réassurance, du trafic et pas de ventes, aucune source qui répond — traversent la chaîne entière et le verdict est jugé : jamais d'axe noté sans donnée, jamais de constat sans preuve, jamais de pourcentage hors bornes, jamais un mot du moteur dans une phrase lue par le marchand, et jamais une cause plus sûre que son symptôme le moins sûr.",
   },
@@ -308,7 +314,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "ui/editorial.test.ts",
-    minChecks: 332,
+    minChecks: 336,
     covers:
       "Le produit parle comme un consultant, pas comme une checklist. Les formules qui ne disent rien de la boutique regardée — « il est important de », « pensez à », « optimisez votre boutique » — sont interdites sur tous les écrans : elles ne sont fausses nulle part, ce qui les rend invisibles à un test de vérité, et interchangeables d'une boutique à l'autre, ce qui est exactement la différence entre une checklist et un diagnostic. Couvre aussi les consignes envoyées au modèle, qui ordonnaient le tutoiement et le ton de mentor encourageant alors que tout le reste du produit vouvoie, et la séparation à l'écran des deux axes qu'un lecteur pressé additionne : la priorité et la certitude.",
   },
@@ -368,7 +374,7 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
   },
   {
     file: "audits/rules.test.ts",
-    minChecks: 117,
+    minChecks: 124,
     covers:
       "Le moteur de règles déterministes : ce qui est constaté vient de seuils appliqués à des observations, jamais du modèle. Aucune règle ne se prononce sans ses entrées — vérifié règle par règle sur un contexte vide —, un fait technique plafonne à « à vérifier » tant qu'aucune donnée commerciale ne corrobore, un score se décompose en retenues nommées, et les boutiques qui cassent les moteurs (sans trafic, sans commande, catalogue vide, petits échantillons, valeurs aberrantes, données contradictoires, entonnoir troué) produisent un constat honnête ou aucun constat.",
   },
