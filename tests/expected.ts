@@ -409,6 +409,12 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Rien ne déborde du cadre, de 320 à 1440 px. Mesuré au navigateur sur neuf écrans à six largeurs : à 320 px, le document de la page boutique faisait 1065 pixels — plus de trois fois le cadre, en-tête compris, et le bouton d'action principal se trouvait hors de l'écran. Une seule cause partout : `min-width: auto`, qui interdit à un élément flexible ou de grille de descendre sous la largeur intrinsèque de son contenu — ici l'adresse insécable d'une boutique. C'est aussi pourquoi les `truncate` ne tronquaient rien. Le contrôle protège les `min-w-0` posés, le défilement local des onglets, et interdit toute largeur figée au-delà de 320 px.",
   },
   {
+    file: "billing/abonnement.test.ts",
+    minChecks: 43,
+    covers:
+      "La facturation est le code qu'on ne peut pas tester en production : on ne provoque pas un impayé pour voir, ni un double prélèvement pour vérifier qu'il n'arrive pas. Toute la décision vit donc dans des modules purs, exercés ici sur les cas exacts que Stripe envoie. Deux défauts à empêcher, coûteux dans les deux sens : accorder le plan à qui n'a pas payé — une session « terminée » mais non payée, un webhook rejoué trois jours plus tard, un corps re-sérialisé — et le retirer à qui paie. Couvre le prix en centimes entiers (un prix en virgule flottante se compare faux), la vérification de signature avec sa tolérance d'horodatage, le fait que « session terminée » n'est pas « session payée », que `past_due` porte encore tier=pro chez Stripe et ne doit donc pas donner le plan, que l'identifiant du titulaire survit au-delà de la session de paiement par les métadonnées, que les événements non traités sont acquittés sans rien changer, et que le plan payant lève réellement les plafonds — sans quoi on vendrait un abonnement qui n'apporte rien.",
+  },
+  {
     file: "ui/messages-serveur.test.ts",
     minChecks: 72,
     covers:

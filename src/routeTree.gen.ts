@@ -23,6 +23,7 @@ import { Route as AuthenticatedStoresIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedStoresStoreIdRouteImport } from './routes/_authenticated/stores.$storeId'
 import { Route as AuthenticatedTrackingStoreIdRouteImport } from './routes/_authenticated/tracking.$storeId'
 import { Route as ApiInternalJobsTickRouteImport } from './routes/api/internal/jobs/tick'
+import { Route as ApiPublicWebhooksStripeRouteImport } from './routes/api/public/webhooks/stripe'
 import { Route as ApiPublicOauthGoogleCallbackRouteImport } from './routes/api/public/oauth/google/callback'
 import { Route as ApiPublicOauthMetaCallbackRouteImport } from './routes/api/public/oauth/meta/callback'
 import { Route as ApiPublicOauthShopifyCallbackRouteImport } from './routes/api/public/oauth/shopify/callback'
@@ -101,6 +102,11 @@ const ApiInternalJobsTickRoute = ApiInternalJobsTickRouteImport.update({
   path: '/api/internal/jobs/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWebhooksStripeRoute = ApiPublicWebhooksStripeRouteImport.update({
+  id: '/api/public/webhooks/stripe',
+  path: '/api/public/webhooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicOauthGoogleCallbackRoute =
   ApiPublicOauthGoogleCallbackRouteImport.update({
     id: '/api/public/oauth/google/callback',
@@ -140,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/tracking/$storeId': typeof AuthenticatedTrackingStoreIdRoute
   '/stores/': typeof AuthenticatedStoresIndexRoute
   '/api/internal/jobs/tick': typeof ApiInternalJobsTickRoute
+  '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
   '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
   '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/tracking/$storeId': typeof AuthenticatedTrackingStoreIdRoute
   '/stores': typeof AuthenticatedStoresIndexRoute
   '/api/internal/jobs/tick': typeof ApiInternalJobsTickRoute
+  '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
   '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
   '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
@@ -180,6 +188,7 @@ export interface FileRoutesById {
   '/_authenticated/tracking/$storeId': typeof AuthenticatedTrackingStoreIdRoute
   '/_authenticated/stores/': typeof AuthenticatedStoresIndexRoute
   '/api/internal/jobs/tick': typeof ApiInternalJobsTickRoute
+  '/api/public/webhooks/stripe': typeof ApiPublicWebhooksStripeRoute
   '/api/public/oauth/google/callback': typeof ApiPublicOauthGoogleCallbackRoute
   '/api/public/oauth/meta/callback': typeof ApiPublicOauthMetaCallbackRoute
   '/api/public/oauth/shopify/callback': typeof ApiPublicOauthShopifyCallbackRoute
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/tracking/$storeId'
     | '/stores/'
     | '/api/internal/jobs/tick'
+    | '/api/public/webhooks/stripe'
     | '/api/public/oauth/google/callback'
     | '/api/public/oauth/meta/callback'
     | '/api/public/oauth/shopify/callback'
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/tracking/$storeId'
     | '/stores'
     | '/api/internal/jobs/tick'
+    | '/api/public/webhooks/stripe'
     | '/api/public/oauth/google/callback'
     | '/api/public/oauth/meta/callback'
     | '/api/public/oauth/shopify/callback'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tracking/$storeId'
     | '/_authenticated/stores/'
     | '/api/internal/jobs/tick'
+    | '/api/public/webhooks/stripe'
     | '/api/public/oauth/google/callback'
     | '/api/public/oauth/meta/callback'
     | '/api/public/oauth/shopify/callback'
@@ -254,6 +266,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SuppressionDesDonneesRoute: typeof SuppressionDesDonneesRoute
   ApiInternalJobsTickRoute: typeof ApiInternalJobsTickRoute
+  ApiPublicWebhooksStripeRoute: typeof ApiPublicWebhooksStripeRoute
   ApiPublicOauthGoogleCallbackRoute: typeof ApiPublicOauthGoogleCallbackRoute
   ApiPublicOauthMetaCallbackRoute: typeof ApiPublicOauthMetaCallbackRoute
   ApiPublicOauthShopifyCallbackRoute: typeof ApiPublicOauthShopifyCallbackRoute
@@ -360,6 +373,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInternalJobsTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/webhooks/stripe': {
+      id: '/api/public/webhooks/stripe'
+      path: '/api/public/webhooks/stripe'
+      fullPath: '/api/public/webhooks/stripe'
+      preLoaderRoute: typeof ApiPublicWebhooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/oauth/google/callback': {
       id: '/api/public/oauth/google/callback'
       path: '/api/public/oauth/google/callback'
@@ -422,6 +442,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SuppressionDesDonneesRoute: SuppressionDesDonneesRoute,
   ApiInternalJobsTickRoute: ApiInternalJobsTickRoute,
+  ApiPublicWebhooksStripeRoute: ApiPublicWebhooksStripeRoute,
   ApiPublicOauthGoogleCallbackRoute: ApiPublicOauthGoogleCallbackRoute,
   ApiPublicOauthMetaCallbackRoute: ApiPublicOauthMetaCallbackRoute,
   ApiPublicOauthShopifyCallbackRoute: ApiPublicOauthShopifyCallbackRoute,

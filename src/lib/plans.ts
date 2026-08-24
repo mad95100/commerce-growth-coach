@@ -40,6 +40,44 @@ export const PLAN_LABELS: Record<PlanTier, string> = {
 };
 
 /**
+ * PRIX DU PLAN PAYANT.
+ *
+ * EN CENTIMES, ET C'EST LA SEULE FORME ADMISE. Un prix en nombre à virgule
+ * (`24.99`) se compare et s'additionne faux : `0.1 + 0.2 !== 0.3` en virgule
+ * flottante, et c'est exactement le genre de défaut qui produit un écart d'un
+ * centime entre ce que l'écran annonce et ce qui est prélevé. Stripe attend
+ * d'ailleurs des centimes entiers — la conversion se fait à l'affichage, dans
+ * ce sens uniquement.
+ *
+ * LA DEVISE EST PORTÉE ICI, PAS SUPPOSÉE. Le reste du produit refuse
+ * catégoriquement une devise par défaut (`currency.ts`) ; un prix nu, sans sa
+ * devise, serait la seule exception — et elle serait sur l'écran qui demande
+ * de l'argent.
+ *
+ * CE FICHIER NE FAIT PAS AUTORITÉ SUR CE QUI EST PRÉLEVÉ. Le montant réellement
+ * facturé est celui du tarif Stripe (`STRIPE_PRICE_ID`) : c'est lui que le
+ * marchand voit sur la page de paiement et sur son relevé. Ces deux valeurs
+ * DOIVENT coïncider, et rien ici ne peut le garantir — Stripe est la source de
+ * vérité, ceci n'est que l'affichage. En cas de changement de prix, les deux
+ * bougent ensemble, comme `APP_URL` et les URL de redirection OAuth.
+ */
+export const PLAN_PRICE = {
+  /** Montant mensuel, en centimes. 2499 = 24,99. */
+  amountCents: 2499,
+  currency: "EUR",
+} as const;
+
+/** Le prix mensuel tel qu'il s'écrit sur un écran français. */
+export function formattedPlanPrice(): string {
+  const units = PLAN_PRICE.amountCents / 100;
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: PLAN_PRICE.currency,
+    minimumFractionDigits: 2,
+  }).format(units);
+}
+
+/**
  * Limites mensuelles par plan. `null` signifie « sans limite ».
  *
  * CES NOMBRES SONT DES ARBITRAGES PRODUIT, pas des contraintes techniques. Ils

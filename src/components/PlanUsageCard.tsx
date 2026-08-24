@@ -1,13 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
+import { toast } from "sonner";
 import { getEntitlements } from "@/lib/actions.functions";
+import { startCheckout } from "@/lib/billing.functions";
 import {
   PLAN_LABELS,
   QUOTA_LABELS,
   QUOTAS_SUSPENDUS_POUR_TEST,
+  formattedPlanPrice,
   quotaLimit,
   type QuotaKey,
 } from "@/lib/plans";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import { messageMarchand } from "@/lib/message-marchand";
 import { ErrorState, PlanSkeleton } from "@/components/AppShell";
 
 const SHOWN: QuotaKey[] = ["audits", "fixes"];
@@ -24,10 +31,36 @@ const SHOWN: QuotaKey[] = ["audits", "fixes"];
  */
 export function PlanUsageCard() {
   const fetchEntitlements = useServerFn(getEntitlements);
+  const ouvrirPaiement = useServerFn(startCheckout);
+  const [ouverture, setOuverture] = useState(false);
   const q = useQuery({
     queryKey: ["entitlements"],
     queryFn: () => fetchEntitlements({ data: undefined }),
   });
+
+  /*
+    LE BOUTON N'ACCORDE RIEN — il ouvre une page chez notre prestataire de
+    paiement. Le plan ne change qu'au retour du webhook signé, ce qui est la
+    seule preuve qu'un paiement a eu lieu. C'est aussi pour cela que l'écran
+    n'affiche aucun message de succès ici : il ne sait pas encore.
+  */
+  async function passerAuPlanPayant() {
+    setOuverture(true);
+    try {
+      const { url } = await ouvrirPaiement({ data: undefined });
+      const cible = new URL(String(url));
+      if (cible.protocol !== "https:") throw new Error("adresse de paiement non sécurisée");
+      window.location.href = cible.toString();
+    } catch (err) {
+      toast.error(
+        messageMarchand(
+          err,
+          "La page de paiement n'a pas pu être ouverte. Rien ne vous a été facturé — réessayez dans un instant.",
+        ),
+      );
+      setOuverture(false);
+    }
+  }
 
   if (q.isLoading) {
     // La carte s'insérait AU-DESSUS du formulaire des paramètres : la ligne de
@@ -149,6 +182,82 @@ export function PlanUsageCard() {
             ? "Vos compteurs repartent à zéro le 1er de chaque mois. Pendant la phase d'essai, rien n'est plafonné ni facturé : ces chiffres vous disent seulement ce que vous avez utilisé."
             : "Vos compteurs repartent à zéro le 1er de chaque mois. Rien n'est facturé sur ce plan : au-delà des quantités incluses, les lancements sont refusés, jamais prélevés."}
         </p>
+      )}
+
+      {/*
+        CE QUE L'ABONNEMENT ACHÈTE, DIT AVANT SON PRIX.
+
+        Un bouton « Passer au plan Pro » seul demande de payer sans dire pour
+        quoi. Ce que le plan payant apporte réellement n'est pas « plus
+        d'audits » — c'est que quelqu'un continue de regarder la boutique après
+        le premier diagnostic : les corrections sont remesurées, et un nouveau
+        diagnostic part quand les chiffres ont bougé. C'est ce que fait déjà
+        `reaudit.server.ts`, et c'est la seule chose qui justifie un
+        renouvellement le mois suivant.
+      */}
+      {e.tier === "free" && (
+        <div className="mt-5 border-t border-border/60 pt-5">
+          <h3 className="font-display text-base font-bold">
+            Passer au suivi continu — {formattedPlanPrice()} par mois
+          </h3>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            Un diagnostic dit ce qui ne va pas aujourd'hui. Le suivi vérifie que vos corrections ont
+            réellement produit un effet, et vous rediagnostique quand vos chiffres ont bougé — sans
+            que vous ayez à y penser. Audits et corrections sans limite.
+          </p>
+          <Button
+            onClick={passerAuPlanPayant}
+            disabled={ouverture}
+            className="mt-4 bg-gradient-primary text-primary-foreground"
+          >
+            {ouverture ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Ouverture du paiement…
+              </>
+            ) : (
+              "M'abonner"
+            )}
+          </Button>
+          {/* Résilier doit être aussi simple que souscrire, et se savoir AVANT
+              de payer, pas après. */}
+          <p className="mt-2 text-xs text-muted-foreground">
+            Sans engagement, résiliable en un clic depuis cet écran. Vos diagnostics déjà rendus
+            vous restent acquis.
+          </p>
+        </div>
+      )}
+
+      {/*
+        UN ABONNEMENT QU'ON NE PEUT PAS RÉSILIER DEPUIS L'ÉCRAN QUI L'AFFICHE
+        est un abonnement qu'on résilie en écrivant, ou en faisant opposition.
+        Le portail du prestataire porte le moyen de paiement, les factures et la
+        résiliation : c'est plus fiable que de les refaire ici, et c'est
+        immédiat pour qui veut partir.
+      */}
+      {e.tier === "pro" && (
+        <div className="mt-5 border-t border-border/60 pt-5">
+          <p className="text-sm text-muted-foreground">
+            Votre abonnement est actif. Vos audits et vos corrections sont sans limite, et vos
+            boutiques sont suivies en continu.
+          </p>
+          <Button
+            variant="outline"
+            onClick={passerAuPlanPayant}
+            disabled={ouverture}
+            className="mt-4"
+          >
+            {ouverture ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Ouverture…
+              </>
+            ) : (
+              "Gérer mon abonnement"
+            )}
+          </Button>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Moyen de paiement, factures et résiliation.
+          </p>
+        </div>
       )}
     </div>
   );
