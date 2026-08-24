@@ -160,17 +160,29 @@ export default defineSuite("Interface — aucun message ne renvoie le marchand �
   const affiche = ["src/components/ConnectionsPanel.tsx", "src/routes/_authenticated/settings.tsx"];
   for (const écran of affiche) {
     const source = lire(écran).replace(/\s+/g, " ");
+    /*
+      CE CONTRÔLE EXIGEAIT LA FORME QUI CAUSAIT LE DÉFAUT.
+
+      `toast.error(err instanceof Error ? err.message : "…")` affichait le
+      message de l'erreur « tel quel » — c'était bien l'intention à l'époque, et
+      elle valait tant que les erreurs venaient de nous. Depuis que
+      `donneesOuLeve` construit une vraie `Error` à partir de PostgREST, « tel
+      quel » veut dire : le texte de Postgres, en anglais, avec le nom de la
+      table. La règle protégée par cette suite — aucun message d'interface ne
+      renvoie le marchand à un secret ou à la configuration du serveur — était
+      contournée par le seul chemin qu'elle ne regardait pas.
+    */
     t.check(
-      `${écran} affiche bien le message d'erreur tel quel`,
-      /toast\.error\( ?err instanceof Error \? err\.message/.test(source),
+      `${écran} fait passer l'erreur par la décision`,
+      /toast\.error\( ?messageMarchand\(/.test(source),
       true,
     );
-    // ET LE REPLI EST UNE PHRASE. Quand ce qui est levé n'est pas une `Error`,
-    // le marchand voyait le mot « Erreur » seul : ni ce qui a échoué, ni l'état
-    // dans lequel se trouve sa boutique, ni quoi faire.
+    // ET LE REPLI EST UNE PHRASE. Le marchand voyait le mot « Erreur » seul :
+    // ni ce qui a échoué, ni l'état dans lequel se trouve sa boutique, ni quoi
+    // faire.
     t.check(
       `${écran} ne se replie jamais sur un mot technique seul`,
-      /err\.message ?: ?"(Erreur|Error|Échec|Erreur inconnue)"/.test(source),
+      /messageMarchand\([^,]+, ?"(Erreur|Error|Échec|Erreur inconnue)"/.test(source),
       false,
     );
   }

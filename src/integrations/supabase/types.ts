@@ -293,6 +293,7 @@ export type Database = {
           potential_gain_max: number | null
           potential_gain_min: number | null
           score: number | null
+          score_absence_reason: string | null
           status: Database["public"]["Enums"]["audit_status"]
           store_id: string
           summary: string | null
@@ -317,6 +318,7 @@ export type Database = {
           potential_gain_max?: number | null
           potential_gain_min?: number | null
           score?: number | null
+          score_absence_reason?: string | null
           status?: Database["public"]["Enums"]["audit_status"]
           store_id: string
           summary?: string | null
@@ -341,6 +343,7 @@ export type Database = {
           potential_gain_max?: number | null
           potential_gain_min?: number | null
           score?: number | null
+          score_absence_reason?: string | null
           status?: Database["public"]["Enums"]["audit_status"]
           store_id?: string
           summary?: string | null

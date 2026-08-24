@@ -10,6 +10,7 @@ import { StoreEconomicsFields } from "@/components/StoreEconomicsFields";
 import { EMPTY_STORE_ECONOMICS, parseStoreEconomics } from "@/lib/store-profile";
 import { Loader2, Rocket } from "lucide-react";
 import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
+import { messageMarchand } from "@/lib/message-marchand";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
@@ -66,9 +67,10 @@ function Onboarding() {
       navigate({ to: "/stores/$storeId", params: { storeId: data.id } });
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "Votre boutique n'a pas pu être enregistrée. Vos réponses sont toujours à l'écran — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "Votre boutique n'a pas pu être enregistrée. Vos réponses sont toujours à l'écran — réessayez dans un instant.",
+        ),
       );
     } finally {
       setLoading(false);

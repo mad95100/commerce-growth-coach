@@ -14,6 +14,7 @@ import {
 } from "@/lib/store-profile";
 import { toast } from "sonner";
 import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
+import { messageMarchand } from "@/lib/message-marchand";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Paramètres — EcomPilot AI" }] }),
@@ -53,9 +54,10 @@ function SettingsPage() {
       toast.success("Profil mis à jour");
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "Vos préférences n'ont pas pu être enregistrées. Les précédentes restent en place — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "Vos préférences n'ont pas pu être enregistrées. Les précédentes restent en place — réessayez dans un instant.",
+        ),
       );
     } finally {
       setLoading(false);

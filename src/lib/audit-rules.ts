@@ -2348,17 +2348,17 @@ const FAITS_QUI_ANNULENT_LA_NOTE: ReadonlyArray<{
   annuleQuand: (valeur: number) => boolean;
 }> = [{ observation: "shopify.product_count", annuleQuand: (v) => v === 0 }];
 
-export function globalScore(axes: AxisScore[], observations: Observation[] = []): number | null {
-  for (const fait of FAITS_QUI_ANNULENT_LA_NOTE) {
-    const o = observations.find((obs) => obs.id === fait.observation);
-    if (o && o.value !== null && Number.isFinite(o.value) && fait.annuleQuand(o.value)) return null;
-  }
-
-  // On filtre sur le SCORE, pas sur `measured` : c'est la seule forme que le
-  // compilateur sait vérifier, et elle rend impossible d'additionner un axe
-  // sans note même si les deux champs venaient un jour à diverger.
+/**
+ * `true` quand ce que nous avons mesuré ne suffit pas à porter une note.
+ *
+ * Trois refus, du plus large au plus précis. Ils vivent ensemble parce qu'ils
+ * répondent tous à la même question — « avons-nous regardé assez, et le bon
+ * endroit ? » — et parce que `raisonSansNote` doit pouvoir les nommer d'un seul
+ * mot au marchand.
+ */
+function couvertureInsuffisante(axes: AxisScore[]): boolean {
   const notes = axes.map((a) => a.score).filter((s): s is number => s !== null);
-  if (notes.length === 0) return null;
+  if (notes.length === 0) return true;
 
   // UNE NOTE SUR TROIS AXES N'EST PAS UNE NOTE DE BOUTIQUE.
   //
@@ -2372,7 +2372,7 @@ export function globalScore(axes: AxisScore[], observations: Observation[] = [])
   // En dessous de la moitié des axes, la moyenne dit surtout ce que nous avons
   // réussi à regarder. Mieux vaut alors ne pas donner de note : l'absence
   // s'explique, un 100 imaginaire ne se rattrape pas.
-  if (notes.length / axes.length < MIN_MEASURED_AXES_SHARE) return null;
+  if (notes.length / axes.length < MIN_MEASURED_AXES_SHARE) return true;
 
   /*
     COMPTER LES AXES NE SUFFIT PAS : IL FAUT REGARDER LESQUELS.
@@ -2403,11 +2403,75 @@ export function globalScore(axes: AxisScore[], observations: Observation[] = [])
     n'annule pas la note à lui seul, et une boutique qui vend garde la sienne
     même si son catalogue est mince.
   */
+  const commerciaux = axes
+    .filter((a) => COMMERCIAL_AXES.includes(a.axis))
+    .map((a) => a.score)
+    .filter((s): s is number => s !== null);
+  return commerciaux.length === 0;
+}
+
+/**
+ * Pourquoi il n'y a pas de note. Deux causes, qui ne se disent pas pareil.
+ *
+ * POURQUOI CETTE FONCTION EXISTE. Jusqu'ici l'écran n'avait qu'un `null` et une
+ * seule phrase pour l'expliquer : « trop peu de sujets ont pu être mesurés ».
+ * C'était vrai tant que la couverture était la seule cause. Depuis qu'un
+ * catalogue vide annule la note, la même phrase s'affiche sur une boutique dont
+ * la couverture est excellente — juste à côté du constat n°1 qui dit qu'elle n'a
+ * aucun produit. Le rapport se contredisait à nouveau, cette fois par notre
+ * faute et non par celle du modèle.
+ *
+ * `globalScore` DÉLÈGUE À CETTE FONCTION : il n'existe donc aucun chemin vers
+ * `null` qui n'ait pas sa raison, et aucune raison qui ne corresponde pas à un
+ * `null`. Les deux ne peuvent pas diverger.
+ */
+export type RaisonSansNote = "offre_absente" | "couverture_insuffisante";
+
+/**
+ * L'observation qui prive TOUTE note de sens, ou `null`.
+ *
+ * SÉPARÉE DE LA COUVERTURE, ET CE N'EST PAS UN DÉTAIL. Ce dépôt calcule DEUX
+ * notes sur deux échelles : celle du moteur de règles, par axes, et celle de
+ * `scoring.ts`, par catégories pondérées — c'est la seconde qui est enregistrée
+ * et affichée. Chacune a sa propre règle de couverture, et elles ne sont pas
+ * commensurables : imposer le seuil de l'une à l'autre remplacerait un seuil
+ * justifié par un seuil emprunté.
+ *
+ * Un FAIT, lui, traverse les deux échelles sans rien emprunter : une boutique
+ * sans produit n'a pas d'offre, quelle que soit la façon dont on compte. C'est
+ * la seule chose que les deux notes doivent partager, et c'est pour cela
+ * qu'elle est exportée à part.
+ */
+export function faitQuiAnnuleLaNote(observations: Observation[]): string | null {
+  for (const fait of FAITS_QUI_ANNULENT_LA_NOTE) {
+    const o = observations.find((obs) => obs.id === fait.observation);
+    if (o && o.value !== null && Number.isFinite(o.value) && fait.annuleQuand(o.value)) {
+      return fait.observation;
+    }
+  }
+  return null;
+}
+
+export function raisonSansNote(
+  axes: AxisScore[],
+  observations: Observation[] = [],
+): RaisonSansNote | null {
+  if (faitQuiAnnuleLaNote(observations) !== null) return "offre_absente";
+  return couvertureInsuffisante(axes) ? "couverture_insuffisante" : null;
+}
+
+export function globalScore(axes: AxisScore[], observations: Observation[] = []): number | null {
+  if (raisonSansNote(axes, observations) !== null) return null;
+
+  // On filtre sur le SCORE, pas sur `measured` : c'est la seule forme que le
+  // compilateur sait vérifier, et elle rend impossible d'additionner un axe
+  // sans note même si les deux champs venaient un jour à diverger.
+  const notes = axes.map((a) => a.score).filter((s): s is number => s !== null);
+
   const notesCommerciales = axes
     .filter((a) => COMMERCIAL_AXES.includes(a.axis))
     .map((a) => a.score)
     .filter((s): s is number => s !== null);
-  if (notesCommerciales.length === 0) return null;
 
   const moyenne = Math.round(notes.reduce((sum, n) => sum + n, 0) / notes.length);
   const moyenneCommerciale = Math.round(
@@ -2560,6 +2624,8 @@ export type RuleReport = {
   priorities: PrioritisedFinding[];
   axes: AxisScore[];
   score: number | null;
+  /** Pourquoi `score` est nul, quand il l'est. `null` sinon — les deux vont ensemble. */
+  raisonSansNote: RaisonSansNote | null;
   plan: ActionPlan;
   /** Ce que les données n'ont pas permis d'établir, nommément. */
   unresolved: string[];
@@ -2575,6 +2641,9 @@ export function analyse(ctx: RuleContext): RuleReport {
     priorities,
     axes,
     score: globalScore(axes, ctx.observations),
+    // Pourquoi il n'y a pas de note, quand il n'y en a pas. L'écran en a besoin
+    // pour ne pas parler de couverture devant une boutique sans produit.
+    raisonSansNote: raisonSansNote(axes, ctx.observations),
     plan: buildActionPlan(priorities),
     unresolved: [
       ...findings.filter((f) => f.level === "donnee_insuffisante").map((f) => f.statement),

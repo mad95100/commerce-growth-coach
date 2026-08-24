@@ -35,6 +35,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
+import { messageMarchand } from "@/lib/message-marchand";
 
 export const Route = createFileRoute("/_authenticated/stores/$storeId")({
   head: () => ({ meta: [{ title: "Boutique — EcomPilot AI" }] }),
@@ -99,7 +100,12 @@ function StorePage() {
       toast.info("Diagnostic lancé. Nous analysons votre boutique.");
       navigate({ to: "/audits/$auditId", params: { auditId: res.auditId } });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur audit");
+      toast.error(
+        messageMarchand(
+          err,
+          "Le diagnostic n'a pas pu être lancé. Rien n'a été décompté et votre boutique n'a pas été touchée — réessayez dans un instant.",
+        ),
+      );
     } finally {
       setLaunching(false);
     }
@@ -480,9 +486,10 @@ function StoreGoalCard({ storeId, goal }: { storeId: string; goal: string | null
       toast.success("Objectif enregistré. Vos prochains diagnostics s'en serviront.");
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "Votre objectif n'a pas pu être enregistré. Le précédent reste en place — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "Votre objectif n'a pas pu être enregistré. Le précédent reste en place — réessayez dans un instant.",
+        ),
       );
     } finally {
       setSaving(false);
@@ -543,9 +550,10 @@ function StoreEconomicsCard({ store }: { store: EconomicsStore }) {
       toast.success("Modèle économique enregistré. Vos montants seront chiffrés avec ces valeurs.");
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "Vos chiffres n'ont pas pu être enregistrés. Les précédents restent en place — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "Vos chiffres n'ont pas pu être enregistrés. Les précédents restent en place — réessayez dans un instant.",
+        ),
       );
     } finally {
       setSaving(false);

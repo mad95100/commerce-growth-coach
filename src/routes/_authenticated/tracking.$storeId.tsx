@@ -15,6 +15,7 @@ import {
   VERDICTS,
 } from "@/lib/measure";
 import { toast } from "sonner";
+import { messageMarchand } from "@/lib/message-marchand";
 import {
   ArrowLeft,
   ArrowDownRight,
@@ -151,7 +152,13 @@ function TrackingPage() {
       );
       queryClient.invalidateQueries({ queryKey: ["tracking", storeId] });
     },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Mesure impossible"),
+    onError: (e) =>
+      toast.error(
+        messageMarchand(
+          e,
+          "L'effet de cette correction n'a pas pu être mesuré. La correction reste appliquée — réessayez la mesure dans un instant.",
+        ),
+      ),
   });
 
   const outcomes = trackingQ.data ?? [];

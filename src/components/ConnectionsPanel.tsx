@@ -21,6 +21,7 @@ import { describeAccountChoice, type AdAccount } from "@/lib/connectors/ad-accou
 import { disconnectProvider } from "@/lib/connectors/connections.functions";
 import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
 import { ErrorState } from "@/components/AppShell";
+import { messageMarchand } from "@/lib/message-marchand";
 
 type Connection = {
   id: string;
@@ -110,9 +111,10 @@ export function ConnectionsPanel({
       redirectToAuthorization(authorizeUrl);
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "La connexion n'a pas pu démarrer. Rien n'a été modifié — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "La connexion n'a pas pu démarrer. Rien n'a été modifié — réessayez dans un instant.",
+        ),
       );
       setBusy(null);
     }
@@ -126,9 +128,10 @@ export function ConnectionsPanel({
       toast.success("Source déconnectée. Vos prochains diagnostics ne s'appuieront plus dessus.");
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "La déconnexion n'a pas abouti. La source reste branchée — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "La déconnexion n'a pas abouti. La source reste branchée — réessayez dans un instant.",
+        ),
       );
     } finally {
       setBusy(null);
@@ -146,9 +149,10 @@ export function ConnectionsPanel({
       redirectToAuthorization(authorizeUrl);
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "La connexion à Shopify n'a pas pu démarrer. Vérifiez votre domaine, puis réessayez.",
+        messageMarchand(
+          err,
+          "La connexion à Shopify n'a pas pu démarrer. Vérifiez votre domaine, puis réessayez.",
+        ),
       );
       setBusy(null);
     }
@@ -165,9 +169,10 @@ export function ConnectionsPanel({
       );
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "Ce compte n'a pas pu être enregistré. Votre choix précédent reste en place — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "Ce compte n'a pas pu être enregistré. Votre choix précédent reste en place — réessayez dans un instant.",
+        ),
       );
     } finally {
       setBusy(null);
@@ -184,9 +189,10 @@ export function ConnectionsPanel({
       );
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "La déconnexion n'a pas abouti. Shopify reste branché — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "La déconnexion n'a pas abouti. Shopify reste branché — réessayez dans un instant.",
+        ),
       );
     } finally {
       setBusy(null);

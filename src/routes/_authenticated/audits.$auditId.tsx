@@ -57,6 +57,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { donneesOuLeve } from "@/integrations/supabase/throw-on-error";
 import { decrireAttente } from "@/lib/audit-jobs";
 import { natureDuTrou } from "@/lib/observations";
+import { messageMarchand } from "@/lib/message-marchand";
 
 export const Route = createFileRoute("/_authenticated/audits/$auditId")({
   head: () => ({ meta: [{ title: "Audit — EcomPilot AI" }] }),
@@ -172,9 +173,10 @@ function AuditPage() {
       toast.success(res.detail ?? "Correction annulée.");
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "L'annulation n'a pas abouti. La correction reste en place — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "L'annulation n'a pas abouti. La correction reste en place — réessayez dans un instant.",
+        ),
       );
     } finally {
       setRevertingId(null);
@@ -193,9 +195,10 @@ function AuditPage() {
       setProposals((p) => ({ ...p, [findingId]: res.proposal }));
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "La correction n'a pas pu être préparée. Rien n'a été modifié sur votre boutique — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "La correction n'a pas pu être préparée. Rien n'a été modifié sur votre boutique — réessayez dans un instant.",
+        ),
       );
     } finally {
       setProposingId(null);
@@ -216,9 +219,10 @@ function AuditPage() {
       toast.success(res.detail ?? "Correction appliquée sur votre compte.");
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "La correction n'a pas pu être appliquée. Vérifiez votre boutique avant de réessayer : nous ne savons pas si l'écriture a commencé.",
+        messageMarchand(
+          err,
+          "La correction n'a pas pu être appliquée. Vérifiez votre boutique avant de réessayer : nous ne savons pas si l'écriture a commencé.",
+        ),
       );
     } finally {
       setApplyingId(null);
@@ -241,9 +245,10 @@ function AuditPage() {
       toast.success("Correction proposée. Relisez-la avant de l'appliquer.");
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : "La correction n'a pas pu être rédigée. Rien n'a été modifié sur votre boutique — réessayez dans un instant.",
+        messageMarchand(
+          err,
+          "La correction n'a pas pu être rédigée. Rien n'a été modifié sur votre boutique — réessayez dans un instant.",
+        ),
       );
     } finally {
       setFixingId(null);
@@ -403,7 +408,15 @@ function AuditPage() {
       await updateStatusFn({ data: { findingId: id, status: next } });
       qc.invalidateQueries({ queryKey: ["findings", auditId] });
     } catch (err) {
-      toast.error("Erreur");
+      // LE MOT « ERREUR », SEUL, SUR L'ÉCRAN QUI EST LE LIVRABLE DU PRODUIT.
+      // Il avait survécu ici alors que toute une suite de tests avait été écrite
+      // contre lui ailleurs : elle ne regardait pas ce fichier.
+      toast.error(
+        messageMarchand(
+          err,
+          "Ce point n'a pas pu être coché. Rien n'est perdu — réessayez dans un instant.",
+        ),
+      );
     }
   }
 
@@ -461,6 +474,23 @@ function AuditPage() {
 
   // Les gains sont estimés dans la devise de la boutique. Inconnue, elle est
   // annoncée comme telle plutôt que supposée.
+  /*
+    POURQUOI IL N'Y A PAS DE NOTE. Deux causes, et une seule phrase les
+    couvrait : « trop peu de sujets ont pu être mesurés ». Sur une boutique au
+    catalogue vide — dont la couverture peut être excellente — elle s'affichait
+    juste à côté du constat n°1 qui dit qu'elle ne vend rien. Le rapport se
+    contredisait, cette fois par notre faute.
+
+    Colonne lue défensivement : elle est absente des audits antérieurs, et tous
+    ceux-là sont sans note pour la seule raison qui existait alors, la
+    couverture. Le repli est donc juste, pas approximatif.
+  */
+  const raisonSansNote =
+    (audit as { score_absence_reason?: unknown } | undefined)?.score_absence_reason ===
+    "offre_absente"
+      ? "offre_absente"
+      : "couverture_insuffisante";
+
   const storeCurrency = normalizeCurrency(
     (audit?.stores as { currency?: string | null } | undefined)?.currency,
   );
@@ -732,11 +762,9 @@ function AuditPage() {
                 */}
                 {audit.score === null && (
                   <p className="mt-3 rounded-lg bg-muted/40 p-3 text-sm leading-relaxed text-muted-foreground">
-                    Nous n'attribuons pas de note : trop peu de sujets ont pu être mesurés sur cette
-                    boutique pour qu'une moyenne veuille dire quelque chose. Une note calculée sur
-                    trois axes sur dix décrirait surtout ce que nous avons réussi à regarder, pas
-                    l'état de votre boutique. Les constats ci-dessous, eux, sont établis et restent
-                    exploitables.
+                    {raisonSansNote === "offre_absente"
+                      ? "Nous n'attribuons pas de note : votre boutique ne propose encore aucun produit à la vente. Il n'y a donc rien à noter — ni la façon dont vos fiches convertissent, ni ce que votre catalogue met en avant. Ce n'est pas un manque de mesure de notre côté. Les constats ci-dessous disent par quoi commencer."
+                      : "Nous n'attribuons pas de note : trop peu de sujets ont pu être mesurés sur cette boutique pour qu'une moyenne veuille dire quelque chose. Une note calculée sur trois axes sur dix décrirait surtout ce que nous avons réussi à regarder, pas l'état de votre boutique. Les constats ci-dessous, eux, sont établis et restent exploitables."}
                   </p>
                 )}
                 {/*

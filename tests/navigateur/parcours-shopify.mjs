@@ -19,10 +19,15 @@ const resultats = [];
     "OAuth réussi → « Connecter Shopify » n'est plus proposé",
     !/Domaine Shopify de votre boutique/.test(t),
   ]);
+  // LA RÈGLE, PAS LE LIBELLÉ. Cette sonde épinglait « Lancer l'audit » au mot
+  // près ; le bouton dit maintenant « Lancer le diagnostic », et le contrôle
+  // tombait sans que rien de ce qu'il protège n'ait bougé. Ce qu'il doit
+  // établir, c'est qu'une connexion réussie ouvre bien le geste suivant.
   resultats.push([
     "OAuth réussi → l'audit est lançable",
     await p
-      .getByRole("button", { name: /Lancer l'audit/ })
+      .getByRole("button", { name: /Lancer le (?:diagnostic|nouvel? audit)|Lancer l'audit/i })
+      .first()
       .isVisible()
       .catch(() => false),
   ]);

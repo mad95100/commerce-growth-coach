@@ -5,6 +5,8 @@ import { analyseFindings, applyTechnicalFrontier } from "@/lib/finding-graph";
 import { applyHistory, historyToPromptBlock, type Attempt } from "@/lib/attempt-history";
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { confronter, faitsEtablis } from "@/lib/faits-opposables";
+import { confronterDevise, devisesMesurees } from "@/lib/devises-opposables";
+import { faitQuiAnnuleLaNote } from "@/lib/audit-rules";
 import { allGaps, allObservations, observationsToPromptBlock } from "@/lib/observations";
 import {
   analyse as analyseRules,
@@ -780,6 +782,50 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
     }
   }
 
+  /*
+    UNE DEVISE QUE NOUS N'AVONS PAS MESURÉE N'A PAS PU ÊTRE LUE.
+
+    Le bloc de données envoyé au modèle nomme la devise de chaque canal et lui
+    interdit d'en mélanger deux. Cette rigueur s'arrêtait aux champs CHIFFRÉS :
+    le verdict, le résumé, la cause et l'impact sont du texte libre, que rien ne
+    relisait. Une boutique en euros pouvait lire « environ 900 $ perdus par
+    mois » — le bon montant, dans la mauvaise unité, sur un écran dont le sujet
+    est l'argent.
+
+    Le modèle ne voit aucun montant hors de notre bloc, et ce bloc ne contient
+    que des devises relevées. Une autre devise n'a donc pas été lue : elle a été
+    écrite. `devisesMesurees` part des observations, ce qui couvre du même coup
+    la boutique, Meta et Google, sans liste à tenir à jour.
+  */
+  const devises = devisesMesurees([
+    storeCurrency,
+    ...allObservations(reports).map((o) => o.currency ?? null),
+  ]);
+  if (devises.length > 0) {
+    const corrigees: string[] = [];
+    const retirees: string[] = [];
+    const passe = (valeur: string): string => {
+      const r = confronterDevise(valeur, devises);
+      corrigees.push(...r.corrige);
+      retirees.push(...r.retire);
+      return r.texte;
+    };
+    for (const f of parsed.findings) {
+      if (f.root_cause) f.root_cause = passe(f.root_cause);
+      if (f.impact_description) f.impact_description = passe(f.impact_description);
+      f.evidence.assumptions = passe(f.evidence.assumptions);
+      f.title = passe(f.title);
+    }
+    parsed.verdict = passe(parsed.verdict);
+    parsed.summary = passe(parsed.summary);
+    if (corrigees.length > 0 || retirees.length > 0) {
+      console.warn(
+        `[audit] devise inventée : ${corrigees.length} étiquette(s) corrigée(s), ${retirees.length} phrase(s) retirée(s) faute de devise unique.`,
+        { corrigees, retirees },
+      );
+    }
+  }
+
   // BARRIÈRE MÉCANIQUE. Le prompt DEMANDE au modèle de ne pas reproposer ce qui
   // a échoué ; ce filtre l'EMPÊCHE. Une consigne de prompt est une préférence,
   // pas une garantie : un modèle qui reformule légèrement passerait au travers.
@@ -844,7 +890,35 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
   */
   const categoriesInstruites = new Set(availability.available.map((a) => a.diagnostic.domain));
   const categoryScores = computeCategoryScores(parsed.findings, categoriesInstruites);
-  const globalScore = computeGlobalScore(categoryScores);
+
+  /*
+    DEUX NOTES COEXISTAIENT, ET LE GARDE-FOU NE PROTÉGEAIT PAS CELLE QUE LE
+    MARCHAND VOIT.
+
+    LE DÉFAUT, ÉTABLI PAR EXÉCUTION. Ce dépôt calcule deux notes sur deux
+    échelles : `globalScore` dans le moteur de règles, par axes, et
+    `computeGlobalScore` ici, par catégories pondérées. La première part dans le
+    prompt ; c'est la SECONDE qui est enregistrée dans `audits.score` et affichée
+    dans l'anneau du rapport. L'annulation par catalogue vide n'avait été posée
+    que sur la première. Résultat mesuré sur le chemin réel : une boutique sans
+    un seul produit obtenait **76/100** — à côté d'un constat n°1 disant qu'elle
+    ne propose rien à la vente.
+
+    CE QUI TRAVERSE LES DEUX ÉCHELLES, ET CE QUI NE DOIT PAS. La couverture, non :
+    chacune a la sienne, elles comptent des choses différentes, et imposer le
+    seuil de l'une à l'autre remplacerait un seuil justifié par un seuil
+    emprunté. Un FAIT, oui : une boutique sans produit n'a pas d'offre, quelle
+    que soit la façon dont on compte. C'est donc la seule chose que
+    `faitQuiAnnuleLaNote` fait franchir la frontière.
+  */
+  const faitAnnulant = faitQuiAnnuleLaNote(allObservations(reports));
+  const globalScore = faitAnnulant !== null ? null : computeGlobalScore(categoryScores);
+  const raisonAbsenceDeNote =
+    globalScore !== null
+      ? null
+      : faitAnnulant !== null
+        ? "offre_absente"
+        : "couverture_insuffisante";
   const potential = computePotential(parsed.findings);
 
   // Le modèle a proposé des liens de cause à effet ; c'est ici qu'ils deviennent
@@ -886,6 +960,12 @@ Réponds STRICTEMENT en JSON valide selon la structure demandée.`;
   // `measured` est la valeur décisive : sans elle, un axe perdu de vue entre
   // deux passages se lirait comme une dégradation.
   const enrichissement = {
+    // POURQUOI IL N'Y A PAS DE NOTE. Ici et pas dans `conclusion` : la colonne
+    // est neuve, et le worker part toujours avant la migration. Un audit ne doit
+    // pas rester « en cours » pour toujours parce qu'une explication manquait —
+    // sans elle, l'écran retombe sur la phrase de couverture, qui est la seule
+    // cause possible pour tous les audits antérieurs à cette colonne.
+    score_absence_reason: raisonAbsenceDeNote,
     // Le portrait du client cible, conservé plutôt que perdu après le prompt :
     // c'est le raisonnement le plus distinctif du produit, et le marchand ne le
     // voyait jamais.

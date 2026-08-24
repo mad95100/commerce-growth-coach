@@ -160,15 +160,42 @@ export default defineSuite("Lecture en échec — ce que le marchand voit, et qu
   );
   t.check("le statut y est attaché", /levee\.status = status/.test(passeur), true);
   t.check("le code PostgREST est conservé", /levee\.code = error\.code/.test(passeur), true);
-  // Sans ça, `err instanceof Error` reste faux et l'interface réaffiche
-  // « Erreur » — c'était tout le défaut.
-  t.check(
-    "les écrans testent bien `instanceof Error` avant d'afficher",
-    /err instanceof Error \? err\.message/.test(
-      lire("src/routes/_authenticated/stores.$storeId.tsx"),
-    ),
-    true,
-  );
+  /*
+    CE CONTRÔLE ÉPINGLAIT LE MOYEN, PAS LA RÈGLE — ET LE MOYEN S'EST RETOURNÉ.
+
+    Il exigeait la forme `err instanceof Error ? err.message` dans les écrans.
+    C'était le geste qui, à l'époque, empêchait le marchand de ne lire que le mot
+    « Erreur ». Mais dès lors que `donneesOuLeve` construit une VRAIE `Error` —
+    ce que le contrôle juste au-dessus exige — cette forme devient toujours
+    vraie, et c'est le message de PostgREST qui gagne : « new row violates
+    row-level security policy for table "stores" ». La phrase écrite pour le
+    marchand, à droite du `:`, n'était plus jamais affichée.
+
+    La RÈGLE, elle, n'a pas bougé : ce que le marchand lit doit avoir été écrit
+    pour lui. C'est elle qu'on vérifie maintenant, sur tous les écrans à la fois
+    plutôt que sur un seul, et la forme interdite est nommée explicitement.
+  */
+  const ecransAvecToast = [
+    "src/routes/_authenticated/stores.$storeId.tsx",
+    "src/routes/_authenticated/audits.$auditId.tsx",
+    "src/routes/_authenticated/onboarding.tsx",
+    "src/routes/_authenticated/settings.tsx",
+    "src/routes/_authenticated/tracking.$storeId.tsx",
+    "src/components/ConnectionsPanel.tsx",
+  ];
+  for (const chemin of ecransAvecToast) {
+    const source = sansCommentaires(lire(chemin));
+    t.check(
+      `${chemin} : le message affiché passe par la décision`,
+      /messageMarchand\(/.test(source),
+      true,
+    );
+    t.check(
+      `${chemin} : le texte brut de l'erreur ne court-circuite plus la phrase`,
+      /instanceof Error\s*\?\s*\w+\.message/.test(source),
+      false,
+    );
+  }
 
   // GoTrue EST HORS SUJET, ET C'EST VOLONTAIRE. Les erreurs d'authentification
   // sont déjà de vraies `Error`, et `authErrorMessage` les traduit en français

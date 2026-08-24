@@ -418,7 +418,9 @@ type ValidatedAction =
   | { kind: "google_update_rsa"; args: ToolArgs<"google_update_rsa">; ad: GoogleRsa };
 
 function channelUnavailable(label: string): Error {
-  return new Error(`L'IA a visé ${label}, qui n'est pas connecté. Rien n'a été modifié.`);
+  return new Error(
+    `La correction visait ${label}, qui n'est plus connecté à cette boutique. Rien n'a été modifié — rebranchez ${label} puis relancez la correction.`,
+  );
 }
 
 export function validateAgainstState(
@@ -866,10 +868,30 @@ Applique maintenant la correction en appelant l'outil le plus pertinent.`;
   });
 
   if (!res.ok) {
+    /*
+      CE QUE CES TROIS LIGNES DISAIENT AU MARCHAND.
+
+      « Trop de demandes, réessaie dans une minute. » TUTOIE, seul survivant du
+      passage au vouvoiement — il vivait dans un chemin d'échec que rien ne
+      parcourt en temps normal. « Crédits IA épuisés » désigne NOTRE compte chez
+      un fournisseur : ce n'est ni son problème, ni quelque chose qu'il puisse
+      corriger. Et la troisième remontait le corps brut de la réponse, code HTTP
+      compris, dans une notification.
+
+      Le chemin de l'audit avait déjà reçu cette correction ; celui de la
+      correction automatique l'attendait encore. Les deux disent maintenant la
+      même chose, et le détail technique part au journal, où il sert.
+    */
     const errText = await res.text();
-    if (res.status === 429) throw new Error("Trop de demandes, réessaie dans une minute.");
-    if (res.status === 402) throw new Error("Crédits IA épuisés.");
-    throw new Error(`AI Gateway ${res.status}: ${errText}`);
+    console.error(`[correction] AI Gateway ${res.status} : ${errText}`);
+    if (res.status === 429) {
+      throw new Error(
+        "Notre fournisseur d'analyse est momentanément saturé. Réessayez dans une minute : rien n'a été modifié sur votre boutique.",
+      );
+    }
+    throw new Error(
+      "La correction n'a pas pu être préparée. Le problème vient de chez nous, pas de votre boutique — réessayez dans un instant.",
+    );
   }
 
   const json = (await res.json()) as {
@@ -878,18 +900,26 @@ Applique maintenant la correction en appelant l'outil le plus pertinent.`;
     }>;
   };
   const call = json.choices?.[0]?.message?.tool_calls?.[0];
-  if (!call) throw new Error("L'IA n'a proposé aucune action. Réessayez.");
+  if (!call)
+    throw new Error(
+      "Aucune correction automatique n'a pu être préparée pour ce point. Rien n'a été modifié sur votre boutique.",
+    );
 
   const toolName = call.function.name;
   if (!isKnownTool(toolName)) {
-    throw new Error(`L'IA a proposé un outil inconnu (${toolName}). Rien n'a été modifié.`);
+    console.error(`[correction] outil inconnu proposé : ${toolName}`);
+    throw new Error(
+      "La correction proposée ne correspond à aucune action que nous savons appliquer. Rien n'a été modifié sur votre boutique.",
+    );
   }
 
   let rawArgs: unknown;
   try {
     rawArgs = JSON.parse(call.function.arguments);
   } catch {
-    throw new Error("Réponse IA illisible (arguments non JSON). Relancez la correction.");
+    throw new Error(
+      "La correction préparée est illisible de notre côté. Rien n'a été modifié sur votre boutique — relancez la préparation.",
+    );
   }
 
   if (toolName === "no_action") {

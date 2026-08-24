@@ -283,8 +283,14 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Ce que l'écran dit quand la lecture échoue. Le tableau de bord confondait « il n'y a rien » et « je n'ai pas réussi à lire » : sur échec de requête il annonçait « Aucune boutique » et proposait d'en recréer une — un marchand voyait sa boutique disparaître. L'échec est désormais testé avant le vide, porte son propre message et son propre geste, et la redirection automatique vers la création n'a lieu que sur un succès.",
   },
   {
+    file: "audits/devises.test.ts",
+    minChecks: 47,
+    covers:
+      "La devise, de la mesure jusqu'au texte que le marchand lit. Le bloc envoyé au modèle nomme la devise de chaque canal et interdit d'en mélanger deux — mais cette rigueur s'arrêtait aux champs CHIFFRÉS : verdict, résumé, cause racine et description d'impact sont du texte libre, que rien ne relisait. Une boutique en euros pouvait lire « environ 900 $ perdus par mois », le bon montant dans la mauvaise unité, sur un écran dont le sujet est l'argent. La suite établit qu'une devise absente de nos mesures est une invention et non une lecture ; qu'avec une seule devise mesurée seule l'étiquette est fausse et se corrige, le nombre n'étant jamais touché ; qu'avec plusieurs devises on ne devine pas et la phrase est retirée ; que trois majuscules isolées — TVA, CGV, SEO, URL — ne sont pas une devise ; et qu'aucune conversion n'est appliquée nulle part.",
+  },
+  {
     file: "audits/catalogue-vide-bout-en-bout.test.ts",
-    minChecks: 89,
+    minChecks: 104,
     covers:
       "product_count = 0, de la mesure au texte final. Le rapport réel affichait « Votre boutique ne propose aucun produit à la vente » en constat [1] et, deux constats plus bas, « Ce que nous supposons : Le catalogue contient des produits actifs et publiés dans l'administration Shopify, mais aucun lien n'a été créé pour les afficher sur la page d'accueil ». Deux phrases contradictoires dans le même rapport, dont la seconde inventait une cause alternative là où la vraie était établie et envoyait le marchand créer des liens vers des produits inexistants. Aucun test unitaire ne pouvait le voir : le défaut ne vivait DANS aucune couche, il vivait entre elles — le prompt demandait, `sanitizeAuditPayload` recopiait, et rien ne confrontait jamais le texte rendu aux chiffres comptés. Cette suite part des données brutes de Shopify, traverse observations, règles, priorisation, bloc envoyé au modèle, puis injecte la réponse de production mot pour mot et vérifie que la contradiction est retirée et remplacée par ce qui a été compté. Elle vérifie aussi les deux moitiés qu'on perd en corrigeant trop fort : une phrase qui NIE l'existence est conservée, et sans mesure du catalogue la même hypothèse redevient légitime.",
   },
@@ -403,8 +409,14 @@ export const EXPECTED_SUITES: ExpectedSuite[] = [
       "Rien ne déborde du cadre, de 320 à 1440 px. Mesuré au navigateur sur neuf écrans à six largeurs : à 320 px, le document de la page boutique faisait 1065 pixels — plus de trois fois le cadre, en-tête compris, et le bouton d'action principal se trouvait hors de l'écran. Une seule cause partout : `min-width: auto`, qui interdit à un élément flexible ou de grille de descendre sous la largeur intrinsèque de son contenu — ici l'adresse insécable d'une boutique. C'est aussi pourquoi les `truncate` ne tronquaient rien. Le contrôle protège les `min-w-0` posés, le défilement local des onglets, et interdit toute largeur figée au-delà de 320 px.",
   },
   {
+    file: "ui/messages-serveur.test.ts",
+    minChecks: 72,
+    covers:
+      "Ce que le marchand a le droit de lire quand un échec remonte du serveur. Quinze écrans écrivaient `toast.error(err instanceof Error ? err.message : \"<phrase pour le marchand>\")`. `donneesOuLeve` construisant une VRAIE `Error` à partir de PostgREST, la condition était toujours vraie : la phrase de droite n'a jamais été affichée, et le marchand lisait le texte de Postgres, en anglais, avec le nom de la table. Le même chemin remontait « AI Gateway 503 : … », le corps brut d'une réponse Meta, et le nom d'un secret de serveur auquel il n'a aucun accès. La suite vérifie le classement sur des textes réellement rencontrés dans les deux sens — technique et écrit pour le marchand —, qu'aucune notification d'échec n'affiche plus une erreur sans passer par la décision, que les deux chemins de correction disent la même chose, et que la page de dernier recours est en français, sans script en ligne, sans détail technique et sans lien vers un chemin étranger.",
+  },
+  {
     file: "ui/erreurs-de-lecture.test.ts",
-    minChecks: 40,
+    minChecks: 66,
     covers:
       "Ce que le marchand voit quand une lecture échoue, et au bout de combien de temps. Deux défauts mesurés au navigateur. PostgREST ne rend pas une `Error` mais un objet nu : `err instanceof Error` était toujours faux, et toute l'interface affichait le mot « Erreur », seul, à qui n'avait pas pu enregistrer son modèle économique, son objectif ou sa boutique. Et l'ossature de chargement tenait 8,5 s avant le moindre mot — trois nouveaux essais par défaut, y compris sur un 403 qui ne changera jamais. Le statut HTTP, qui vit sur la RÉPONSE et non sur l'erreur, est désormais conservé ; ce qui est définitif n'est plus rejoué, les écritures ne sont jamais rejouées, et le délai est plafonné à 2 s.",
   },

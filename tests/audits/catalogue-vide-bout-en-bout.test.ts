@@ -2,7 +2,13 @@ import { defineSuite } from "../harness";
 import { shopifyObservations } from "@/lib/connectors/shopify-observe";
 import { storefrontObservations } from "@/lib/connectors/storefront";
 import type { FetchedPage, StorefrontRaw } from "@/lib/connectors/storefront";
-import { analyse, rulesToPromptBlock } from "@/lib/audit-rules";
+import {
+  analyse,
+  faitQuiAnnuleLaNote,
+  raisonSansNote,
+  rulesToPromptBlock,
+} from "@/lib/audit-rules";
+import { computeCategoryScores, computeGlobalScore, CATEGORIES } from "@/lib/scoring";
 import type { Observation } from "@/lib/observations";
 import { sanitizeAuditPayload } from "@/lib/audit-sanitize";
 import { confronter, faitsEtablis, recommandationImpossible } from "@/lib/faits-opposables";
@@ -741,4 +747,124 @@ export default defineSuite("Catalogue vide — de la mesure au texte final", (t)
     faitsEtablis(fourni.observations).some((f) => f.observation === "shopify.product_count"),
     false,
   );
+
+  /*
+    LA NOTE AFFICHÉE N'EST PAS CELLE QUI ÉTAIT PROTÉGÉE.
+
+    CE QUE J'AVAIS MANQUÉ, ET QUI TIENT EN UNE LIGNE DU MOTEUR D'EXÉCUTION :
+
+        const globalScore = computeGlobalScore(categoryScores);
+
+    Ce dépôt calcule DEUX notes. `analyse().score` — celle que tous les
+    contrôles ci-dessus vérifient — part dans le prompt du modèle. Celle que le
+    marchand voit dans l'anneau du rapport, et qui est enregistrée dans
+    `audits.score`, vient de `computeGlobalScore`, sur une AUTRE échelle : des
+    catégories pondérées, pas des axes.
+
+    L'annulation par catalogue vide n'avait été posée que sur la première. Le
+    chemin réel donnait donc, sur une boutique sans un seul produit :
+
+        catégories → { offre: 70, produit: 70, boutique: 78, … }
+        computeGlobalScore → 76
+
+    Soixante-seize sur cent, à côté d'un constat n°1 disant qu'elle ne propose
+    rien à la vente. Le garde-fou existait, il gardait la mauvaise porte.
+
+    CE QUE CE BLOC VÉRIFIE, ET POURQUOI IL PART DES CATÉGORIES. Il reconstruit
+    la note EXACTEMENT comme le moteur d'exécution : les constats du modèle,
+    toutes catégories instruites — c'est-à-dire le cas le plus favorable, celui
+    où la couverture ne refuse rien. Si un `null` sort ici, il ne peut venir que
+    du fait.
+  */
+  const constatsDUnCatalogueVide = [
+    { category: "produit", severity: "critical", confidence: "high" },
+    { category: "offre", severity: "critical", confidence: "high" },
+  ] as never;
+  const toutesInstruites = new Set(CATEGORIES);
+  const notePonderee = computeGlobalScore(
+    computeCategoryScores(constatsDUnCatalogueVide, toutesInstruites),
+  );
+
+  // La note pondérée EXISTE sur ces données : la couverture ne refuse rien.
+  // C'est ce qui rend le contrôle suivant probant plutôt que tautologique.
+  t.check("la note pondérée existe quand la couverture suffit", notePonderee !== null, true);
+
+  const observationsSansProduit = shopifyObservations({
+    currency: "EUR",
+    productCount: 0,
+    products: [],
+    orders: [],
+    abandonedCheckouts: null,
+    funnel: null,
+  } as unknown as Parameters<typeof shopifyObservations>[0]).observations;
+
+  const faitAnnulant = faitQuiAnnuleLaNote(observationsSansProduit);
+  t.check("le fait qui annule est nommé", faitAnnulant, "shopify.product_count");
+
+  // C'est la ligne exacte du moteur d'exécution.
+  const noteAffichee = faitAnnulant !== null ? null : notePonderee;
+  t.check("la note AFFICHÉE est refusée elle aussi", noteAffichee, null);
+
+  // ET DANS L'AUTRE SENS : un catalogue fourni ne fait rien franchir.
+  const observationsAvecProduits = shopifyObservations({
+    currency: "EUR",
+    productCount: 12,
+    products: [],
+    orders: [],
+    abandonedCheckouts: null,
+    funnel: null,
+  } as unknown as Parameters<typeof shopifyObservations>[0]).observations;
+  t.check(
+    "catalogue fourni — aucun fait n'annule",
+    faitQuiAnnuleLaNote(observationsAvecProduits),
+    null,
+  );
+  t.check(
+    "…et la note affichée est conservée",
+    faitQuiAnnuleLaNote(observationsAvecProduits) !== null ? null : notePonderee,
+    notePonderee,
+  );
+
+  /*
+    LA COUVERTURE NE TRAVERSE PAS, ET C'EST VOULU.
+
+    Chaque échelle a sa règle de couverture, et elles comptent des choses
+    différentes. Faire franchir la frontière à `couverture_insuffisante`
+    remplacerait un seuil justifié par un seuil emprunté — exactement l'erreur
+    que ce produit refuse. Seul le FAIT traverse.
+  */
+  const axesSansRien = analyse({ observations: [], gaps: [] }).axes;
+  t.check(
+    "sans aucune observation, la raison est la couverture",
+    raisonSansNote(axesSansRien, []),
+    "couverture_insuffisante",
+  );
+  t.check("…et cette raison-là ne nomme aucun fait", faitQuiAnnuleLaNote([]), null);
+
+  /*
+    LA RAISON ET L'ABSENCE DE NOTE NE PEUVENT PAS DIVERGER.
+
+    `globalScore` délègue à `raisonSansNote` : il n'existe donc aucun chemin
+    vers `null` sans raison, ni aucune raison sans `null`. On le vérifie sur les
+    deux scénarios plutôt que de le supposer d'une lecture du code.
+  */
+  for (const [nom, rapport, observations] of [
+    ["catalogue vide", sansProduit(), observationsSansProduit],
+    [
+      "catalogue vide + pub",
+      sansProduit([depensePub("meta.spend_30d", 900)]),
+      observationsSansProduit,
+    ],
+  ] as const) {
+    t.check(
+      `${nom} — la raison accompagne toujours l'absence`,
+      (rapport.score === null) === (raisonSansNote(rapport.axes, observations) !== null),
+      true,
+    );
+    t.check(
+      `${nom} — et cette raison est l'offre absente`,
+      rapport.raisonSansNote,
+      "offre_absente",
+    );
+  }
 });
