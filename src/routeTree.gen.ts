@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ConfidentialiteRouteImport } from './routes/confidentialite'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as SuppressionDesDonneesRouteImport } from './routes/suppression-des-donnees'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -40,9 +42,19 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConfidentialiteRoute = ConfidentialiteRouteImport.update({
+  id: '/confidentialite',
+  path: '/confidentialite',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SuppressionDesDonneesRoute = SuppressionDesDonneesRouteImport.update({
+  id: '/suppression-des-donnees',
+  path: '/suppression-des-donnees',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -117,7 +129,9 @@ const ApiPublicWebhooksShopifyTopicRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/confidentialite': typeof ConfidentialiteRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/suppression-des-donnees': typeof SuppressionDesDonneesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -134,7 +148,9 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/confidentialite': typeof ConfidentialiteRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/suppression-des-donnees': typeof SuppressionDesDonneesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -153,7 +169,9 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/confidentialite': typeof ConfidentialiteRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/suppression-des-donnees': typeof SuppressionDesDonneesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -172,7 +190,9 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/confidentialite'
     | '/sitemap.xml'
+    | '/suppression-des-donnees'
     | '/dashboard'
     | '/onboarding'
     | '/settings'
@@ -189,7 +209,9 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/confidentialite'
     | '/sitemap.xml'
+    | '/suppression-des-donnees'
     | '/dashboard'
     | '/onboarding'
     | '/settings'
@@ -207,7 +229,9 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/confidentialite'
     | '/sitemap.xml'
+    | '/suppression-des-donnees'
     | '/_authenticated/dashboard'
     | '/_authenticated/onboarding'
     | '/_authenticated/settings'
@@ -226,7 +250,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ConfidentialiteRoute: typeof ConfidentialiteRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  SuppressionDesDonneesRoute: typeof SuppressionDesDonneesRoute
   ApiInternalJobsTickRoute: typeof ApiInternalJobsTickRoute
   ApiPublicOauthGoogleCallbackRoute: typeof ApiPublicOauthGoogleCallbackRoute
   ApiPublicOauthMetaCallbackRoute: typeof ApiPublicOauthMetaCallbackRoute
@@ -257,11 +283,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/confidentialite': {
+      id: '/confidentialite'
+      path: '/confidentialite'
+      fullPath: '/confidentialite'
+      preLoaderRoute: typeof ConfidentialiteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/suppression-des-donnees': {
+      id: '/suppression-des-donnees'
+      path: '/suppression-des-donnees'
+      fullPath: '/suppression-des-donnees'
+      preLoaderRoute: typeof SuppressionDesDonneesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/dashboard': {
@@ -378,7 +418,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ConfidentialiteRoute: ConfidentialiteRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  SuppressionDesDonneesRoute: SuppressionDesDonneesRoute,
   ApiInternalJobsTickRoute: ApiInternalJobsTickRoute,
   ApiPublicOauthGoogleCallbackRoute: ApiPublicOauthGoogleCallbackRoute,
   ApiPublicOauthMetaCallbackRoute: ApiPublicOauthMetaCallbackRoute,

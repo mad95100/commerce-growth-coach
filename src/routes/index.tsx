@@ -253,9 +253,17 @@ function Landing() {
             </div>
             <span>© {new Date().getFullYear()} EcomPilot AI</span>
           </div>
-          <Link to="/auth" className="hover:text-foreground">
-            Se connecter
-          </Link>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <Link to="/confidentialite" className="hover:text-foreground">
+              Confidentialité
+            </Link>
+            <Link to="/suppression-des-donnees" className="hover:text-foreground">
+              Suppression des données
+            </Link>
+            <Link to="/auth" className="hover:text-foreground">
+              Se connecter
+            </Link>
+          </div>
         </div>
       </footer>
     </div>
