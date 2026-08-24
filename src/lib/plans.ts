@@ -89,7 +89,11 @@ export function formattedPlanPrice(): string {
 export const PLAN_LIMITS: Record<PlanTier, Record<QuotaKey, number | null>> = {
   free: {
     audits: 3,
-    fixes: 5,
+    // AUTANT DE CORRECTIONS QUE D'AUDITS, ET C'EST VOULU. Un plan qui offre
+    // cinq corrections pour trois audits promet plus de réparations que de
+    // diagnostics pour les trouver : le surplus ne pouvait pas être consommé,
+    // et il coûtait un appel au modèle par unité s'il l'avait été.
+    fixes: 3,
     coach_messages: 20,
   },
   pro: {
