@@ -90,7 +90,9 @@ async function main() {
   ]);
   console.log('Vidéo :', mp4);
 
-  await incruster(mp4);
+  /* Les sous-titres ne sont plus incrustés par défaut : cette version mise sur
+     l'image et très peu de texte. SOUS_TITRES=1 produit la variante sous-titrée. */
+  if (process.env.SOUS_TITRES) await incruster(mp4);
 
   console.log('Images conservées dans', IMAGES, `(${(await readdir(IMAGES)).length})`);
 }

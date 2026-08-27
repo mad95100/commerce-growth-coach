@@ -1,114 +1,38 @@
 {
-  "commentaire": "Source unique. « repliques » = ce qui est DIT (phrases entières, pour que la synthèse garde sa prosodie). « sous_titres » = ce qui est LU à l'écran, découpé court comme le veut TikTok, une seule ligne par carton.",
+  "commentaire": "Script de voix-off proposé, calé sur les coupes du montage. AUCUN audio n'est généré ici. « repliques » = phrases entières, à donner telles quelles à un moteur de voix. « sous_titres » = cartons courts d'une ligne, pour l'export SRT. Les bornes sont des repères : le montage laisse des silences, ajustez après écoute.",
   "voix": "fr-FR-DeniseNeural",
-  "debit": "+8%",
+  "debit": "+6%",
   "repliques": [
-    {
-      "debut": 0.2,
-      "fin": 2.65,
-      "texte": "Tu pars de zéro et tu veux trouver ton premier client ?"
-    },
-    {
-      "debut": 2.8,
-      "fin": 4.15,
-      "texte": "Évite surtout ces trois erreurs."
-    },
-    {
-      "debut": 4.6,
-      "fin": 7.2,
-      "texte": "Première erreur : vouloir vendre à tout le monde."
-    },
-    {
-      "debut": 10.7,
-      "fin": 13.3,
-      "texte": "Deuxième erreur : créer ton offre"
-    },
-    {
-      "debut": 13.3,
-      "fin": 15.9,
-      "texte": "avant de vérifier que le problème existe vraiment."
-    },
-    {
-      "debut": 17.5,
-      "fin": 20.5,
-      "texte": "Troisième erreur : attendre d’être parfaitement prêt."
-    },
-    {
-      "debut": 20.9,
-      "fin": 23.4,
-      "texte": "Commence, obtiens des retours et améliore."
-    },
-    {
-      "debut": 25.1,
-      "fin": 27.3,
-      "texte": "Découvre 0 € → Premier client."
-    }
+    { "debut": 0.20,  "fin": 3.00,  "texte": "Tu peux avoir une excellente idée… et pourtant, personne ne l’achète." },
+    { "debut": 3.25,  "fin": 4.45,  "texte": "Tu envoies des messages. Rien." },
+    { "debut": 4.70,  "fin": 5.95,  "texte": "Tu cherches des clients partout." },
+    { "debut": 6.20,  "fin": 7.30,  "texte": "On regarde ton offre, et on repart." },
+    { "debut": 7.50,  "fin": 8.10,  "texte": "Le problème n’est pas ton idée." },
+    { "debut": 8.45,  "fin": 10.20, "texte": "Première erreur : tu parles à tout le monde." },
+    { "debut": 10.65, "fin": 12.45, "texte": "Deuxième : ton offre ne dit pas ce qu’elle change." },
+    { "debut": 12.85, "fin": 14.90, "texte": "Troisième : le même message pour tout le monde." },
+    { "debut": 15.25, "fin": 16.90, "texte": "La méthode, c’est l’inverse. Et dans cet ordre." },
+    { "debut": 17.25, "fin": 18.95, "texte": "Une personne. Un problème. Une promesse." },
+    { "debut": 19.30, "fin": 20.90, "texte": "Et là, on te répond." },
+    { "debut": 21.30, "fin": 22.90, "texte": "C’est comme ça qu’arrive le premier client." },
+    { "debut": 23.45, "fin": 25.90, "texte": "Zéro euro, premier client : la méthode complète, en 30 jours." },
+    { "debut": 26.70, "fin": 28.40, "texte": "Découvre la méthode." }
   ],
   "sous_titres": [
-    {
-      "debut": 0.2,
-      "fin": 1.45,
-      "texte": "Tu pars de zéro et tu veux"
-    },
-    {
-      "debut": 1.45,
-      "fin": 2.65,
-      "texte": "trouver ton premier client ?"
-    },
-    {
-      "debut": 2.8,
-      "fin": 4.15,
-      "texte": "Évite surtout ces trois erreurs."
-    },
-    {
-      "debut": 4.6,
-      "fin": 5.4,
-      "texte": "Première erreur :"
-    },
-    {
-      "debut": 5.4,
-      "fin": 7.2,
-      "texte": "vouloir vendre à tout le monde."
-    },
-    {
-      "debut": 10.7,
-      "fin": 13.2,
-      "texte": "Deuxième erreur : créer ton offre"
-    },
-    {
-      "debut": 13.2,
-      "fin": 14.6,
-      "texte": "avant de vérifier que le problème"
-    },
-    {
-      "debut": 14.6,
-      "fin": 15.9,
-      "texte": "existe vraiment."
-    },
-    {
-      "debut": 17.5,
-      "fin": 18.4,
-      "texte": "Troisième erreur :"
-    },
-    {
-      "debut": 18.4,
-      "fin": 20.5,
-      "texte": "attendre d’être parfaitement prêt."
-    },
-    {
-      "debut": 20.9,
-      "fin": 22.2,
-      "texte": "Commence, obtiens des retours"
-    },
-    {
-      "debut": 22.2,
-      "fin": 23.4,
-      "texte": "et améliore."
-    },
-    {
-      "debut": 25.1,
-      "fin": 27.3,
-      "texte": "Découvre 0 € → Premier client."
-    }
+    { "debut": 0.20,  "fin": 1.65,  "texte": "Tu peux avoir une excellente idée…" },
+    { "debut": 1.70,  "fin": 3.00,  "texte": "…et pourtant personne ne l’achète." },
+    { "debut": 3.25,  "fin": 4.45,  "texte": "Tu envoies des messages. Rien." },
+    { "debut": 4.70,  "fin": 5.95,  "texte": "Tu cherches des clients partout." },
+    { "debut": 6.20,  "fin": 7.30,  "texte": "On regarde ton offre, et on repart." },
+    { "debut": 7.50,  "fin": 8.10,  "texte": "Le problème n’est pas ton idée." },
+    { "debut": 8.45,  "fin": 10.20, "texte": "Erreur 1 : tu parles à tout le monde." },
+    { "debut": 10.65, "fin": 12.45, "texte": "Erreur 2 : ton offre reste floue." },
+    { "debut": 12.85, "fin": 14.90, "texte": "Erreur 3 : le même message pour tous." },
+    { "debut": 15.25, "fin": 16.90, "texte": "La méthode, c’est l’inverse." },
+    { "debut": 17.25, "fin": 18.95, "texte": "Une personne. Un problème." },
+    { "debut": 19.00, "fin": 20.90, "texte": "Une promesse. Et on te répond." },
+    { "debut": 21.30, "fin": 22.90, "texte": "C’est comme ça qu’arrive le premier." },
+    { "debut": 23.45, "fin": 25.90, "texte": "0 € → Premier client, en 30 jours." },
+    { "debut": 26.70, "fin": 28.40, "texte": "Découvre la méthode." }
   ]
 }

@@ -6,218 +6,187 @@
 <link rel="stylesheet" href="polices.css">
 <style>
   :root{
-    --noir:#08090B; --noir2:#0E1015; --carte:#12151B;
-    --blanc:#F4F3EE; --gris:#7C838E; --gris2:#3A414C;
+    --noir:#050608; --nuit:#0A0C11; --acier:#161A22; --ardoise:#222835;
+    --ivoire:#F2F0EA; --gris:#767E8C; --gris2:#39414F;
     --vert:#6FE3A0; --corail:#FF7A59;
-    --marge:84px;
     --dsp:"Bricolage Grotesque","DejaVu Sans",sans-serif;
     --txt:"Public Sans","DejaVu Sans",sans-serif;
   }
   *{margin:0;padding:0;box-sizing:border-box}
-  html,body{width:1080px;height:1920px;overflow:hidden;background:var(--noir)}
-  body{font-family:var(--txt);color:var(--blanc);-webkit-font-smoothing:antialiased}
+  html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
+  body{font-family:var(--txt);color:var(--ivoire);-webkit-font-smoothing:antialiased}
 
-  #scene{position:relative;width:1080px;height:1920px;overflow:hidden;background:var(--noir)}
+  #scene{position:relative;width:1080px;height:1920px;overflow:hidden;background:var(--noir);
+         perspective:1500px;perspective-origin:50% 40%}
 
-  /* ---------- fond ---------- */
-  .fond{position:absolute;inset:0;
+  /* ================= ATMOSPHÈRE ================= */
+  .ciel{position:absolute;inset:0;
     background:
-      radial-gradient(1100px 900px at 50% 22%, #171B23 0%, rgba(23,27,35,0) 62%),
-      linear-gradient(180deg,#0A0C10 0%,#08090B 55%,#0B0D12 100%);}
-  .lueur{position:absolute;left:50%;top:34%;width:1200px;height:1200px;margin:-600px 0 0 -600px;
-    background:radial-gradient(circle, rgba(111,227,160,.15) 0%, rgba(111,227,160,0) 60%);}
-  .grain{position:absolute;inset:-40px;opacity:.055;mix-blend-mode:overlay;pointer-events:none;
-    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>");}
+      radial-gradient(980px 820px at 50% 36%, #1C2230 0%, rgba(28,34,48,0) 70%),
+      linear-gradient(180deg,#090B10 0%,#050608 46%,#070910 100%)}
+  .halo{position:absolute;left:50%;top:40%;width:1500px;height:1200px;margin:-600px 0 0 -750px;
+    background:radial-gradient(ellipse at center, rgba(111,227,160,.13) 0%, rgba(111,227,160,0) 62%)}
+  .sol{position:absolute;left:0;right:0;bottom:0;height:620px;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(2,3,5,.85) 60%, #020305 100%)}
+  .poussiere{position:absolute;inset:0;pointer-events:none}
+  .poussiere>div{position:absolute;border-radius:50%;background:#CFE8DA;display:block}
+  .balayage{position:absolute;left:-80%;top:-30%;width:120%;height:170%;pointer-events:none;
+    background:linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(210,240,225,.010) 26%, rgba(210,240,225,.030) 50%, rgba(210,240,225,.010) 74%, rgba(255,255,255,0) 100%);
+    transform:rotate(9deg)}
+  .grain{position:absolute;inset:-40px;opacity:.07;mix-blend-mode:overlay;pointer-events:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>")}
   .vignette{position:absolute;inset:0;pointer-events:none;
-    background:radial-gradient(120% 78% at 50% 46%, rgba(0,0,0,0) 52%, rgba(0,0,0,.62) 100%);}
+    background:radial-gradient(122% 76% at 50% 44%, rgba(0,0,0,0) 52%, rgba(0,0,0,.66) 100%)}
+  .noir{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}
 
-  /* ---------- chrome ---------- */
-  .barre{position:absolute;top:0;left:0;width:1080px;height:5px;background:rgba(255,255,255,.07)}
-  .barre i{display:block;height:100%;width:1080px;background:var(--vert);transform-origin:0 50%}
-  .volet{position:absolute;inset:0;background:var(--noir2);border-left:10px solid var(--vert);will-change:transform}
+  /* ================= PRISES DE VUE ================= */
+  .prise{position:absolute;inset:0;opacity:0;transform-style:preserve-3d;
+         display:flex;align-items:center;justify-content:center;padding-bottom:300px}
+  .couche{position:absolute;transform-style:preserve-3d}
 
-  /* ---------- sections ---------- */
-  section{position:absolute;inset:0;opacity:0;display:flex;flex-direction:column;
-          align-items:center;justify-content:center;padding:0 var(--marge)}
-  .push{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 var(--marge)}
+  /* nappe lumineuse posée sous un appareil */
+  .nappe{position:absolute;left:50%;top:50%;width:1200px;height:700px;margin:-350px 0 0 -600px;
+    background:radial-gradient(ellipse at center, rgba(140,205,178,.34) 0%, rgba(120,190,160,0) 65%)}
 
-  /* ---------- typo ---------- */
-  .masque{overflow:hidden;display:block}
-  .masque>span{display:block}
-  h1{font-family:var(--dsp);font-weight:800;font-size:104px;line-height:1.03;
-     letter-spacing:-.035em;text-align:center}
-  h2{font-family:var(--dsp);font-weight:800;font-size:76px;line-height:1.06;
-     letter-spacing:-.03em;text-align:center}
-  .vert{color:var(--vert)}
-  .corail{color:var(--corail)}
-  .appui{font-family:var(--txt);font-weight:600;font-size:38px;line-height:1.35;
-         color:var(--gris);text-align:center;letter-spacing:-.005em}
-  .appui b{color:var(--blanc);font-weight:700}
-  .sur{font-family:var(--txt);font-weight:700;font-size:24px;letter-spacing:.26em;
-       text-transform:uppercase;color:var(--gris)}
+  /* ================= APPAREILS ================= */
+  .tel{position:relative;width:460px;height:928px;border-radius:56px;
+    background:linear-gradient(160deg,#2A313D 0%,#12161D 34%,#0A0D12 100%);
+    padding:11px;box-shadow:0 60px 120px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.05),
+      inset 0 1px 1px rgba(255,255,255,.14)}
+  .tel-ec{position:relative;width:100%;height:100%;border-radius:46px;overflow:hidden;
+    background:#0B0E13;display:flex;flex-direction:column}
+  .encoche{position:absolute;left:50%;top:14px;width:112px;height:28px;border-radius:16px;
+    background:#05070A;transform:translateX(-50%);z-index:5}
+  .verre{position:absolute;inset:0;pointer-events:none;z-index:6;
+    background:linear-gradient(128deg, rgba(255,255,255,.09) 0%, rgba(255,255,255,0) 32%,
+      rgba(255,255,255,0) 68%, rgba(255,255,255,.035) 100%)}
 
-  /* puce de chapitre */
-  .puce{display:inline-flex;align-items:center;gap:16px;
-        font-family:var(--txt);font-weight:800;font-size:26px;letter-spacing:.18em;
-        text-transform:uppercase;color:var(--vert);
-        border:2px solid rgba(111,227,160,.4);border-radius:999px;padding:12px 26px}
-  .puce .pt{width:10px;height:10px;border-radius:50%;background:var(--vert)}
+  .mac{position:relative;width:930px}
+  .mac-ec{position:relative;width:930px;height:594px;border-radius:16px;padding:13px;
+    background:linear-gradient(160deg,#2C3441 0%,#141922 40%,#0B0E14 100%);
+    box-shadow:0 54px 110px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.055),
+      inset 0 1px 1px rgba(255,255,255,.12)}
+  .mac-in{position:relative;width:100%;height:100%;border-radius:8px;overflow:hidden;background:#0B0E13}
+  .mac-socle{width:1082px;height:21px;margin:0 0 0 -76px;border-radius:0 0 16px 16px;
+    background:linear-gradient(180deg,#2A313D 0%,#161B23 55%,#0C1015 100%);
+    box-shadow:0 26px 46px rgba(0,0,0,.6)}
+  .mac-socle::after{content:"";display:block;width:150px;height:7px;margin:0 auto;border-radius:0 0 8px 8px;
+    background:#0A0D12}
 
-  /* filigrane numéro */
-  .filigrane{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-    font-family:var(--dsp);font-weight:800;font-size:660px;line-height:1;
-    color:transparent;-webkit-text-stroke:2px rgba(244,243,238,.035);letter-spacing:-.04em}
+  /* ================= INTERFACES ================= */
+  .fen{width:100%;height:100%;background:#0D1117;display:flex;flex-direction:column}
+  .fen-barre{height:52px;flex:0 0 52px;background:#141922;border-bottom:1px solid #1E2531;
+    display:flex;align-items:center;gap:9px;padding:0 20px}
+  .pastille{width:13px;height:13px;border-radius:50%;background:#2C3543}
+  .url{flex:1;height:28px;margin-left:14px;border-radius:8px;background:#0D1117;
+    display:flex;align-items:center;padding:0 14px;
+    font-family:var(--txt);font-size:16px;color:#5C6575;letter-spacing:.01em}
+  .fen-corps{flex:1;padding:34px;overflow:hidden;position:relative}
 
-  /* ---------- bloc visuel commun ---------- */
-  .scenette{position:relative;width:912px;height:520px;margin-top:56px;
-            display:flex;align-items:center;justify-content:center}
+  /* page d'offre */
+  .offre-titre{font-family:var(--dsp);font-weight:800;font-size:44px;line-height:1.1;
+    letter-spacing:-.03em;color:var(--ivoire)}
+  .offre-sous{margin-top:14px;font-size:21px;line-height:1.5;color:var(--gris)}
+  .bouton{margin-top:30px;display:inline-flex;align-items:center;height:60px;padding:0 34px;
+    border-radius:12px;background:var(--vert);color:#06251A;
+    font-family:var(--txt);font-weight:800;font-size:21px;letter-spacing:.01em}
+  .bouton.mort{background:#232A36;color:#5C6575}
+  .barre-txt{height:13px;border-radius:7px;background:#1B2130}
 
-  /* erreur 1 : grille de cibles */
-  .grille{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-          display:grid;grid-template-columns:repeat(9,64px);gap:38px 34px}
-  .pt0{width:18px;height:18px;border-radius:50%;background:var(--gris2);justify-self:center}
-  .anneau{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-          border:3px dashed var(--corail);border-radius:50%;opacity:0}
-  .etiq{position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);white-space:nowrap;
-        font-family:var(--dsp);font-weight:800;font-size:46px;letter-spacing:-.02em}
+  /* fil de messages */
+  .fil{flex:1;padding:52px 22px 22px;display:flex;flex-direction:column;gap:13px;overflow:hidden}
+  .bulle{max-width:78%;padding:15px 20px;border-radius:20px;font-size:20px;line-height:1.35}
+  .bulle.moi{align-self:flex-end;background:#232B3A;color:#C3CAD6;border-bottom-right-radius:7px}
+  .bulle.eux{align-self:flex-start;background:#17303F;color:#D3E6E0;border-bottom-left-radius:7px}
+  .bulle.ok{background:rgba(111,227,160,.16);color:#A9EFC9}
+  .vu{align-self:flex-end;font-size:15px;color:#4A5262;margin-top:-6px}
+  .tel-entete{flex:0 0 96px;display:flex;align-items:flex-end;gap:13px;padding:0 20px 12px;
+    border-bottom:1px solid #171D27}
+  .pastille-av{width:40px;height:40px;border-radius:50%;background:#242C3A}
 
-  /* erreur 2 : deux enchaînements */
-  .flux{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:18px}
-  .fluxTitre{font-family:var(--txt);font-weight:800;font-size:22px;letter-spacing:.22em;
-             text-transform:uppercase}
-  .rang{display:flex;align-items:center;gap:0}
-  .boite{width:196px;height:92px;border-radius:16px;display:flex;align-items:center;justify-content:center;
-         font-family:var(--txt);font-weight:800;font-size:25px;letter-spacing:.07em;text-transform:uppercase;
-         border:2px solid var(--gris2);background:var(--carte);color:var(--blanc)}
-  .fl{width:46px;display:flex;align-items:center;justify-content:center}
-  .fl svg{display:block}
-  .badge{width:92px;height:92px;margin-left:22px;border-radius:16px;display:flex;align-items:center;justify-content:center;
-         font-size:44px;font-weight:800;border:2px solid}
-  .note{font-family:var(--txt);font-weight:600;font-size:26px;letter-spacing:.01em}
+  /* rangées de listes / contacts */
+  .rangee{display:flex;align-items:center;gap:16px;padding:13px 0}
+  .av{width:44px;height:44px;border-radius:50%;background:#1E2532;flex:0 0 44px}
+  .rangee-txt{flex:1;display:flex;flex-direction:column;gap:8px}
 
-  /* erreur 3 : la ligne "prêt" */
-  .axe{position:absolute;left:0;right:0;top:196px;height:2px;background:var(--gris2)}
-  .curseur{position:absolute;top:178px;width:38px;height:38px;border-radius:50%;
-           background:var(--vert);box-shadow:0 0 0 10px rgba(111,227,160,.16)}
-  .drapeau{position:absolute;top:110px;display:flex;flex-direction:column;align-items:center;gap:10px}
-  .drapeau .tige{width:2px;height:52px;background:var(--corail)}
-  .drapeau .lab{font-family:var(--txt);font-weight:800;font-size:24px;letter-spacing:.16em;
-                text-transform:uppercase;color:var(--corail);white-space:nowrap}
-  .boucle{position:absolute;left:0;right:0;top:150px;display:flex;flex-direction:column;align-items:center;gap:26px}
-  .cyc{display:flex;align-items:center}
-  .chip{height:86px;padding:0 30px;border-radius:14px;display:flex;align-items:center;
-        font-family:var(--txt);font-weight:800;font-size:27px;letter-spacing:.08em;text-transform:uppercase;
-        border:2px solid rgba(111,227,160,.45);background:rgba(111,227,160,.08);color:var(--vert)}
+  /* cartes de personnes (audience) */
+  .perso{width:150px;height:104px;border-radius:14px;background:#11161E;
+    border:1px solid #1D2432;display:flex;align-items:center;justify-content:center}
+  .perso .av{width:38px;height:38px;flex:0 0 38px}
 
-  /* ---------- final ---------- */
-  .eyebrow{font-family:var(--txt);font-weight:800;font-size:22px;letter-spacing:.42em;
-           text-transform:uppercase;color:var(--gris)}
-  .prix{font-family:var(--dsp);font-weight:800;font-size:172px;line-height:.94;letter-spacing:-.05em}
-  .versL{display:flex;align-items:center;gap:26px}
-  .versT{font-family:var(--dsp);font-weight:800;font-size:76px;letter-spacing:-.03em;white-space:nowrap;text-transform:uppercase}
-  .inclus{font-family:var(--txt);font-weight:600;font-size:33px;letter-spacing:.005em;color:var(--blanc);white-space:nowrap}
-  .inclus i{font-style:normal;color:var(--vert);padding:0 12px}
-  .cta{position:relative;font-family:var(--dsp);font-weight:800;font-size:54px;letter-spacing:-.02em}
-  .cta .trait{position:absolute;left:0;bottom:-16px;height:5px;background:var(--vert);width:100%;transform-origin:0 50%}
+  /* étapes / pipeline */
+  .etape{height:88px;border-radius:14px;background:#101620;border:1px solid #1F2735;
+    display:flex;align-items:center;padding:0 26px;gap:18px;
+    font-family:var(--txt);font-weight:700;font-size:22px;color:#B7BFCC}
+  .etape .num{width:36px;height:36px;border-radius:50%;flex:0 0 36px;
+    display:flex;align-items:center;justify-content:center;font-size:17px;
+    background:#1B2331;color:#6E7789}
+  .etape.vif{border-color:rgba(111,227,160,.5);background:rgba(111,227,160,.07);color:#DDF6E9}
+  .etape.vif .num{background:var(--vert);color:#06251A}
+
+  /* colonnes de suivi */
+  .col{flex:1;background:#0F141C;border:1px solid #1B2230;border-radius:14px;padding:14px;
+    display:flex;flex-direction:column;gap:11px}
+  .col-titre{font-size:15px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#5C6575}
+  .fiche{height:52px;border-radius:10px;background:#161D28;border:1px solid #222A38}
+  .fiche.vif{background:rgba(111,227,160,.13);border-color:rgba(111,227,160,.42)}
+
+  /* indicateurs */
+  .kpi{font-family:var(--dsp);font-weight:800;font-size:168px;line-height:1;letter-spacing:-.04em}
+  .kpi-lab{font-size:22px;letter-spacing:.2em;text-transform:uppercase;color:#5C6575;margin-top:10px}
+
+  /* curseur */
+  .curseur{position:absolute;width:26px;height:34px;z-index:9;filter:drop-shadow(0 3px 6px rgba(0,0,0,.6))}
+
+  /* couverture d'ebook */
+  .livre{position:relative;width:492px;height:702px;border-radius:8px;
+    background:linear-gradient(155deg,#141A24 0%,#0A0E14 52%,#080B10 100%);
+    box-shadow:0 70px 130px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.07),
+      inset 1px 0 0 rgba(255,255,255,.10);
+    padding:52px 44px;display:flex;flex-direction:column;justify-content:flex-end;gap:0}
+  .livre::before{content:"";position:absolute;left:0;top:0;bottom:0;width:22px;border-radius:8px 0 0 8px;
+    background:linear-gradient(90deg, rgba(214,240,228,.26), rgba(255,255,255,.03) 62%, rgba(255,255,255,0))}
+  .livre::after{content:"";position:absolute;inset:0;border-radius:8px;pointer-events:none;
+    background:linear-gradient(146deg, rgba(255,255,255,.075) 0%, rgba(255,255,255,0) 38%)}
+  .livre-eyebrow{position:absolute;left:44px;top:48px;font-size:16px;font-weight:800;letter-spacing:.4em;text-transform:uppercase;color:#6C7688}
+
+  /* ================= TEXTE À L'ÉCRAN ================= */
+  .textes{position:absolute;inset:0;pointer-events:none}
+  .mot{position:absolute;left:0;right:0;text-align:center;padding:0 90px;opacity:0}
+  .mot h1{font-family:var(--dsp);font-weight:800;font-size:82px;line-height:1.06;
+    letter-spacing:-.035em;text-shadow:0 6px 34px rgba(0,0,0,.85)}
+  .mot h2{font-family:var(--dsp);font-weight:800;font-size:62px;line-height:1.08;
+    letter-spacing:-.03em;text-shadow:0 6px 30px rgba(0,0,0,.85)}
+  .mot .puce{display:inline-block;font-family:var(--txt);font-weight:800;font-size:21px;
+    letter-spacing:.22em;text-transform:uppercase;color:var(--vert);
+    border:1.5px solid rgba(111,227,160,.42);border-radius:999px;padding:9px 20px;margin-bottom:20px}
+  .vert{color:var(--vert)} .corail{color:var(--corail)} .doux{color:var(--gris)}
+  .trait{display:block;height:4px;background:var(--vert);border-radius:2px;margin:22px auto 0;
+    width:180px;transform-origin:50% 50%}
+
+  /* lockup final */
+  .final{position:absolute;left:0;right:0;text-align:center;opacity:0}
+  .prix{font-family:var(--dsp);font-weight:800;font-size:170px;line-height:.94;letter-spacing:-.05em}
+  .vers{display:flex;align-items:center;justify-content:center;gap:24px;margin-top:12px}
+  .vers span{font-family:var(--dsp);font-weight:800;font-size:74px;letter-spacing:-.03em;
+    text-transform:uppercase;white-space:nowrap}
+  .cta{font-family:var(--dsp);font-weight:800;font-size:50px;letter-spacing:-.02em;position:relative;
+       display:inline-block}
 </style>
 </head>
 <body>
 <div id="scene">
-  <div class="fond"></div>
-  <div class="lueur" id="lueur"></div>
-
-  <!-- 0 · HOOK -->
-  <section id="s0">
-    <div class="push" id="s0a">
-      <h1>
-        <span class="masque"><span>Tu pars de <b class="vert">0 €</b></span></span>
-        <span class="masque"><span>et tu veux ton</span></span>
-        <span class="masque"><span>premier client&nbsp;?</span></span>
-      </h1>
-    </div>
-    <div class="push" id="s0b">
-      <h1>
-        <span class="masque"><span>Évite ces</span></span>
-        <span class="masque"><span><b class="vert">3 erreurs</b>.</span></span>
-      </h1>
-    </div>
-  </section>
-
-  <!-- 1 · ERREUR 1 -->
-  <section id="s1">
-    <div class="filigrane" id="fil1">01</div>
-    <div class="push" id="s1a">
-      <div class="puce" id="p1"><i class="pt"></i>Erreur n° 1</div>
-      <h2 id="t1" style="margin-top:34px">Vouloir vendre<br>à tout le monde</h2>
-      <div class="scenette" id="sc1">
-        <div class="grille" id="g1"></div>
-        <div class="anneau" id="a1"></div>
-        <div class="etiq corail" id="e1a">« tout le monde »</div>
-        <div class="etiq vert" id="e1b" style="opacity:0">une personne précise</div>
-      </div>
-      <p class="appui" id="ap1" style="margin-top:26px">Trop large, ton message<br>ne touche <b>personne</b>.</p>
-    </div>
-  </section>
-
-  <!-- 2 · ERREUR 2 -->
-  <section id="s2">
-    <div class="filigrane" id="fil2">02</div>
-    <div class="push" id="s2a">
-      <div class="puce" id="p2"><i class="pt"></i>Erreur n° 2</div>
-      <h2 id="t2" style="margin-top:34px">Créer avant<br>de vérifier</h2>
-      <div class="scenette" id="sc2">
-        <div class="flux" id="fx1" style="top:52px"></div>
-        <div class="flux" id="fx2" style="top:300px"></div>
-      </div>
-      <p class="appui" id="ap2" style="margin-top:10px">Le <b>problème</b> d’abord.<br>L’offre ensuite.</p>
-    </div>
-  </section>
-
-  <!-- 3 · ERREUR 3 -->
-  <section id="s3">
-    <div class="filigrane" id="fil3">03</div>
-    <div class="push" id="s3a">
-      <div class="puce" id="p3"><i class="pt"></i>Erreur n° 3</div>
-      <h2 id="t3" style="margin-top:34px">Attendre<br>d’être prêt</h2>
-      <div class="scenette" id="sc3">
-        <div id="axeWrap" style="position:absolute;inset:0">
-          <div class="axe"></div>
-          <div class="curseur" id="cur" style="left:60px"></div>
-          <div class="drapeau" id="dra" style="left:420px"><span class="lab">prêt</span><span class="tige"></span></div>
-          <div class="note corail" id="noteA" style="position:absolute;left:50%;transform:translateX(-50%);top:296px;text-align:center">« prêt » recule toujours</div>
-        </div>
-        <div class="boucle" id="bou" style="opacity:0"></div>
-      </div>
-      <p class="appui" id="ap3" style="margin-top:10px">Les <b>retours</b> viennent<br>de l’action.</p>
-    </div>
-  </section>
-
-  <!-- 4 · FIN -->
-  <section id="s4">
-    <div class="push" id="s4a">
-      <div class="eyebrow" id="f0">Le guide</div>
-      <div class="prix" id="f1" style="margin-top:30px">0 €</div>
-      <div class="versL" id="f2" style="margin-top:14px">
-        <svg width="104" height="34" viewBox="0 0 104 34" fill="none" id="fleche">
-          <path d="M2 17 H88" stroke="#6FE3A0" stroke-width="6" stroke-linecap="round"/>
-          <path d="M74 4 L92 17 L74 30" stroke="#6FE3A0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-        </svg>
-        <span class="versT">Premier client</span>
-      </div>
-      <div class="inclus" id="f3" style="margin-top:56px">30 jours<i>•</i>Scripts<i>•</i>Templates<i>•</i>Toolkit</div>
-      <div class="cta" id="f4" style="margin-top:78px">Découvre le guide.<span class="trait" id="f4t"></span></div>
-    </div>
-  </section>
-
+  <div class="ciel"></div>
+  <div class="halo" id="halo"></div>
+  <div id="prises"></div>
+  <div class="sol"></div>
+  <div class="poussiere" id="poussiere"></div>
+  <div class="balayage" id="balayage"></div>
+  <div class="textes" id="textes"></div>
   <div class="vignette"></div>
   <div class="grain" id="grain"></div>
-  <div class="barre"><i id="prog"></i></div>
-  <div class="volet" id="v1"></div>
-  <div class="volet" id="v2"></div>
-  <div class="volet" id="v3"></div>
-  <div class="volet" id="v4"></div>
+  <div class="noir" id="noir"></div>
 </div>
-
 <script src="scene.js"></script>
 </body>
 </html>
