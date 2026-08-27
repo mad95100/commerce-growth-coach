@@ -13,6 +13,7 @@ sombre avec profondeur de champ, parallaxe et mouvements de caméra.
 | Fichier | Rôle |
 | --- | --- |
 | `sortie/0e-premier-client-tiktok.mp4` | le film, muet |
+| `sortie/0e-premier-client-tiktok-voix.mp4` | le film avec la voix-off calée |
 | `sous-titres.srt` | à téléverser dans TikTok si vous en voulez |
 | `voix-off.json` | script de voix-off proposé + minutages, calé sur les coupes |
 
@@ -75,10 +76,17 @@ seconde prévue. La parole n'est ni étirée ni repitchée : seuls les silences
 entre les phrases changent de longueur. C'est ce qui permet à une prise unique
 de suivre des coupes qu'elle n'a pas connues.
 
-Si le nombre de blocs ne correspond pas au nombre de répliques, le script
-**s'arrête et le dit** plutôt que d'empiler les phrases. `--seuil -40dB` et
-`--pause 0.10` rattrapent un découpage trop grossier ; `--forcer` aligne les
-premiers blocs seulement.
+Le nombre de blocs ne dit rien à lui seul : une phrase portant deux points se
+coupe en deux, deux phrases voisines se soudent. Les blocs sont donc attribués
+aux répliques par **proportion de syllabes cumulées** — le champ `poids` de
+`voix-off.json`, compté à la main, sert de référence. Un compteur automatique
+sur-évalue les finales muettes et les digrammes, or tout le calage se joue sur
+ces écarts.
+
+Deux garde-fous : aucune unité ne peut en recouvrir une autre (celle qui suit
+est décalée, jamais l'inverse), et le script signale une voix qui déborde des
+30 s. `--seuil=-38dB` et `--pause 0.14` rattrapent un découpage trop fin,
+`--pause 0.08` un découpage trop grossier.
 
 ### Le script tient dans 30 s — et c'est calculé
 

@@ -67,7 +67,54 @@ def blocs_de_parole(audio: Path, seuil: str, pause: float) -> list[tuple[float, 
     return blocs
 
 
+def syllabes(texte: str) -> int:
+    """Compte approché des syllabes françaises : suffisant pour une PROPORTION."""
+    t = texte.lower()
+    groupes = re.findall(r'[aeiouyàâäéèêëîïôöùûüœ]+', t)
+    n = len(groupes)
+    # « -e » final muet, sauf s'il porte seul la syllabe
+    if re.search(r'[^aeiouyàâäéèêëîïôöùûüœ]es?$', t) and n > 1:
+        n -= 1
+    return max(1, n)
+
+
+def attribuer(blocs, repliques) -> list[int]:
+    """Associe chaque bloc à une réplique.
+
+    Le nombre de blocs ne dit RIEN : une phrase peut porter deux points et se
+    couper en deux, deux phrases voisines peuvent se souder. On compare donc la
+    position de chaque bloc dans la parole totale à la position attendue de
+    chaque réplique, pondérée par ses syllabes.
+    """
+    poids = [r.get('poids') or syllabes(r['texte']) for r in repliques]
+    total, parole = sum(poids), sum(b - a for a, b in blocs)
+    bornes, acc = [], 0.0
+    for p in poids:
+        acc += p / total * parole
+        bornes.append(acc)
+
+    attribution, acc = [], 0.0
+    for a, b in blocs:
+        milieu = acc + (b - a) / 2
+        acc += b - a
+        attribution.append(next((i for i, x in enumerate(bornes) if milieu <= x),
+                                len(repliques) - 1))
+    return attribution
+
+
+def unites(blocs, attribution):
+    """Regroupe les blocs consécutifs qui portent la même réplique."""
+    groupes = []
+    for (a, b), i in zip(blocs, attribution):
+        if groupes and groupes[-1][2] == i:
+            groupes[-1] = (groupes[-1][0], b, i)
+        else:
+            groupes.append((a, b, i))
+    return groupes
+
+
 def coller(video: Path, audio: Path, blocs, cibles, dest: Path, marge: float) -> None:
+    duree_video = duree(video)
     fils, etiquettes = [f'[0:a]asplit={len(blocs)}' + ''.join(f'[s{i}]' for i in range(len(blocs)))], []
     for i, ((a, b), cible) in enumerate(zip(blocs, cibles)):
         debut = max(0.0, a - marge)
@@ -77,12 +124,13 @@ def coller(video: Path, audio: Path, blocs, cibles, dest: Path, marge: float) ->
         etiquettes.append(f'[v{i}]')
     fils.append(''.join(etiquettes) +
                 f'amix=inputs={len(blocs)}:duration=longest:normalize=0,'
-                'alimiter=limit=0.95,aresample=48000[voix]')
+                'alimiter=limit=0.95,aresample=48000,'
+                f'apad=whole_dur={duree_video:.3f}[voix]')
     subprocess.run(
         [ffmpeg(), '-y', '-i', str(video), '-i', str(audio),
          '-filter_complex', ';'.join(fils).replace('[0:a]', '[1:a]', 1),
          '-map', '0:v', '-map', '[voix]', '-c:v', 'copy',
-         '-c:a', 'aac', '-b:a', '192k', '-shortest', str(dest)],
+         '-c:a', 'aac', '-b:a', '192k', '-t', f'{duree_video:.3f}', str(dest)],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
 
 
@@ -91,8 +139,9 @@ def main() -> None:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('audio', help='la prise enregistrée (mp3, wav…)')
     p.add_argument('--video', default=str(ICI / 'sortie' / '0e-premier-client-tiktok.mp4'))
-    p.add_argument('--seuil', default='-45dB', help='niveau sous lequel c’est du silence')
-    p.add_argument('--pause', type=float, default=0.16, help='silence minimal, en secondes')
+    p.add_argument('--seuil', default='-42dB',
+                   help='niveau sous lequel c’est du silence (forme --seuil=-38dB)')
+    p.add_argument('--pause', type=float, default=0.10, help='silence minimal, en secondes')
     p.add_argument('--marge', type=float, default=0.06, help='garde avant/après chaque bloc')
     p.add_argument('--forcer', action='store_true',
                    help='coller même si le nombre de blocs ne correspond pas')
@@ -106,26 +155,43 @@ def main() -> None:
     conf = json.loads((ICI / 'voix-off.json').read_text(encoding='utf-8'))
     repliques = conf['repliques']
     blocs = blocs_de_parole(audio, a.seuil, a.pause)
+    groupes = unites(blocs, attribuer(blocs, repliques))
 
-    print(f'{len(blocs)} blocs de parole détectés · {len(repliques)} répliques attendues')
-    for i, (d, f) in enumerate(blocs):
-        texte = repliques[i]['texte'] if i < len(repliques) else '—'
-        cible = repliques[i]['debut'] if i < len(repliques) else None
-        creneau = (repliques[i]['fin'] - repliques[i]['debut']) if i < len(repliques) else None
-        alerte = '  ← DÉBORDE' if creneau and (f - d) > creneau + 0.25 else ''
-        pose = f'{cible:5.2f} s' if cible is not None else '  —  '
-        print(f'  {i + 1:2}. {d:6.2f}→{f:6.2f} ({f - d:4.2f} s) → {pose}{alerte}  « {texte[:42]} »')
+    print(f'{len(blocs)} blocs de parole · {len(groupes)} unités posées · '
+          f'{len(repliques)} répliques')
+    portees = []
+    for k, (d, f, i) in enumerate(groupes):
+        suivante = groupes[k + 1][2] if k + 1 < len(groupes) else len(repliques)
+        textes = ' + '.join(r['texte'] for r in repliques[i:suivante])
+        portees.append(suivante - i)
+        fin_posee = repliques[i]['debut'] + (f - d)
+        butoir = groupes[k + 1] and repliques[groupes[k + 1][2]]['debut'] if k + 1 < len(groupes) else 30.0
+        choc = '  ← CHEVAUCHE LA SUIVANTE' if fin_posee > butoir + 0.01 else ''
+        print(f"  {d:6.2f}→{f:6.2f} ({f - d:4.2f} s) → posée à {repliques[i]['debut']:5.2f} s"
+              f"{choc}\n      « {textes[:78]} »")
 
-    if len(blocs) != len(repliques) and not a.forcer:
-        sys.exit(
-            f'\nLe découpage ne correspond pas ({len(blocs)} ≠ {len(repliques)}).\n'
-            'Les phrases seraient posées les unes sur les autres. Essayez un autre\n'
-            'découpage (--seuil -40dB, --pause 0.10), ou --forcer pour aligner les\n'
-            'premiers blocs seulement.')
+    if max(portees) > 1:
+        print('\nCertaines unités portent plusieurs répliques : le silence entre elles\n'
+              'était trop court pour être détecté. Elles restent solidaires, donc la\n'
+              'seconde arrive plus tôt que prévu. --pause 0.10 tente un découpage plus fin.')
 
-    n = min(len(blocs), len(repliques))
+    poses, precedente = [], 0.0
+    for d, f, i in groupes:
+        depart = max(repliques[i]['debut'], precedente)
+        poses.append(depart)
+        precedente = depart + (f - d) + 0.12
+    decales = [(k, p - repliques[i]['debut'])
+               for k, (p, (_, _, i)) in enumerate(zip(poses, groupes))
+               if p - repliques[i]['debut'] > 0.01]
+    if decales:
+        print('\nDécalées pour ne pas se recouvrir : ' +
+              ', '.join(f'unité {k + 1} (+{e:.2f} s)' for k, e in decales))
+    if precedente > 30:
+        print(f'ATTENTION : la voix déborde de {precedente - 30:.2f} s. '
+              'Raccourcissez le script ou accélérez la prise.')
+
     dest = video.with_name(video.stem + '-voix.mp4')
-    coller(video, audio, blocs[:n], [r['debut'] for r in repliques[:n]], dest, a.marge)
+    coller(video, audio, [(d, f) for d, f, _ in groupes], poses, dest, a.marge)
     print(f'\nVidéo sonorisée : {dest}')
 
 

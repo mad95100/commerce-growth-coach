@@ -1,37 +1,158 @@
 {
-  "commentaire": "Script de voix-off resserré pour tenir en 30 s à ~5 syllabes/seconde (le débit mesuré sur l'enregistrement ElevenLabs « Leo — Energetic »). AUCUN audio n'est généré ici. Enregistrez « repliques » d'une seule traite, dans l'ordre : le montage se recale ensuite en découpant aux silences. « sous_titres » sert à l'export SRT.",
+  "commentaire": "Script de voix-off resserré pour tenir en 30 s à ~5 syllabes/seconde (le débit mesuré sur l'enregistrement ElevenLabs « Leo — Energetic »). AUCUN audio n'est généré ici. Enregistrez « repliques » d'une seule traite, dans l'ordre : le montage se recale ensuite en découpant aux silences. « poids » = syllabes prononcées, comptées à la main : le calage s'appuie dessus. « sous_titres » sert à l'export SRT.",
   "voix": "ElevenLabs — voix française énergique",
   "debit": "normal (vitesse 1.0)",
   "duree_visee_secondes": 28,
   "repliques": [
-    { "debut": 0.15,  "fin": 2.15,  "texte": "Tu peux avoir une excellente idée…" },
-    { "debut": 2.25,  "fin": 3.65,  "texte": "Et personne ne l’achète." },
-    { "debut": 3.70,  "fin": 5.30,  "texte": "Tu envoies des messages. Rien." },
-    { "debut": 5.80,  "fin": 8.00,  "texte": "On regarde ton offre, et on repart." },
-    { "debut": 8.60,  "fin": 10.00, "texte": "Tu parles à tout le monde." },
-    { "debut": 10.80, "fin": 12.00, "texte": "Ton offre reste floue." },
-    { "debut": 13.00, "fin": 14.40, "texte": "Le même message pour tous." },
-    { "debut": 15.35, "fin": 16.75, "texte": "La méthode, c’est l’inverse." },
-    { "debut": 17.30, "fin": 19.50, "texte": "Une personne. Un problème. Une promesse." },
-    { "debut": 19.60, "fin": 20.60, "texte": "Et on te répond." },
-    { "debut": 21.35, "fin": 23.75, "texte": "C’est comme ça qu’arrive le premier client." },
-    { "debut": 23.85, "fin": 27.25, "texte": "Zéro euro, premier client. La méthode complète, en 30 jours." },
-    { "debut": 27.40, "fin": 28.20, "texte": "Découvre-la." }
+    {
+      "debut": 0.15,
+      "fin": 2.15,
+      "texte": "Tu peux avoir une excellente idée…",
+      "poids": 10
+    },
+    {
+      "debut": 2.25,
+      "fin": 3.65,
+      "texte": "Et personne ne l’achète.",
+      "poids": 7
+    },
+    {
+      "debut": 3.7,
+      "fin": 5.3,
+      "texte": "Tu envoies des messages. Rien.",
+      "poids": 7
+    },
+    {
+      "debut": 5.8,
+      "fin": 8.0,
+      "texte": "On regarde ton offre, et on repart.",
+      "poids": 11
+    },
+    {
+      "debut": 8.6,
+      "fin": 10.0,
+      "texte": "Tu parles à tout le monde.",
+      "poids": 7
+    },
+    {
+      "debut": 10.8,
+      "fin": 12.0,
+      "texte": "Ton offre reste floue.",
+      "poids": 6
+    },
+    {
+      "debut": 13.0,
+      "fin": 14.4,
+      "texte": "Le même message pour tous.",
+      "poids": 7
+    },
+    {
+      "debut": 15.35,
+      "fin": 16.75,
+      "texte": "La méthode, c’est l’inverse.",
+      "poids": 7
+    },
+    {
+      "debut": 17.3,
+      "fin": 19.5,
+      "texte": "Une personne. Un problème. Une promesse.",
+      "poids": 12
+    },
+    {
+      "debut": 19.6,
+      "fin": 20.6,
+      "texte": "Et on te répond.",
+      "poids": 5
+    },
+    {
+      "debut": 21.35,
+      "fin": 23.75,
+      "texte": "C’est comme ça qu’arrive le premier client.",
+      "poids": 12
+    },
+    {
+      "debut": 23.85,
+      "fin": 27.25,
+      "texte": "Zéro euro, premier client. La méthode complète, en 30 jours.",
+      "poids": 17
+    },
+    {
+      "debut": 27.4,
+      "fin": 28.2,
+      "texte": "Découvre-la.",
+      "poids": 4
+    }
   ],
   "sous_titres": [
-    { "debut": 0.15,  "fin": 2.15,  "texte": "Tu peux avoir une excellente idée…" },
-    { "debut": 2.25,  "fin": 3.65,  "texte": "Et personne ne l’achète." },
-    { "debut": 3.70,  "fin": 5.30,  "texte": "Tu envoies des messages. Rien." },
-    { "debut": 5.80,  "fin": 8.00,  "texte": "On regarde ton offre, et on repart." },
-    { "debut": 8.60,  "fin": 10.00, "texte": "Tu parles à tout le monde." },
-    { "debut": 10.80, "fin": 12.00, "texte": "Ton offre reste floue." },
-    { "debut": 13.00, "fin": 14.40, "texte": "Le même message pour tous." },
-    { "debut": 15.35, "fin": 16.75, "texte": "La méthode, c’est l’inverse." },
-    { "debut": 17.30, "fin": 19.50, "texte": "Une personne. Un problème. Une promesse." },
-    { "debut": 19.60, "fin": 20.60, "texte": "Et on te répond." },
-    { "debut": 21.35, "fin": 23.75, "texte": "C’est comme ça qu’arrive le premier." },
-    { "debut": 23.85, "fin": 25.60, "texte": "0 € → Premier client." },
-    { "debut": 25.65, "fin": 27.25, "texte": "La méthode complète, en 30 jours." },
-    { "debut": 27.40, "fin": 28.20, "texte": "Découvre-la." }
+    {
+      "debut": 0.15,
+      "fin": 2.15,
+      "texte": "Tu peux avoir une excellente idée…"
+    },
+    {
+      "debut": 2.25,
+      "fin": 3.65,
+      "texte": "Et personne ne l’achète."
+    },
+    {
+      "debut": 3.7,
+      "fin": 5.3,
+      "texte": "Tu envoies des messages. Rien."
+    },
+    {
+      "debut": 5.8,
+      "fin": 8.0,
+      "texte": "On regarde ton offre, et on repart."
+    },
+    {
+      "debut": 8.6,
+      "fin": 10.0,
+      "texte": "Tu parles à tout le monde."
+    },
+    {
+      "debut": 10.8,
+      "fin": 12.0,
+      "texte": "Ton offre reste floue."
+    },
+    {
+      "debut": 13.0,
+      "fin": 14.4,
+      "texte": "Le même message pour tous."
+    },
+    {
+      "debut": 15.35,
+      "fin": 16.75,
+      "texte": "La méthode, c’est l’inverse."
+    },
+    {
+      "debut": 17.3,
+      "fin": 19.5,
+      "texte": "Une personne. Un problème. Une promesse."
+    },
+    {
+      "debut": 19.6,
+      "fin": 20.6,
+      "texte": "Et on te répond."
+    },
+    {
+      "debut": 21.35,
+      "fin": 23.75,
+      "texte": "C’est comme ça qu’arrive le premier."
+    },
+    {
+      "debut": 23.85,
+      "fin": 25.6,
+      "texte": "0 € → Premier client."
+    },
+    {
+      "debut": 25.65,
+      "fin": 27.25,
+      "texte": "La méthode complète, en 30 jours."
+    },
+    {
+      "debut": 27.4,
+      "fin": 28.2,
+      "texte": "Découvre-la."
+    }
   ]
 }
