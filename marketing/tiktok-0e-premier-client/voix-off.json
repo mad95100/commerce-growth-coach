@@ -1,0 +1,15 @@
+{
+  "commentaire": "Source unique de la voix-off et des sous-titres. Les bornes sont des repères de montage : ajustez-les après avoir écouté la voix réellement générée.",
+  "voix": "fr-FR-DeniseNeural",
+  "debit": "+8%",
+  "repliques": [
+    { "debut": 0.20,  "fin": 2.65,  "texte": "Tu pars de zéro et tu veux trouver ton premier client ?" },
+    { "debut": 2.80,  "fin": 4.15,  "texte": "Évite surtout ces trois erreurs." },
+    { "debut": 4.60,  "fin": 7.20,  "texte": "Première erreur : vouloir vendre à tout le monde." },
+    { "debut": 10.70, "fin": 13.30, "texte": "Deuxième erreur : créer ton offre" },
+    { "debut": 13.30, "fin": 15.90, "texte": "avant de vérifier que le problème existe vraiment." },
+    { "debut": 17.50, "fin": 20.50, "texte": "Troisième erreur : attendre d’être parfaitement prêt." },
+    { "debut": 20.90, "fin": 23.40, "texte": "Commence, obtiens des retours et améliore." },
+    { "debut": 25.10, "fin": 27.30, "texte": "Découvre 0 € → Premier client." }
+  ]
+}

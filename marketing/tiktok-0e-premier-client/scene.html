@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>0 € → Premier client — scène TikTok</title>
+<link rel="stylesheet" href="polices.css">
+<style>
+  :root{
+    --noir:#08090B; --noir2:#0E1015; --carte:#12151B;
+    --blanc:#F4F3EE; --gris:#7C838E; --gris2:#3A414C;
+    --vert:#6FE3A0; --corail:#FF7A59;
+    --marge:84px;
+    --dsp:"Bricolage Grotesque","DejaVu Sans",sans-serif;
+    --txt:"Public Sans","DejaVu Sans",sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1080px;height:1920px;overflow:hidden;background:var(--noir)}
+  body{font-family:var(--txt);color:var(--blanc);-webkit-font-smoothing:antialiased}
+
+  #scene{position:relative;width:1080px;height:1920px;overflow:hidden;background:var(--noir)}
+
+  /* ---------- fond ---------- */
+  .fond{position:absolute;inset:0;
+    background:
+      radial-gradient(1100px 900px at 50% 22%, #171B23 0%, rgba(23,27,35,0) 62%),
+      linear-gradient(180deg,#0A0C10 0%,#08090B 55%,#0B0D12 100%);}
+  .lueur{position:absolute;left:50%;top:34%;width:1200px;height:1200px;margin:-600px 0 0 -600px;
+    background:radial-gradient(circle, rgba(111,227,160,.15) 0%, rgba(111,227,160,0) 60%);}
+  .grain{position:absolute;inset:-40px;opacity:.055;mix-blend-mode:overlay;pointer-events:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>");}
+  .vignette{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 78% at 50% 46%, rgba(0,0,0,0) 52%, rgba(0,0,0,.62) 100%);}
+
+  /* ---------- chrome ---------- */
+  .barre{position:absolute;top:0;left:0;width:1080px;height:5px;background:rgba(255,255,255,.07)}
+  .barre i{display:block;height:100%;width:1080px;background:var(--vert);transform-origin:0 50%}
+  .volet{position:absolute;inset:0;background:var(--noir2);border-left:10px solid var(--vert);will-change:transform}
+
+  /* ---------- sections ---------- */
+  section{position:absolute;inset:0;opacity:0;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;padding:0 var(--marge)}
+  .push{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 var(--marge)}
+
+  /* ---------- typo ---------- */
+  .masque{overflow:hidden;display:block}
+  .masque>span{display:block}
+  h1{font-family:var(--dsp);font-weight:800;font-size:104px;line-height:1.03;
+     letter-spacing:-.035em;text-align:center}
+  h2{font-family:var(--dsp);font-weight:800;font-size:76px;line-height:1.06;
+     letter-spacing:-.03em;text-align:center}
+  .vert{color:var(--vert)}
+  .corail{color:var(--corail)}
+  .appui{font-family:var(--txt);font-weight:600;font-size:38px;line-height:1.35;
+         color:var(--gris);text-align:center;letter-spacing:-.005em}
+  .appui b{color:var(--blanc);font-weight:700}
+  .sur{font-family:var(--txt);font-weight:700;font-size:24px;letter-spacing:.26em;
+       text-transform:uppercase;color:var(--gris)}
+
+  /* puce de chapitre */
+  .puce{display:inline-flex;align-items:center;gap:16px;
+        font-family:var(--txt);font-weight:800;font-size:26px;letter-spacing:.18em;
+        text-transform:uppercase;color:var(--vert);
+        border:2px solid rgba(111,227,160,.4);border-radius:999px;padding:12px 26px}
+  .puce .pt{width:10px;height:10px;border-radius:50%;background:var(--vert)}
+
+  /* filigrane numéro */
+  .filigrane{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    font-family:var(--dsp);font-weight:800;font-size:660px;line-height:1;
+    color:transparent;-webkit-text-stroke:2px rgba(244,243,238,.035);letter-spacing:-.04em}
+
+  /* ---------- bloc visuel commun ---------- */
+  .scenette{position:relative;width:912px;height:520px;margin-top:56px;
+            display:flex;align-items:center;justify-content:center}
+
+  /* erreur 1 : grille de cibles */
+  .grille{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+          display:grid;grid-template-columns:repeat(9,64px);gap:38px 34px}
+  .pt0{width:18px;height:18px;border-radius:50%;background:var(--gris2);justify-self:center}
+  .anneau{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+          border:3px dashed var(--corail);border-radius:50%;opacity:0}
+  .etiq{position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);white-space:nowrap;
+        font-family:var(--dsp);font-weight:800;font-size:46px;letter-spacing:-.02em}
+
+  /* erreur 2 : deux enchaînements */
+  .flux{position:absolute;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:18px}
+  .fluxTitre{font-family:var(--txt);font-weight:800;font-size:22px;letter-spacing:.22em;
+             text-transform:uppercase}
+  .rang{display:flex;align-items:center;gap:0}
+  .boite{width:196px;height:92px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+         font-family:var(--txt);font-weight:800;font-size:25px;letter-spacing:.07em;text-transform:uppercase;
+         border:2px solid var(--gris2);background:var(--carte);color:var(--blanc)}
+  .fl{width:46px;display:flex;align-items:center;justify-content:center}
+  .fl svg{display:block}
+  .badge{width:92px;height:92px;margin-left:22px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+         font-size:44px;font-weight:800;border:2px solid}
+  .note{font-family:var(--txt);font-weight:600;font-size:26px;letter-spacing:.01em}
+
+  /* erreur 3 : la ligne "prêt" */
+  .axe{position:absolute;left:0;right:0;top:196px;height:2px;background:var(--gris2)}
+  .curseur{position:absolute;top:178px;width:38px;height:38px;border-radius:50%;
+           background:var(--vert);box-shadow:0 0 0 10px rgba(111,227,160,.16)}
+  .drapeau{position:absolute;top:110px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .drapeau .tige{width:2px;height:52px;background:var(--corail)}
+  .drapeau .lab{font-family:var(--txt);font-weight:800;font-size:24px;letter-spacing:.16em;
+                text-transform:uppercase;color:var(--corail);white-space:nowrap}
+  .boucle{position:absolute;left:0;right:0;top:150px;display:flex;flex-direction:column;align-items:center;gap:26px}
+  .cyc{display:flex;align-items:center}
+  .chip{height:86px;padding:0 30px;border-radius:14px;display:flex;align-items:center;
+        font-family:var(--txt);font-weight:800;font-size:27px;letter-spacing:.08em;text-transform:uppercase;
+        border:2px solid rgba(111,227,160,.45);background:rgba(111,227,160,.08);color:var(--vert)}
+
+  /* ---------- final ---------- */
+  .eyebrow{font-family:var(--txt);font-weight:800;font-size:22px;letter-spacing:.42em;
+           text-transform:uppercase;color:var(--gris)}
+  .prix{font-family:var(--dsp);font-weight:800;font-size:172px;line-height:.94;letter-spacing:-.05em}
+  .versL{display:flex;align-items:center;gap:26px}
+  .versT{font-family:var(--dsp);font-weight:800;font-size:76px;letter-spacing:-.03em;white-space:nowrap;text-transform:uppercase}
+  .inclus{font-family:var(--txt);font-weight:600;font-size:33px;letter-spacing:.005em;color:var(--blanc);white-space:nowrap}
+  .inclus i{font-style:normal;color:var(--vert);padding:0 12px}
+  .cta{position:relative;font-family:var(--dsp);font-weight:800;font-size:54px;letter-spacing:-.02em}
+  .cta .trait{position:absolute;left:0;bottom:-16px;height:5px;background:var(--vert);width:100%;transform-origin:0 50%}
+</style>
+</head>
+<body>
+<div id="scene">
+  <div class="fond"></div>
+  <div class="lueur" id="lueur"></div>
+
+  <!-- 0 · HOOK -->
+  <section id="s0">
+    <div class="push" id="s0a">
+      <h1>
+        <span class="masque"><span>Tu pars de <b class="vert">0 €</b></span></span>
+        <span class="masque"><span>et tu veux ton</span></span>
+        <span class="masque"><span>premier client&nbsp;?</span></span>
+      </h1>
+    </div>
+    <div class="push" id="s0b">
+      <h1>
+        <span class="masque"><span>Évite ces</span></span>
+        <span class="masque"><span><b class="vert">3 erreurs</b>.</span></span>
+      </h1>
+    </div>
+  </section>
+
+  <!-- 1 · ERREUR 1 -->
+  <section id="s1">
+    <div class="filigrane" id="fil1">01</div>
+    <div class="push" id="s1a">
+      <div class="puce" id="p1"><i class="pt"></i>Erreur n° 1</div>
+      <h2 id="t1" style="margin-top:34px">Vouloir vendre<br>à tout le monde</h2>
+      <div class="scenette" id="sc1">
+        <div class="grille" id="g1"></div>
+        <div class="anneau" id="a1"></div>
+        <div class="etiq corail" id="e1a">« tout le monde »</div>
+        <div class="etiq vert" id="e1b" style="opacity:0">une personne précise</div>
+      </div>
+      <p class="appui" id="ap1" style="margin-top:26px">Trop large, ton message<br>ne touche <b>personne</b>.</p>
+    </div>
+  </section>
+
+  <!-- 2 · ERREUR 2 -->
+  <section id="s2">
+    <div class="filigrane" id="fil2">02</div>
+    <div class="push" id="s2a">
+      <div class="puce" id="p2"><i class="pt"></i>Erreur n° 2</div>
+      <h2 id="t2" style="margin-top:34px">Créer avant<br>de vérifier</h2>
+      <div class="scenette" id="sc2">
+        <div class="flux" id="fx1" style="top:52px"></div>
+        <div class="flux" id="fx2" style="top:300px"></div>
+      </div>
+      <p class="appui" id="ap2" style="margin-top:10px">Le <b>problème</b> d’abord.<br>L’offre ensuite.</p>
+    </div>
+  </section>
+
+  <!-- 3 · ERREUR 3 -->
+  <section id="s3">
+    <div class="filigrane" id="fil3">03</div>
+    <div class="push" id="s3a">
+      <div class="puce" id="p3"><i class="pt"></i>Erreur n° 3</div>
+      <h2 id="t3" style="margin-top:34px">Attendre<br>d’être prêt</h2>
+      <div class="scenette" id="sc3">
+        <div id="axeWrap" style="position:absolute;inset:0">
+          <div class="axe"></div>
+          <div class="curseur" id="cur" style="left:60px"></div>
+          <div class="drapeau" id="dra" style="left:420px"><span class="lab">prêt</span><span class="tige"></span></div>
+          <div class="note corail" id="noteA" style="position:absolute;left:50%;transform:translateX(-50%);top:296px;text-align:center">« prêt » recule toujours</div>
+        </div>
+        <div class="boucle" id="bou" style="opacity:0"></div>
+      </div>
+      <p class="appui" id="ap3" style="margin-top:10px">Les <b>retours</b> viennent<br>de l’action.</p>
+    </div>
+  </section>
+
+  <!-- 4 · FIN -->
+  <section id="s4">
+    <div class="push" id="s4a">
+      <div class="eyebrow" id="f0">Le guide</div>
+      <div class="prix" id="f1" style="margin-top:30px">0 €</div>
+      <div class="versL" id="f2" style="margin-top:14px">
+        <svg width="104" height="34" viewBox="0 0 104 34" fill="none" id="fleche">
+          <path d="M2 17 H88" stroke="#6FE3A0" stroke-width="6" stroke-linecap="round"/>
+          <path d="M74 4 L92 17 L74 30" stroke="#6FE3A0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <span class="versT">Premier client</span>
+      </div>
+      <div class="inclus" id="f3" style="margin-top:56px">30 jours<i>•</i>Scripts<i>•</i>Templates<i>•</i>Toolkit</div>
+      <div class="cta" id="f4" style="margin-top:78px">Découvre le guide.<span class="trait" id="f4t"></span></div>
+    </div>
+  </section>
+
+  <div class="vignette"></div>
+  <div class="grain" id="grain"></div>
+  <div class="barre"><i id="prog"></i></div>
+  <div class="volet" id="v1"></div>
+  <div class="volet" id="v2"></div>
+  <div class="volet" id="v3"></div>
+  <div class="volet" id="v4"></div>
+</div>
+
+<script src="scene.js"></script>
+</body>
+</html>
