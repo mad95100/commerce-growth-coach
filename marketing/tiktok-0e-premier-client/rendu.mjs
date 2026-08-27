@@ -1,7 +1,7 @@
 /* Capture la scène image par image, puis encode en H.264 vertical 1080×1920.
    Aucune horloge réelle : chaque image est demandée à window.rendre(t). */
 import { spawn, execSync } from 'node:child_process';
-import { mkdir, rm, readdir } from 'node:fs/promises';
+import { mkdir, rm, readdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +40,10 @@ const APERCU = process.env.APERCU
   : null;
 
 async function main() {
+  const mp4Final = path.join(SORTIE, '0e-premier-client-tiktok.mp4');
+  /* Réincruster les sous-titres sans refabriquer les 900 images. */
+  if (process.env.INCRUSTER_SEUL) { await incruster(mp4Final); return; }
+
   await rm(IMAGES, { recursive: true, force: true });
   await mkdir(IMAGES, { recursive: true });
 
@@ -86,18 +90,56 @@ async function main() {
   ]);
   console.log('Vidéo :', mp4);
 
-  const srt = path.join(ICI, 'sous-titres.srt');
-  if (existsSync(srt)) {
-    const st = path.join(SORTIE, '0e-premier-client-tiktok-sous-titres.mp4');
-    await encode([
-      '-y', '-i', mp4,
-      '-vf', `subtitles=${srt}:original_size=1080x1920:force_style='FontName=DejaVu Sans,Fontsize=46,Bold=1,PrimaryColour=&H00EEF3F4,OutlineColour=&HCC000000,BorderStyle=1,Outline=5,Shadow=0,Alignment=2,MarginV=420,MarginL=110,MarginR=110'`,
-      '-c:v', 'libx264', '-preset', 'slow', '-crf', '18',
-      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', st,
-    ]);
-    console.log('Vidéo sous-titrée :', st);
-  }
+  await incruster(mp4);
+
   console.log('Images conservées dans', IMAGES, `(${(await readdir(IMAGES)).length})`);
+}
+
+/* Incrustation des sous-titres.
+   Le filtre `subtitles` de ffmpeg fixe PlayResY à 288 pour un SRT : les tailles
+   et marges s'y expriment dans une autre échelle que la vidéo, et la police de
+   la marque n'y est pas atteignable. Les cartons sont donc composés par le
+   navigateur — un PNG transparent par carton, posé sur son créneau. */
+async function incruster(mp4) {
+  const conf = JSON.parse(await readFile(path.join(ICI, 'voix-off.json'), 'utf-8'));
+  const cartons = conf.sous_titres;
+  const dossier = path.join(SORTIE, 'cartons');
+  await mkdir(dossier, { recursive: true });
+
+  const chromium = await chargerChromium();
+  const navigateur = await chromium.launch();
+  const page = await navigateur.newPage({ viewport: { width: 1080, height: 1920 } });
+  await page.goto('file://' + path.join(ICI, 'bande.html'), { waitUntil: 'load' });
+  await page.evaluate(() => document.fonts.ready);
+
+  const pngs = [];
+  for (let i = 0; i < cartons.length; i++) {
+    const large = await page.evaluate((t) => {
+      const el = document.getElementById('texte');
+      el.textContent = t;
+      return el.getBoundingClientRect().width;
+    }, cartons[i].texte);
+    if (large > 900) console.warn(`  carton ${i + 1} large de ${Math.round(large)} px — à raccourcir`);
+    const png = path.join(dossier, `st${String(i + 1).padStart(2, '0')}.png`);
+    await page.screenshot({ path: png, omitBackground: true });
+    pngs.push(png);
+  }
+  await navigateur.close();
+
+  const entrees = ['-i', mp4];
+  for (const p of pngs) entrees.push('-loop', '1', '-t', '30', '-i', p);
+  const chaine = cartons.map((c, i) =>
+    `[${i === 0 ? '0:v' : `v${i}`}][${i + 1}:v]overlay=0:0:enable='between(t,${c.debut},${c.fin})'` +
+    `[v${i + 1}]`).join(';');
+
+  const dest = path.join(SORTIE, '0e-premier-client-tiktok-sous-titres.mp4');
+  await encode([
+    '-y', ...entrees, '-filter_complex', chaine,
+    '-map', `[v${cartons.length}]`,
+    '-c:v', 'libx264', '-profile:v', 'high', '-preset', 'slow', '-crf', '18',
+    '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-r', String(FPS), dest,
+  ]);
+  console.log('Vidéo sous-titrée :', dest, `(${cartons.length} cartons)`);
 }
 
 function encode(args) {

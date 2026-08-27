@@ -17,6 +17,7 @@ from pathlib import Path
 ICI = Path(__file__).parent
 CONF = json.loads((ICI / "voix-off.json").read_text(encoding="utf-8"))
 REPLIQUES = CONF["repliques"]
+CARTONS = CONF["sous_titres"]
 
 
 def horodatage(s: float) -> str:
@@ -29,11 +30,11 @@ def horodatage(s: float) -> str:
 
 def ecrire_srt(dest: Path) -> None:
     blocs = [
-        f"{i}\n{horodatage(r['debut'])} --> {horodatage(r['fin'])}\n{r['texte']}\n"
-        for i, r in enumerate(REPLIQUES, 1)
+        f"{i}\n{horodatage(c['debut'])} --> {horodatage(c['fin'])}\n{c['texte']}\n"
+        for i, c in enumerate(CARTONS, 1)
     ]
     dest.write_text("\n".join(blocs), encoding="utf-8")
-    print(f"{dest.name} — {len(REPLIQUES)} répliques")
+    print(f"{dest.name} — {len(CARTONS)} cartons")
 
 
 def ffmpeg() -> str:

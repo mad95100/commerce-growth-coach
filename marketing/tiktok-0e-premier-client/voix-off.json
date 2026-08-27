@@ -1,15 +1,114 @@
 {
-  "commentaire": "Source unique de la voix-off et des sous-titres. Les bornes sont des repères de montage : ajustez-les après avoir écouté la voix réellement générée.",
+  "commentaire": "Source unique. « repliques » = ce qui est DIT (phrases entières, pour que la synthèse garde sa prosodie). « sous_titres » = ce qui est LU à l'écran, découpé court comme le veut TikTok, une seule ligne par carton.",
   "voix": "fr-FR-DeniseNeural",
   "debit": "+8%",
   "repliques": [
-    { "debut": 0.20,  "fin": 2.65,  "texte": "Tu pars de zéro et tu veux trouver ton premier client ?" },
-    { "debut": 2.80,  "fin": 4.15,  "texte": "Évite surtout ces trois erreurs." },
-    { "debut": 4.60,  "fin": 7.20,  "texte": "Première erreur : vouloir vendre à tout le monde." },
-    { "debut": 10.70, "fin": 13.30, "texte": "Deuxième erreur : créer ton offre" },
-    { "debut": 13.30, "fin": 15.90, "texte": "avant de vérifier que le problème existe vraiment." },
-    { "debut": 17.50, "fin": 20.50, "texte": "Troisième erreur : attendre d’être parfaitement prêt." },
-    { "debut": 20.90, "fin": 23.40, "texte": "Commence, obtiens des retours et améliore." },
-    { "debut": 25.10, "fin": 27.30, "texte": "Découvre 0 € → Premier client." }
+    {
+      "debut": 0.2,
+      "fin": 2.65,
+      "texte": "Tu pars de zéro et tu veux trouver ton premier client ?"
+    },
+    {
+      "debut": 2.8,
+      "fin": 4.15,
+      "texte": "Évite surtout ces trois erreurs."
+    },
+    {
+      "debut": 4.6,
+      "fin": 7.2,
+      "texte": "Première erreur : vouloir vendre à tout le monde."
+    },
+    {
+      "debut": 10.7,
+      "fin": 13.3,
+      "texte": "Deuxième erreur : créer ton offre"
+    },
+    {
+      "debut": 13.3,
+      "fin": 15.9,
+      "texte": "avant de vérifier que le problème existe vraiment."
+    },
+    {
+      "debut": 17.5,
+      "fin": 20.5,
+      "texte": "Troisième erreur : attendre d’être parfaitement prêt."
+    },
+    {
+      "debut": 20.9,
+      "fin": 23.4,
+      "texte": "Commence, obtiens des retours et améliore."
+    },
+    {
+      "debut": 25.1,
+      "fin": 27.3,
+      "texte": "Découvre 0 € → Premier client."
+    }
+  ],
+  "sous_titres": [
+    {
+      "debut": 0.2,
+      "fin": 1.45,
+      "texte": "Tu pars de zéro et tu veux"
+    },
+    {
+      "debut": 1.45,
+      "fin": 2.65,
+      "texte": "trouver ton premier client ?"
+    },
+    {
+      "debut": 2.8,
+      "fin": 4.15,
+      "texte": "Évite surtout ces trois erreurs."
+    },
+    {
+      "debut": 4.6,
+      "fin": 5.4,
+      "texte": "Première erreur :"
+    },
+    {
+      "debut": 5.4,
+      "fin": 7.2,
+      "texte": "vouloir vendre à tout le monde."
+    },
+    {
+      "debut": 10.7,
+      "fin": 13.2,
+      "texte": "Deuxième erreur : créer ton offre"
+    },
+    {
+      "debut": 13.2,
+      "fin": 14.6,
+      "texte": "avant de vérifier que le problème"
+    },
+    {
+      "debut": 14.6,
+      "fin": 15.9,
+      "texte": "existe vraiment."
+    },
+    {
+      "debut": 17.5,
+      "fin": 18.4,
+      "texte": "Troisième erreur :"
+    },
+    {
+      "debut": 18.4,
+      "fin": 20.5,
+      "texte": "attendre d’être parfaitement prêt."
+    },
+    {
+      "debut": 20.9,
+      "fin": 22.2,
+      "texte": "Commence, obtiens des retours"
+    },
+    {
+      "debut": 22.2,
+      "fin": 23.4,
+      "texte": "et améliore."
+    },
+    {
+      "debut": 25.1,
+      "fin": 27.3,
+      "texte": "Découvre 0 € → Premier client."
+    }
   ]
 }

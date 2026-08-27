@@ -12,13 +12,14 @@ par image.
 | `sortie/0e-premier-client-tiktok.mp4` | le master, sans son |
 | `sortie/0e-premier-client-tiktok-sous-titres.mp4` | le même, sous-titres incrustés |
 | `sous-titres.srt` | à téléverser tel quel dans TikTok |
-| `voix-off.json` | source unique du texte dit et des minutages |
+| `voix-off.json` | source unique : `repliques` = ce qui est dit, `sous_titres` = ce qui est lu |
 
 ## Refabriquer
 
 ```
-node rendu.mjs                      # 900 images + encodage H.264
+node rendu.mjs                          # 900 images, master, version sous-titrée
 APERCU="5.3,12.4,25.6" node rendu.mjs   # quelques images seulement, pour juger
+INCRUSTER_SEUL=1 node rendu.mjs         # refaire les sous-titres sans tout refabriquer
 ```
 
 Il faut Playwright (local ou `npm i -g playwright`) et ffmpeg — à défaut
@@ -46,6 +47,11 @@ le script signale toute phrase qui déborde de son créneau. Résultat :
 Modifier un texte ou un minutage se fait dans `voix-off.json`, puis
 `python3 voix-off.py --srt` régénère les sous-titres. Les deux sorties ne
 peuvent pas diverger.
+
+`repliques` et `sous_titres` sont volontairement séparés : la synthèse reçoit
+des phrases entières, sans quoi elle perdrait sa prosodie sur des fragments,
+tandis que l'écran reçoit des cartons courts d'une seule ligne, comme le veut
+TikTok.
 
 ## Structure de la scène
 
@@ -77,6 +83,12 @@ puis la boucle lancer → retours → ajuster.
 
 Deux pièges déjà payés, tous deux invisibles sur une image fixe :
 
+- Les sous-titres incrustés ne passent pas par le filtre `subtitles` de ffmpeg :
+  pour un SRT, il fixe `PlayResY` à 288, si bien que tailles et marges s'y
+  expriment dans une autre échelle que la vidéo — une marge de 420 projette le
+  texte hors cadre sans le moindre message d'erreur — et la police de la marque
+  n'y est pas atteignable. Chaque carton est donc composé par le navigateur en
+  PNG transparent, puis posé sur son créneau par un `overlay`.
 - Un assouplissement posé au niveau de l'**effet** déforme la progression
   **avant** l'interpolation des étapes. Dès qu'une animation porte des `offset`,
   l'effet doit rester `linear` et l'assouplissement se met par étape.

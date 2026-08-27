@@ -1,5 +1,6 @@
 # Les 900 images intermédiaires et les pistes de voix se refabriquent
 # (`node rendu.mjs`, `python3 voix-off.py --voix`). Seules les vidéos sont suivies.
 sortie/images/
+sortie/cartons/
 sortie/voix/
 sortie-journal.txt
