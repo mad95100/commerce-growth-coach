@@ -62,13 +62,35 @@ première, remis dans l'ordre : c'est la démonstration, pas une illustration.
 
 ## La voix-off
 
-Elle n'est **pas** générée ici, comme demandé. `voix-off.json` propose le texte
-et les minutages calés sur les coupes ; donnez `repliques` à votre moteur de
-voix, puis montez l'audio de votre côté.
+Elle n'est **pas** générée ici, comme demandé. `voix-off.json` porte le texte et
+les minutages calés sur les coupes. Enregistrez `repliques` **d'une seule
+traite, dans l'ordre**, puis :
+
+```
+python3 caler-voix.py votre-prise.mp3
+```
+
+Le fichier est découpé à ses silences et chaque bloc de parole est posé à la
+seconde prévue. La parole n'est ni étirée ni repitchée : seuls les silences
+entre les phrases changent de longueur. C'est ce qui permet à une prise unique
+de suivre des coupes qu'elle n'a pas connues.
+
+Si le nombre de blocs ne correspond pas au nombre de répliques, le script
+**s'arrête et le dit** plutôt que d'empiler les phrases. `--seuil -40dB` et
+`--pause 0.10` rattrapent un découpage trop grossier ; `--forcer` aligne les
+premiers blocs seulement.
+
+### Le script tient dans 30 s — et c'est calculé
+
+Une voix française énergique débite environ **5 syllabes par seconde**. Le
+script fait 112 syllabes, soit ~22 s de parole : il reste 6 à 8 s de
+respirations réparties sur douze intervalles. Un script deux fois plus long ne
+rentre pas, quel que soit le montage — c'est arithmétique, pas une question de
+réglage. Vérifiez que votre prise sort autour de **28 s** ; nettement au-delà,
+montez légèrement la vitesse plutôt que de couper des mots.
 
 `python3 voix-off.py --srt` régénère `sous-titres.srt` depuis le même fichier :
-texte et sous-titres ne peuvent pas diverger. `voix-off.py --voix` existe encore
-mais reste inutilisé ici.
+texte et sous-titres ne peuvent pas diverger.
 
 ## Règles tenues
 

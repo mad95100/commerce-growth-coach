@@ -1,59 +1,55 @@
 1
-00:00:00,200 --> 00:00:01,650
+00:00:00,150 --> 00:00:02,150
 Tu peux avoir une excellente idée…
 
 2
-00:00:01,700 --> 00:00:03,000
-…et pourtant personne ne l’achète.
+00:00:02,250 --> 00:00:03,650
+Et personne ne l’achète.
 
 3
-00:00:03,250 --> 00:00:04,450
+00:00:03,700 --> 00:00:05,300
 Tu envoies des messages. Rien.
 
 4
-00:00:04,700 --> 00:00:05,950
-Tu cherches des clients partout.
-
-5
-00:00:06,200 --> 00:00:07,300
+00:00:05,800 --> 00:00:08,000
 On regarde ton offre, et on repart.
 
+5
+00:00:08,600 --> 00:00:10,000
+Tu parles à tout le monde.
+
 6
-00:00:07,500 --> 00:00:08,100
-Le problème n’est pas ton idée.
+00:00:10,800 --> 00:00:12,000
+Ton offre reste floue.
 
 7
-00:00:08,450 --> 00:00:10,200
-Erreur 1 : tu parles à tout le monde.
+00:00:13,000 --> 00:00:14,400
+Le même message pour tous.
 
 8
-00:00:10,650 --> 00:00:12,450
-Erreur 2 : ton offre reste floue.
-
-9
-00:00:12,850 --> 00:00:14,900
-Erreur 3 : le même message pour tous.
-
-10
-00:00:15,250 --> 00:00:16,900
+00:00:15,350 --> 00:00:16,750
 La méthode, c’est l’inverse.
 
+9
+00:00:17,300 --> 00:00:19,500
+Une personne. Un problème. Une promesse.
+
+10
+00:00:19,600 --> 00:00:20,600
+Et on te répond.
+
 11
-00:00:17,250 --> 00:00:18,950
-Une personne. Un problème.
-
-12
-00:00:19,000 --> 00:00:20,900
-Une promesse. Et on te répond.
-
-13
-00:00:21,300 --> 00:00:22,900
+00:00:21,350 --> 00:00:23,750
 C’est comme ça qu’arrive le premier.
 
-14
-00:00:23,450 --> 00:00:25,900
-0 € → Premier client, en 30 jours.
+12
+00:00:23,850 --> 00:00:25,600
+0 € → Premier client.
 
-15
-00:00:26,700 --> 00:00:28,400
-Découvre la méthode.
+13
+00:00:25,650 --> 00:00:27,250
+La méthode complète, en 30 jours.
+
+14
+00:00:27,400 --> 00:00:28,200
+Découvre-la.
