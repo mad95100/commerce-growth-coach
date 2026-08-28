@@ -1,0 +1,28 @@
+{
+  "name": "tiktok-video-skill",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "tts": "node scripts/tts.mjs",
+    "transcribe": "node scripts/transcribe.mjs",
+    "verify": "node scripts/verify.mjs",
+    "render": "remotion render src/index.ts TikTokVideo out/video.mp4 --props=plan/plan.json"
+  },
+  "dependencies": {
+    "@remotion/captions": "4.0.508",
+    "@remotion/cli": "4.0.508",
+    "@remotion/install-whisper-cpp": "4.0.508",
+    "kokoro-js": "^1.2.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.508",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "18.3.3",
+    "typescript": "^5.5.4"
+  }
+}

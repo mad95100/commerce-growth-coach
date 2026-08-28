@@ -1,0 +1,63 @@
+{
+  "meta": {
+    "title": "3 erreurs des débutants en e-commerce",
+    "fps": 30,
+    "width": 1080,
+    "height": 1920,
+    "targetDurationInSeconds": 30
+  },
+  "voiceover": {
+    "fullText": "Ces trois erreurs ruinent la plupart des boutiques en ligne débutantes. Numéro un : vendre un produit que tout le monde vend déjà, sans aucune différence. Numéro deux : lancer la boutique sans avoir testé la demande avant de dépenser en publicité. Numéro trois : ignorer le service client, alors que c'est ce qui transforme un acheteur unique en client fidèle. Corrige ces trois points avant ton prochain lancement, et abonne-toi pour plus de conseils e-commerce.",
+    "language": "fr",
+    "voice": "af_heart",
+    "speed": 1.0
+  },
+  "scenes": [
+    {
+      "id": "hook",
+      "type": "hook",
+      "durationInSeconds": 4,
+      "onScreenText": "3 erreurs qui RUINENT ta boutique",
+      "background": { "type": "gradient", "source": "#7F00FF, #E100FF" },
+      "animation": "zoom-in"
+    },
+    {
+      "id": "point-1",
+      "type": "point",
+      "durationInSeconds": 8,
+      "onScreenText": "1. Vendre comme tout le monde",
+      "background": { "type": "gradient", "source": "#4568DC, #B06AB3" },
+      "animation": "pan-left"
+    },
+    {
+      "id": "point-2",
+      "type": "point",
+      "durationInSeconds": 8,
+      "onScreenText": "2. Ne pas tester la demande",
+      "background": { "type": "gradient", "source": "#11998e, #38ef7d" },
+      "animation": "pan-right"
+    },
+    {
+      "id": "point-3",
+      "type": "point",
+      "durationInSeconds": 6,
+      "onScreenText": "3. Négliger le service client",
+      "background": { "type": "gradient", "source": "#FF512F, #F09819" },
+      "animation": "zoom-in"
+    },
+    {
+      "id": "cta",
+      "type": "cta",
+      "durationInSeconds": 4,
+      "onScreenText": "Abonne-toi pour plus de conseils 🚀",
+      "background": { "type": "solid", "source": "#0b0b0f" },
+      "animation": "fade"
+    }
+  ],
+  "cta": { "text": "Abonne-toi pour plus de conseils 🚀" },
+  "captionsStyle": {
+    "highlightColor": "#FFD700",
+    "fontFamily": "Inter, system-ui, sans-serif",
+    "combineTokensWithinMilliseconds": 1200
+  }
+}

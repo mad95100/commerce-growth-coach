@@ -1,0 +1,63 @@
+{
+  "meta": {
+    "title": "3 signes qu'il faut changer de prix",
+    "fps": 30,
+    "width": 1080,
+    "height": 1920,
+    "targetDurationInSeconds": 22
+  },
+  "voiceover": {
+    "fullText": "Trois signes montrent qu'il faut revoir ton prix. Premier signe : tout le monde négocie. Deuxième signe : tu vends beaucoup, mais tu ne gagnes presque rien. Troisième signe : tes meilleurs clients ne posent jamais de question sur le prix. Regarde ces trois signes cette semaine.",
+    "language": "fr",
+    "voice": "af_heart",
+    "speed": 1.0
+  },
+  "scenes": [
+    {
+      "id": "hook",
+      "type": "hook",
+      "durationInSeconds": 4,
+      "onScreenText": "Ton prix est peut-être le problème",
+      "background": { "type": "gradient", "source": "#0B0D12, #17301F" },
+      "animation": "zoom-in"
+    },
+    {
+      "id": "point-1",
+      "type": "point",
+      "durationInSeconds": 6,
+      "onScreenText": "1. Tout le monde négocie",
+      "background": { "type": "gradient", "source": "#12161D, #2A3B2C" },
+      "animation": "pan-left"
+    },
+    {
+      "id": "point-2",
+      "type": "point",
+      "durationInSeconds": 6,
+      "onScreenText": "2. Tu vends, tu ne gagnes rien",
+      "background": { "type": "gradient", "source": "#12161D, #3B2C2A" },
+      "animation": "pan-right"
+    },
+    {
+      "id": "point-3",
+      "type": "point",
+      "durationInSeconds": 6,
+      "onScreenText": "3. Les meilleurs clients ne demandent jamais",
+      "background": { "type": "gradient", "source": "#12161D, #2A2C3B" },
+      "animation": "zoom-in"
+    },
+    {
+      "id": "cta",
+      "type": "cta",
+      "durationInSeconds": 4,
+      "onScreenText": "Regarde ces 3 signes cette semaine",
+      "background": { "type": "solid", "source": "#08090B" },
+      "animation": "fade"
+    }
+  ],
+  "cta": { "text": "Regarde ces 3 signes cette semaine" },
+  "captionsStyle": {
+    "highlightColor": "#6FE3A0",
+    "fontFamily": "Inter, system-ui, sans-serif",
+    "combineTokensWithinMilliseconds": 1200
+  }
+}
