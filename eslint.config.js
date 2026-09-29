@@ -16,6 +16,8 @@ export default tseslint.config(
       "src/integrations/**",
       // Composants shadcn repris tels quels, non maintenus ici.
       "src/components/ui/**",
+      // BS Garage : produit distinct, avec sa propre configuration (garage/).
+      "garage/**",
     ],
   },
   {
