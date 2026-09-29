@@ -7,7 +7,7 @@ import { CustomerDialog } from "@/components/forms/CustomerForm.tsx";
 import { VehicleDialog } from "@/components/forms/VehicleForm.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { ErrorState, Spinner } from "@/components/ui/feedback.tsx";
-import { t, useLang } from "@/lib/i18n.tsx";
+import { t, tn, useLang } from "@/lib/i18n.tsx";
 import { formatPhone } from "@/lib/phone.ts";
 import { formatPlate } from "@/lib/plates.ts";
 import { parseSearch } from "@/lib/search.ts";
@@ -276,7 +276,7 @@ export function PartyPicker({
                           <Phone className="size-3" aria-hidden /> {formatPhone(c.phone)}
                         </span>
                       )}
-                      <span>{t("{n} vehicles", { n: c.vehicles })}</span>
+                      <span>{tn(c.vehicles, "{n} vehicle", "{n} vehicles")}</span>
                     </span>
                   </span>
                 </button>

@@ -147,7 +147,7 @@ export function PaymentDialog({ open, onClose, target }: { open: boolean; onClos
                 onClick={() => setF({ ...f, method_id: m.id })}
                 className={clsx("min-h-12 rounded-lg border px-3 text-sm", f.method_id === m.id ? "border-brand bg-brand-soft font-semibold text-brand-ink" : "border-line-strong hover:bg-canvas")}
               >
-                {m.name}
+                {t(m.name)}
               </button>
             ))}
           </div>

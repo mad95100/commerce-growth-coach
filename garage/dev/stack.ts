@@ -59,7 +59,7 @@ async function waitFor(url: string, tries = 100): Promise<void> {
   throw new Error(`timeout waiting for ${url}`);
 }
 
-export async function startStack(opts: { gatewayPort?: number; dbPort?: number; pgrstPort?: number } = {}): Promise<Stack> {
+export async function startStack(opts: { gatewayPort?: number; dbPort?: number; pgrstPort?: number; writeEnv?: boolean } = {}): Promise<Stack> {
   const gatewayPort = opts.gatewayPort ?? 54321;
   const pgrstPort = opts.pgrstPort ?? 54330;
   const cluster = startCluster(opts.dbPort ?? 54322);
@@ -236,8 +236,10 @@ export async function startStack(opts: { gatewayPort?: number; dbPort?: number; 
   await new Promise<void>((r) => server.listen(gatewayPort, "127.0.0.1", r));
 
   const url = `http://127.0.0.1:${gatewayPort}`;
-  mkdirSync(STACK_DIR, { recursive: true });
-  writeFileSync(join(STACK_DIR, ".env.local"), `VITE_SUPABASE_URL=${url}\nVITE_SUPABASE_ANON_KEY=${anonKey}\n`);
+  if (opts.writeEnv !== false) {
+    mkdirSync(STACK_DIR, { recursive: true });
+    writeFileSync(join(STACK_DIR, ".env.local"), `VITE_SUPABASE_URL=${url}\nVITE_SUPABASE_ANON_KEY=${anonKey}\n`);
+  }
 
   return {
     url,

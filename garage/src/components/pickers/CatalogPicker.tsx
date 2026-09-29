@@ -27,7 +27,9 @@ export function CatalogPicker({ onPick }: { onPick: (item: CatalogItem) => void 
   const { lang } = useLang();
   const [q, setQ] = useState("");
   const [dq, setDq] = useState("");
-  const [open, setOpen] = useState(false);
+  // Visible while the field has focus and holds text; Escape dismisses it.
+  const [focused, setFocused] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -67,11 +69,11 @@ export function CatalogPicker({ onPick }: { onPick: (item: CatalogItem) => void 
   });
 
   const items = res.data ?? [];
+  const open = focused && !dismissed && clean(q).length >= 1;
   const pick = (i: CatalogItem) => {
     onPick(i);
     setQ("");
     setDq("");
-    setOpen(false);
     inputRef.current?.focus();
   };
 
@@ -88,7 +90,7 @@ export function CatalogPicker({ onPick }: { onPick: (item: CatalogItem) => void 
       const exact = items.find((i) => i.type === "part" && (i.part.barcode === clean(q) || i.part.sku.toUpperCase() === code));
       if (exact) pick(exact);
       else if (items[active] && dq === clean(q)) pick(items[active]);
-    } else if (e.key === "Escape") setOpen(false);
+    } else if (e.key === "Escape") setDismissed(true);
   }
 
   return (
@@ -100,11 +102,11 @@ export function CatalogPicker({ onPick }: { onPick: (item: CatalogItem) => void 
           value={q}
           onChange={(e) => {
             setQ(e.target.value);
-            setOpen(true);
+            setDismissed(false);
             setActive(0);
           }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onKeyDown={onKey}
           role="combobox"
           aria-expanded={open && items.length > 0}

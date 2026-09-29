@@ -9,18 +9,11 @@ import { Card, CardTitle } from "@/components/ui/layout.tsx";
 import { useToast } from "@/components/ui/toast.tsx";
 import { formatDate } from "@/lib/dates.ts";
 import { t, useLang } from "@/lib/i18n.tsx";
+import { ROLE_HELP } from "@/lib/labels.ts";
 import { ROLES } from "@/lib/status.ts";
 import { rpc, supabase } from "@/lib/supabase.ts";
 import type { Membership } from "@/api/types.ts";
 
-const ROLE_HELP: Record<string, string> = {
-  owner: "Everything, including team and settings.",
-  admin: "Everything, including team and settings.",
-  manager: "All billing and workshop work, reports, cancellations. No settings, no team.",
-  service_advisor: "Customers, estimates, job cards, invoices and payments. Cannot cancel or refund.",
-  mechanic: "Their own job cards and inspections. No prices, no invoices.",
-  accountant: "Invoices, payments, refunds, credit notes, reports and audit log. Does not create invoices.",
-};
 
 export function TeamPanel() {
   const org = useOrg();

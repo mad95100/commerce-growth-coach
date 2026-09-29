@@ -201,10 +201,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="ms-auto flex items-center gap-2">
             <BranchSelect />
             {canInvoice && (
-              <Link to="/invoices/new" className={buttonClass("primary", "md", "hidden sm:inline-flex")}>
-                <Plus className="size-4" aria-hidden />
-                {t("New Invoice")}
-              </Link>
+              // Wrapped: the button's own display class would override "hidden".
+              <span className="hidden sm:block">
+                <Link to="/invoices/new" className={buttonClass("primary", "md")}>
+                  <Plus className="size-4" aria-hidden />
+                  {t("New Invoice")}
+                </Link>
+              </span>
             )}
           </div>
         </header>

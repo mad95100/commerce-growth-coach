@@ -32,7 +32,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className="sheet m-0 mt-auto w-full sm:m-auto"
+      className="sheet m-0 mt-auto w-full sm:m-auto sm:w-fit"
       onCancel={(e) => {
         e.preventDefault();
         onClose();

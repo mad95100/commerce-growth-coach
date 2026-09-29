@@ -595,25 +595,26 @@ returns jsonb language sql stable security invoker set search_path = public, pg_
   select coalesce(jsonb_agg(to_jsonb(x) order by x.date desc, x.created_at desc), '[]') from (
     select 'invoice' as type, i.id, i.number, i.display_status as status, coalesce(i.issue_date, i.created_at::date) as date,
       i.created_at, i.total, i.mileage, i.description, jc.technician_name as technician, i.notes,
+      null::uuid as invoice_id,
       (select jsonb_agg(jsonb_build_object('kind', l.kind, 'description', l.description, 'quantity', l.quantity,
          'part_number', l.part_number, 'total', l.total) order by l.position) from public.doc_lines l where l.invoice_id = i.id) as lines
     from public.v_invoices i left join public.v_job_cards jc on jc.id = i.job_card_id
     where i.vehicle_id = p_vehicle and i.status <> 'cancelled'
     union all
     select 'job_card', j.id, j.number, j.status, j.received_at::date, j.created_at, j.total, j.mileage_in,
-      coalesce(j.work_done, j.complaint), j.technician_name, j.diagnosis,
+      coalesce(j.work_done, j.complaint), j.technician_name, j.diagnosis, j.invoice_id,
       (select jsonb_agg(jsonb_build_object('kind', l.kind, 'description', l.description, 'quantity', l.quantity,
          'part_number', l.part_number, 'total', l.total) order by l.position) from public.doc_lines l where l.job_card_id = j.id)
     from public.v_job_cards j where j.vehicle_id = p_vehicle
     union all
     select 'estimate', e.id, e.number, e.display_status, e.issue_date, e.created_at, e.total, e.mileage, e.description,
-      null, e.notes,
+      null, e.notes, e.invoice_id,
       (select jsonb_agg(jsonb_build_object('kind', l.kind, 'description', l.description, 'quantity', l.quantity,
          'part_number', l.part_number, 'total', l.total) order by l.position) from public.doc_lines l where l.estimate_id = e.id)
     from public.v_estimates e where e.vehicle_id = p_vehicle
     union all
     select 'inspection', s.id, null, s.status, s.created_at::date, s.created_at, null, s.mileage, s.summary, t.name,
-      s.recommendations, null
+      s.recommendations, null, null
     from public.inspections s left join public.technicians t on t.id = s.technician_id
     where s.vehicle_id = p_vehicle
   ) x

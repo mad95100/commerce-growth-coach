@@ -7,6 +7,7 @@ import { Badge, ErrorState, FormError, Loading } from "@/components/ui/feedback.
 import { Input, Select } from "@/components/ui/form.tsx";
 import { Card, CardTitle } from "@/components/ui/layout.tsx";
 import { t } from "@/lib/i18n.tsx";
+import { DOC_LABEL, PAYMENT_KIND } from "@/lib/labels.ts";
 import { rpc, supabase } from "@/lib/supabase.ts";
 
 function useRun() {
@@ -153,7 +154,7 @@ export function MethodsPanel() {
         {ref.data.methods.map((m) => (
           <li key={m.id} className="flex items-center justify-between gap-3 py-3">
             <span className="font-medium">
-              {m.name} {!m.active && <Badge tone="muted">{t("Inactive")}</Badge>}
+              {t(m.name)} {!m.active && <Badge tone="muted">{t("Inactive")}</Badge>}
             </span>
             <Button size="sm" variant="ghost" onClick={() => run(() => supabase.from("payment_methods").update({ active: !m.active }).eq("id", m.id))}>
               {m.active ? t("Deactivate") : t("Activate")}
@@ -164,12 +165,11 @@ export function MethodsPanel() {
       <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_180px_auto]">
         <Input aria-label={t("Method name")} placeholder={t("e.g. Tabby, Apple Pay, Company account")} value={name} onChange={(e) => setName(e.target.value)} />
         <Select aria-label={t("Kind")} value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="cash">{t("Cash")}</option>
-          <option value="card">{t("Card")}</option>
-          <option value="bank_transfer">{t("Bank Transfer")}</option>
-          <option value="online">{t("Online Payment")}</option>
-          <option value="cheque">{t("Cheque")}</option>
-          <option value="other">{t("Other")}</option>
+          {Object.entries(PAYMENT_KIND).map(([k, v]) => (
+            <option key={k} value={k}>
+              {t(v)}
+            </option>
+          ))}
         </Select>
         <Button loading={busy} disabled={!name.trim()} onClick={() => run(async () => { const r = await supabase.from("payment_methods").insert({ org_id: org.id, name: name.trim(), kind, sort_order: 50 }); if (!r.error) setName(""); return r; })} icon={<Plus className="size-4" />}>
           {t("Add method")}
@@ -182,15 +182,6 @@ export function MethodsPanel() {
   );
 }
 
-const DOC_LABEL: Record<string, string> = {
-  invoice: "Invoices",
-  estimate: "Estimates",
-  job_card: "Job cards",
-  receipt: "Payment receipts",
-  refund: "Refund receipts",
-  credit_note: "Credit notes",
-  purchase_order: "Purchase orders",
-};
 
 export function NumberingPanel() {
   const org = useOrg();

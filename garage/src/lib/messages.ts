@@ -4,7 +4,7 @@
  * send. Nothing is sent by the server, and the app never claims it was.
  * No link to the document is included: documents are not public.
  */
-import { t, lang } from "./i18n.tsx";
+import { t, lang } from "./i18n-core.ts";
 import { formatMoney } from "./money.ts";
 import { formatDate, formatDateTime } from "./dates.ts";
 import { formatPlate } from "./plates.ts";

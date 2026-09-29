@@ -10,7 +10,8 @@ import { EmptyState, ErrorState, FormError, Loading, StatusBadge } from "@/compo
 import { Card, CardTitle, DescriptionList, NotAllowed, PageHeader } from "@/components/ui/layout.tsx";
 import { Money } from "@/components/ui/money.tsx";
 import { formatDate } from "@/lib/dates.ts";
-import { t, useLang } from "@/lib/i18n.tsx";
+import { t, tn, useLang } from "@/lib/i18n.tsx";
+import { FUEL, TRANSMISSION } from "@/lib/labels.ts";
 import { formatPlate } from "@/lib/plates.ts";
 import { ESTIMATE_STATUS, INVOICE_STATUS, JOB_STATUS } from "@/lib/status.ts";
 import { rpc, supabase } from "@/lib/supabase.ts";
@@ -29,6 +30,7 @@ interface HistoryItem {
   description: string | null;
   technician: string | null;
   notes: string | null;
+  invoice_id: string | null;
   lines: Array<{ kind: string; description: string; quantity: number; part_number: string | null; total: number }> | null;
 }
 
@@ -64,9 +66,9 @@ function VehiclePage() {
   if (q.isPending) return <Loading />;
   if (q.isError) return <ErrorState error={q.error} retry={() => q.refetch()} />;
   const { vehicle: v, customer: c, history } = q.data;
-  // "Work" view: what was actually done — invoices, plus job cards not (yet) invoiced.
-  const invoicedJobs = new Set(history.filter((h) => h.type === "invoice").map((h) => h.id));
-  const shown = kinds === "all" ? history : history.filter((h) => h.type === "invoice" || h.type === "inspection" || (h.type === "job_card" && !invoicedJobs.has(h.id) && h.status !== "cancelled"));
+  // "Work done" view: invoices, inspections, and job cards not invoiced yet
+  // (an invoiced job card is already shown through its invoice).
+  const shown = kinds === "all" ? history : history.filter((h) => h.type === "invoice" || h.type === "inspection" || (h.type === "job_card" && !h.invoice_id && h.status !== "cancelled"));
   const lastMileage = Math.max(v.mileage ?? 0, ...history.map((h) => Number(h.mileage ?? 0)));
 
   return (
@@ -184,8 +186,8 @@ function VehiclePage() {
                 [t("Year"), v.year],
                 [t("Trim"), v.trim],
                 [t("Engine"), v.engine],
-                [t("Fuel"), v.fuel ? t(v.fuel[0].toUpperCase() + v.fuel.slice(1)) : null],
-                [t("Transmission"), v.transmission ? t(v.transmission === "cvt" ? "CVT" : v.transmission[0].toUpperCase() + v.transmission.slice(1)) : null],
+                [t("Fuel"), v.fuel ? t(FUEL[v.fuel] ?? v.fuel) : null],
+                [t("Transmission"), v.transmission ? t(TRANSMISSION[v.transmission] ?? v.transmission) : null],
                 [t("Color"), v.color],
                 [t("Last known mileage"), lastMileage ? `${lastMileage.toLocaleString("en")} km` : null],
                 [t("Registration date"), v.registration_date ? formatDate(v.registration_date, lang) : null],
@@ -199,7 +201,7 @@ function VehiclePage() {
               <p className="text-2xl font-semibold num">
                 <Money value={history.filter((h) => h.type === "invoice").reduce((s, h) => s + Number(h.total ?? 0), 0)} />
               </p>
-              <p className="text-xs text-muted">{t("{n} invoices", { n: history.filter((h) => h.type === "invoice").length })}</p>
+              <p className="text-xs text-muted">{tn(history.filter((h) => h.type === "invoice").length, "{n} invoice", "{n} invoices")}</p>
             </Card>
           )}
           <Card>

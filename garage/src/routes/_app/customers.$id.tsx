@@ -10,7 +10,7 @@ import { Alert, Badge, EmptyState, ErrorState, Loading, StatusBadge } from "@/co
 import { Card, CardTitle, DescriptionList, NotAllowed, PageHeader, Stat, TableWrap, Tabs, tableClass, td, th, trClass } from "@/components/ui/layout.tsx";
 import { Money } from "@/components/ui/money.tsx";
 import { formatDate, formatDateTime } from "@/lib/dates.ts";
-import { t, useLang } from "@/lib/i18n.tsx";
+import { t, tn, useLang } from "@/lib/i18n.tsx";
 import { formatMoney } from "@/lib/money.ts";
 import { formatPhone, whatsappUrl } from "@/lib/phone.ts";
 import { emirateName, formatPlate } from "@/lib/plates.ts";
@@ -127,7 +127,7 @@ function CustomerPage() {
       </div>
       {can("invoices.view") && (
         <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Stat label={t("Total spent")} value={formatMoney(totalSpent, lang)} sub={t("{n} invoices", { n: issued.length })} />
+          <Stat label={t("Total spent")} value={formatMoney(totalSpent, lang)} sub={tn(issued.length, "{n} invoice", "{n} invoices")} />
           <Stat label={t("Outstanding balance")} value={formatMoney(outstanding, lang)} tone={outstanding > 0 ? "bad" : undefined} />
           <Stat label={t("Vehicles")} value={activeVehicles.length} />
           <Stat label={t("Last visit")} value={jobs[0] ? formatDate(jobs[0].received_at.slice(0, 10), lang) : invoices[0]?.issue_date ? formatDate(invoices[0].issue_date, lang) : "—"} />
@@ -279,7 +279,7 @@ function CustomerPage() {
                         {p.number} {p.kind !== "payment" && <Badge tone={p.kind === "refund" ? "refund" : "info"}>{p.kind === "refund" ? t("Refund") : t("Deposit")}</Badge>} {p.voided_at && <Badge tone="muted">{t("Void")}</Badge>}
                       </span>
                       <span className="block truncate text-xs text-muted">
-                        {formatDateTime(p.paid_at, lang)} · {p.method_name} {p.invoice_number && `· ${p.invoice_number}`}
+                        {formatDateTime(p.paid_at, lang)} · {t(p.method_name)} {p.invoice_number && `· ${p.invoice_number}`}
                       </span>
                     </span>
                     <Money value={p.kind === "refund" ? -p.amount : p.amount} className={p.voided_at ? "text-faint line-through" : ""} />

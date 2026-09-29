@@ -11,7 +11,7 @@ import { Money } from "@/components/ui/money.tsx";
 import { toCsv } from "@/lib/csv.ts";
 import { formatDate } from "@/lib/dates.ts";
 import { downloadText } from "@/lib/download.ts";
-import { t, useLang } from "@/lib/i18n.tsx";
+import { t, tn, useLang } from "@/lib/i18n.tsx";
 import { formatPlate } from "@/lib/plates.ts";
 import { INVOICE_STATUS } from "@/lib/status.ts";
 import { supabase } from "@/lib/supabase.ts";
@@ -201,7 +201,7 @@ function Invoices() {
                     <td className={`${td} text-end`}>{i.status === "cancelled" ? "—" : <Money value={i.balance} strong={Number(i.balance) > 0} />}</td>
                     <td className={td}>
                       <StatusBadge map={INVOICE_STATUS} status={i.display_status} />
-                      {i.days_overdue > 0 && <div className="mt-0.5 text-xs text-bad">{t("{n} days late", { n: i.days_overdue })}</div>}
+                      {i.days_overdue > 0 && <div className="mt-0.5 text-xs text-bad">{tn(i.days_overdue, "{n} day late", "{n} days late")}</div>}
                     </td>
                   </tr>
                 ))}

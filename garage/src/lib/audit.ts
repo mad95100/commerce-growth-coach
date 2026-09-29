@@ -1,4 +1,4 @@
-import { t } from "./i18n.tsx";
+import { t } from "./i18n-core.ts";
 
 /** Human wording of audit log actions ("WHAT"). Unknown actions show as-is. */
 const LABELS: Record<string, string> = {

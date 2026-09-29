@@ -24,7 +24,7 @@ export function InvoiceDoc({ b }: { b: InvoiceBundle }) {
   const vehicle = (inv.vehicle_snapshot as VehicleInfo | null) ?? (b.vehicle as VehicleInfo | null);
   const title = inv.status === "draft" ? t("DRAFT INVOICE") : vat ? t("TAX INVOICE") : t("INVOICE");
   const titleAr = vat ? "فاتورة ضريبية" : "فاتورة";
-  const methods = [...new Set(b.payments.filter((p) => !p.voided_at && p.kind !== "refund").map((p) => p.method_name))].join(", ");
+  const methods = [...new Set(b.payments.filter((p) => !p.voided_at && p.kind !== "refund").map((p) => t(p.method_name)))].join(", ");
   return (
     <DocSheet>
       {inv.status === "cancelled" && <p className="mb-3 rounded border-2 border-bad px-3 py-1 text-center text-sm font-bold tracking-widest text-bad uppercase">{t("Cancelled")} — {inv.cancel_reason}</p>}
@@ -182,7 +182,7 @@ export function ReceiptDoc({ b }: { b: PaymentBundle }) {
           </div>
           <div className="flex justify-between gap-3">
             <dt className="text-ink-2">{t("Payment method")}</dt>
-            <dd className="font-medium">{p.method_name}</dd>
+            <dd className="font-medium">{t(p.method_name)}</dd>
           </div>
           {p.reference && (
             <div className="flex justify-between gap-3">

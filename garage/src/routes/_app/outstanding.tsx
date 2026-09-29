@@ -13,7 +13,7 @@ import { Money } from "@/components/ui/money.tsx";
 import { toCsv } from "@/lib/csv.ts";
 import { formatDate, formatDateTime, periodRange, todayISO } from "@/lib/dates.ts";
 import { downloadText } from "@/lib/download.ts";
-import { t, useLang } from "@/lib/i18n.tsx";
+import { t, tn, useLang } from "@/lib/i18n.tsx";
 import { reminderMessage } from "@/lib/messages.ts";
 import { formatMoney } from "@/lib/money.ts";
 import { formatPlate } from "@/lib/plates.ts";
@@ -118,8 +118,8 @@ function Outstanding() {
       />
       {q.data && (
         <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Stat label={t("Total outstanding")} value={formatMoney(sum(all), lang)} sub={t("{n} invoices", { n: all.length })} />
-          <Stat label={t("Overdue")} value={formatMoney(sum(overdue), lang)} tone={overdue.length ? "bad" : undefined} sub={t("{n} invoices", { n: overdue.length })} />
+          <Stat label={t("Total outstanding")} value={formatMoney(sum(all), lang)} sub={tn(all.length, "{n} invoice", "{n} invoices")} />
+          <Stat label={t("Overdue")} value={formatMoney(sum(overdue), lang)} tone={overdue.length ? "bad" : undefined} sub={tn(overdue.length, "{n} invoice", "{n} invoices")} />
           <Stat label={t("Not yet due")} value={formatMoney(sum(all) - sum(overdue), lang)} />
           <Stat label={t("Large amounts")} value={all.filter((i) => Number(i.balance) >= Number(org.large_amount_threshold)).length} sub={t("Balance ≥ {amount}", { amount: formatMoney(org.large_amount_threshold, lang) })} />
         </div>

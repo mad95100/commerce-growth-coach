@@ -10,7 +10,7 @@ import { Chips } from "@/components/ui/form.tsx";
 import { Card, CardTitle, PageHeader, Stat, TableWrap, tableClass, td, th, trClass } from "@/components/ui/layout.tsx";
 import { Money } from "@/components/ui/money.tsx";
 import { formatDate } from "@/lib/dates.ts";
-import { t, useLang } from "@/lib/i18n.tsx";
+import { t, tn, useLang } from "@/lib/i18n.tsx";
 import { formatMoney } from "@/lib/money.ts";
 import { formatPlate } from "@/lib/plates.ts";
 import { toWeeks } from "@/lib/series.ts";
@@ -139,7 +139,7 @@ export function Dashboard() {
               <Stat label={t("Outstanding")} value={formatMoney(s.outstanding.total, lang)} tone={s.outstanding.overdue_total > 0 ? "bad" : undefined} sub={t("{n} unpaid · {m} overdue", { n: s.outstanding.count, m: s.outstanding.overdue_count })} to="/outstanding" />
               <Stat label={t("Invoices today")} value={s.invoices_today ?? 0} sub={t("{n} this month", { n: s.invoices_month ?? 0 })} to="/invoices" />
               <Stat label={t("Average invoice")} value={formatMoney(s.month_report.invoices.average, lang)} sub={t("This month")} />
-              <Stat label={t("Pending estimates")} value={s.estimates_waiting} sub={t("{n} vehicles in workshop", { n: s.workshop })} to="/estimates" search={{ status: "waiting" }} />
+              <Stat label={t("Pending estimates")} value={s.estimates_waiting} sub={tn(s.workshop, "{n} vehicle in workshop", "{n} vehicles in workshop")} to="/estimates" search={{ status: "waiting" }} />
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -220,7 +220,7 @@ export function Dashboard() {
               )}
               {s.appointments_today > 0 && (
                 <Link to="/appointments" className="mt-3 flex min-h-11 items-center gap-2 rounded-lg bg-canvas px-3 text-sm">
-                  <CalendarDays className="size-4 text-brand" /> {t("{n} appointments today", { n: s.appointments_today })}
+                  <CalendarDays className="size-4 text-brand" /> {tn(s.appointments_today, "{n} appointment today", "{n} appointments today")}
                 </Link>
               )}
             </Card>
@@ -240,7 +240,7 @@ export function Dashboard() {
               </Card>
               <Card>
                 <CardTitle>{t("Payments — this month")}</CardTitle>
-                <BarList items={s.month_report.payments_by_method.map((m) => ({ label: m.method, value: Number(m.total), sub: t("{n} payments", { n: m.count }) }))} />
+                <BarList items={s.month_report.payments_by_method.map((m) => ({ label: t(m.method), value: Number(m.total), sub: tn(m.count, "{n} payment", "{n} payments") }))} />
               </Card>
               <Card>
                 <CardTitle>{t("Unpaid by age")}</CardTitle>

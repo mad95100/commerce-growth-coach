@@ -142,7 +142,7 @@ function Payments() {
                       ) : null}
                     </td>
                     <td className={`${td} hidden sm:table-cell`}>
-                      {p.method_name}
+                      {t(p.method_name)}
                       {p.reference && <div className="text-xs text-muted">{p.reference}</div>}
                     </td>
                     <td className={`${td} text-end`}>

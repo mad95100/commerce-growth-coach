@@ -16,7 +16,7 @@ import { Money } from "@/components/ui/money.tsx";
 import { useToast } from "@/components/ui/toast.tsx";
 import { useInvoice } from "@/api/documents.ts";
 import { formatDate, formatDateTime } from "@/lib/dates.ts";
-import { t, useLang } from "@/lib/i18n.tsx";
+import { t, tn, useLang } from "@/lib/i18n.tsx";
 import { invoiceMessage, reminderMessage } from "@/lib/messages.ts";
 import { INVOICE_STATUS } from "@/lib/status.ts";
 import { rpc } from "@/lib/supabase.ts";
@@ -78,7 +78,7 @@ function InvoicePage() {
           <>
             {inv.customer_name}
             {inv.issue_date && ` · ${formatDate(inv.issue_date, lang)}`}
-            {inv.days_overdue > 0 && <span className="text-bad"> · {t("{n} days late", { n: inv.days_overdue })}</span>}
+            {inv.days_overdue > 0 && <span className="text-bad"> · {tn(inv.days_overdue, "{n} day late", "{n} days late")}</span>}
           </>
         }
         actions={
@@ -190,7 +190,7 @@ function InvoicePage() {
                         <Link to="/payments/$id" params={{ id: p.id }} className="text-brand hover:underline">
                           {p.number}
                         </Link>{" "}
-                        · {p.method_name} {p.kind !== "payment" && <Badge tone={p.kind === "refund" ? "refund" : "info"}>{p.kind === "refund" ? t("Refund") : t("Deposit")}</Badge>}
+                        · {t(p.method_name)} {p.kind !== "payment" && <Badge tone={p.kind === "refund" ? "refund" : "info"}>{p.kind === "refund" ? t("Refund") : t("Deposit")}</Badge>}
                       </p>
                       <p className="text-xs text-muted">
                         {formatDateTime(p.paid_at, lang)} · {p.received_by_name}

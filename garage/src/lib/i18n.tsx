@@ -1,34 +1,12 @@
 /**
- * Internationalisation. UI strings are written in English inside t(); the
- * Arabic dictionary maps them (src/lib/i18n-ar.ts). A unit test fails when a
- * t("…") string has no Arabic entry. Arabic switches the page to RTL.
+ * Language provider: switches between English and Arabic (RTL). The
+ * translation function itself lives in i18n-core.ts so plain modules and
+ * tests can use it without React.
  */
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { AR } from "./i18n-ar.ts";
+import { lang as currentLang, setCurrentLang, STORAGE_KEY, type Lang } from "./i18n-core.ts";
 
-export type Lang = "en" | "ar";
-const STORAGE_KEY = "bsg-lang";
-
-function initialLang(): Lang {
-  try {
-    const v = localStorage.getItem(STORAGE_KEY);
-    return v === "ar" ? "ar" : "en";
-  } catch {
-    return "en";
-  }
-}
-
-let current: Lang = typeof window === "undefined" ? "en" : initialLang();
-
-export function lang(): Lang {
-  return current;
-}
-
-export function t(key: string, vars?: Record<string, string | number>): string {
-  let s = current === "ar" ? (AR[key] ?? key) : key;
-  if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
-  return s;
-}
+export { t, tn, lang, type Lang } from "./i18n-core.ts";
 
 function applyDocument(l: Lang) {
   document.documentElement.lang = l;
@@ -38,10 +16,10 @@ function applyDocument(l: Lang) {
 const LangContext = createContext<{ lang: Lang; setLang: (l: Lang) => void }>({ lang: "en", setLang: () => {} });
 
 export function LangProvider({ children }: { children: ReactNode }) {
-  const [l, setL] = useState<Lang>(current);
+  const [l, setL] = useState<Lang>(currentLang());
   useEffect(() => applyDocument(l), [l]);
   const setLang = useCallback((next: Lang) => {
-    current = next;
+    setCurrentLang(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);
     } catch {

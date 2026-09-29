@@ -9,6 +9,7 @@ import { Card, CardTitle, TableWrap } from "@/components/ui/layout.tsx";
 import { mapHeaders, parseCsv, toCsv, type ImportField } from "@/lib/csv.ts";
 import { downloadText } from "@/lib/download.ts";
 import { t } from "@/lib/i18n.tsx";
+import { IMPORT_KINDS } from "@/lib/labels.ts";
 import { EMIRATES, validatePlate } from "@/lib/plates.ts";
 import { phoneSearchKey } from "@/lib/phone.ts";
 import { rpc, supabase } from "@/lib/supabase.ts";
@@ -215,7 +216,7 @@ export function ImportPanel() {
     <Card>
       <CardTitle>{t("Import from CSV")}</CardTitle>
       <p className="mb-4 text-sm text-muted">{t("Bring your existing data from a spreadsheet. In Excel: File → Save as → CSV UTF-8. Columns are recognised by their header.")}</p>
-      <Chips label={t("What to import")} value={kind} onChange={(k) => { setKind(k); setParsed(null); setResult(null); }} options={kinds.map((k) => ({ value: k, label: t(k === "customers" ? "Customers" : k === "vehicles" ? "Vehicles" : k === "parts" ? "Parts & stock" : "Suppliers") }))} />
+      <Chips label={t("What to import")} value={kind} onChange={(k) => { setKind(k); setParsed(null); setResult(null); }} options={kinds.map((k) => ({ value: k, label: t(IMPORT_KINDS[k]) }))} />
       <p className="mt-3 text-xs text-muted">
         {t("Columns:")} {FIELDS[kind].map((f) => `${f.label}${f.required ? "*" : ""}`).join(", ")}
         {kind === "vehicles" && ` — ${t("each vehicle is attached to the customer with that phone number.")}`}

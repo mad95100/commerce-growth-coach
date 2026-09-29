@@ -230,7 +230,7 @@ export function DocumentEditor({ kind, existing, initialCustomerId, initialVehic
         <Card>
           <CardTitle>{t("Totals")}</CardTitle>
           <div className="mb-4 grid grid-cols-[1fr_1fr] gap-2">
-            <Field label={t("Discount")}>
+            <Field label={t("Discount")} className={discountType ? undefined : "col-span-2"}>
               {(id) => (
                 <Select id={id} value={discountType ?? ""} onChange={(e) => setDiscountType((e.target.value || null) as DiscountType)}>
                   <option value="">{t("No discount")}</option>
@@ -277,7 +277,7 @@ export function DocumentEditor({ kind, existing, initialCustomerId, initialVehic
                     onClick={() => setPay({ ...pay, method_id: m.id })}
                     className={clsx("min-h-10 rounded-lg border px-3 text-sm", pay.method_id === m.id ? "border-brand bg-brand-soft font-medium text-brand-ink" : "border-line-strong hover:bg-canvas")}
                   >
-                    {m.name}
+                    {t(m.name)}
                   </button>
                 ))}
               </div>

@@ -8,6 +8,9 @@ export const backendMissing = !url || !key;
 
 export const supabase = createClient(url ?? "http://invalid.local", key ?? "missing", {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: "bsg-auth" },
+  // Retries are handled once, by TanStack Query (see main.tsx). Stacking the
+  // client's own retries on top made a network failure take ~25 s to show.
+  db: { retry: false },
 });
 
 /** Unwraps a supabase-js result: returns data or throws the error object. */

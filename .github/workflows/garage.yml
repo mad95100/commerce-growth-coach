@@ -1,0 +1,48 @@
+name: BS Garage
+
+# The garage/ package is a separate product (see garage/README.md). This
+# workflow only runs when it changes, and never touches EcomPilot's pipeline.
+on:
+  pull_request:
+    paths: ["garage/**", ".github/workflows/garage.yml"]
+  push:
+    branches: [main]
+    paths: ["garage/**", ".github/workflows/garage.yml"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: garage
+
+jobs:
+  checks:
+    name: Types, lint, tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: bun install --frozen-lockfile
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: Database tests (PostgreSQL 16 preinstalled on the runner)
+        run: npm run test:db
+      - name: Build
+        run: npm run build

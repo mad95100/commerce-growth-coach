@@ -1,4 +1,4 @@
-import { t } from "./i18n.tsx";
+import { t } from "./i18n-core.ts";
 
 /**
  * Turns any error (database function, PostgREST, auth, network) into a
@@ -10,7 +10,7 @@ export interface FriendlyError {
   technical?: string;
 }
 
-const NOT_FOUND: Record<string, string> = {
+export const NOT_FOUND: Record<string, string> = {
   customer: "This customer was not found.",
   vehicle: "This vehicle was not found.",
   invoice: "This invoice was not found.",

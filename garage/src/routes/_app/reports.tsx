@@ -11,7 +11,7 @@ import { Money } from "@/components/ui/money.tsx";
 import { toCsv } from "@/lib/csv.ts";
 import { formatDate, periodRange, todayISO, type PeriodKey } from "@/lib/dates.ts";
 import { downloadText } from "@/lib/download.ts";
-import { t, useLang } from "@/lib/i18n.tsx";
+import { t, tn, useLang } from "@/lib/i18n.tsx";
 import { formatMoney } from "@/lib/money.ts";
 import { LINE_KINDS } from "@/lib/status.ts";
 import { rpc } from "@/lib/supabase.ts";
@@ -138,8 +138,8 @@ function Reports() {
             <Stat label={t("Collected")} value={formatMoney(d.collected, lang)} sub={t("Payments − refunds")} />
             <Stat label={t("Average invoice")} value={formatMoney(d.invoices.average, lang)} />
             <Stat label={t("VAT on sales")} value={formatMoney(d.vat_due, lang)} sub={t("After credit notes")} />
-            <Stat label={t("Credit notes")} value={formatMoney(d.credit_notes.total, lang)} sub={t("{n} credit notes", { n: d.credit_notes.count })} />
-            <Stat label={t("Refunds")} value={formatMoney(d.refunds.total, lang)} sub={t("{n} refunds", { n: d.refunds.count })} />
+            <Stat label={t("Credit notes")} value={formatMoney(d.credit_notes.total, lang)} sub={tn(d.credit_notes.count, "{n} credit note", "{n} credit notes")} />
+            <Stat label={t("Refunds")} value={formatMoney(d.refunds.total, lang)} sub={tn(d.refunds.count, "{n} refund", "{n} refunds")} />
             <Stat label={t("Outstanding now")} value={out.data ? formatMoney(out.data.total, lang) : "—"} tone={out.data && out.data.overdue_total > 0 ? "bad" : undefined} sub={out.data ? t("{n} overdue", { n: out.data.overdue_count }) : undefined} to="/outstanding" />
           </div>
           <Card>
@@ -155,7 +155,7 @@ function Reports() {
             </Card>
             <Card>
               <CardTitle>{t("Payments by method")}</CardTitle>
-              <BarList items={d.payments_by_method.map((m) => ({ label: m.method, value: Number(m.total), sub: t("{n} payments", { n: m.count }) }))} />
+              <BarList items={d.payments_by_method.map((m) => ({ label: t(m.method), value: Number(m.total), sub: tn(m.count, "{n} payment", "{n} payments") }))} />
             </Card>
           </div>
           <TableCard

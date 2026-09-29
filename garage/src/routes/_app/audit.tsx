@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, Loading } from "@/components/ui/feedback.tsx";
 import { Input, Select } from "@/components/ui/form.tsx";
 import { Card, NotAllowed, PageHeader, TableWrap, tableClass, td, th, trClass } from "@/components/ui/layout.tsx";
 import { auditLabel } from "@/lib/audit.ts";
+import { AUDIT_AREAS } from "@/lib/labels.ts";
 import { formatDateTime } from "@/lib/dates.ts";
 import { t, useLang } from "@/lib/i18n.tsx";
 import { supabase } from "@/lib/supabase.ts";
@@ -15,21 +16,6 @@ import type { AuditRow } from "@/api/types.ts";
 
 export const Route = createFileRoute("/_app/audit")({ component: Audit });
 
-const AREAS: Array<[string, string]> = [
-  ["", "Everything"],
-  ["invoice", "Invoices"],
-  ["payment", "Payments"],
-  ["credit_note", "Credit notes"],
-  ["estimate", "Estimates"],
-  ["job_card", "Job cards"],
-  ["part", "Parts & stock"],
-  ["service", "Services"],
-  ["customer", "Customers"],
-  ["vehicle", "Vehicles"],
-  ["purchase_order", "Purchase orders"],
-  ["membership", "Team"],
-  ["settings", "Settings"],
-];
 
 function details(d: Record<string, unknown>): string {
   return Object.entries(d)
@@ -72,7 +58,7 @@ function Audit() {
       <PageHeader title={t("Audit log")} subtitle={t("Who did what, and when. Entries cannot be edited or deleted.")} />
       <div className="mb-4 flex flex-col gap-2 sm:flex-row">
         <Select aria-label={t("Area")} value={area} onChange={(e) => setArea(e.target.value)} className="sm:max-w-56">
-          {AREAS.map(([v, l]) => (
+          {AUDIT_AREAS.map(([v, l]) => (
             <option key={v} value={v}>
               {t(l)}
             </option>

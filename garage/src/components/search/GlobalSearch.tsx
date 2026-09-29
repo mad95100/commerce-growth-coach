@@ -6,7 +6,7 @@ import { useSession } from "@/app/session.tsx";
 import { Dialog } from "@/components/ui/dialog.tsx";
 import { ErrorState, Spinner, StatusBadge } from "@/components/ui/feedback.tsx";
 import { Money } from "@/components/ui/money.tsx";
-import { t, useLang } from "@/lib/i18n.tsx";
+import { t, tn, useLang } from "@/lib/i18n.tsx";
 import { formatPhone } from "@/lib/phone.ts";
 import { formatPlate } from "@/lib/plates.ts";
 import { parseSearch } from "@/lib/search.ts";
@@ -94,7 +94,7 @@ export function GlobalSearch({ open, onClose }: { open: boolean; onClose: () => 
           <div className="space-y-4">
             <Group title={t("Customers")} items={r.customers}>
               {(c) => (
-                <Row key={c.id} icon={<User className="size-4" />} onClick={() => go("/customers/$id", c.id)} title={c.display_name} sub={[formatPhone(c.phone), t("{n} vehicles", { n: c.vehicles })].filter(Boolean).join(" · ")} />
+                <Row key={c.id} icon={<User className="size-4" />} onClick={() => go("/customers/$id", c.id)} title={c.display_name} sub={[formatPhone(c.phone), tn(c.vehicles, "{n} vehicle", "{n} vehicles")].filter(Boolean).join(" · ")} />
               )}
             </Group>
             <Group title={t("Vehicles")} items={r.vehicles}>

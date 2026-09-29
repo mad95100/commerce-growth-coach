@@ -11,12 +11,13 @@ import { Card, NotAllowed, PageHeader, TableWrap, tableClass, td, th, trClass } 
 import { Money } from "@/components/ui/money.tsx";
 import { t, useLang } from "@/lib/i18n.tsx";
 import { formatMoney, parseAmount } from "@/lib/money.ts";
+import { SUGGESTED_SERVICES } from "@/lib/labels.ts";
 import { supabase } from "@/lib/supabase.ts";
 import type { Service } from "@/api/types.ts";
 
 export const Route = createFileRoute("/_app/services")({ component: Services });
 
-const SUGGESTED = ["Oil Change", "Brake Service", "AC Service", "Engine Repair", "Transmission", "Suspension", "Diagnostics", "Tyres", "Battery", "Electrical", "Detailing"];
+const SUGGESTED = SUGGESTED_SERVICES;
 
 function Services() {
   const org = useOrg();

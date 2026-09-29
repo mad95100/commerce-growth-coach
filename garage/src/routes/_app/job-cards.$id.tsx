@@ -266,7 +266,7 @@ function JobCardPage() {
                         <Link to="/payments/$id" params={{ id: p.id }} className="font-medium text-brand hover:underline">
                           {p.number}
                         </Link>{" "}
-                        · {p.method_name} {p.kind === "refund" && <Badge tone="refund">{t("Refund")}</Badge>} {p.voided_at && <Badge tone="muted">{t("Void")}</Badge>}
+                        · {t(p.method_name)} {p.kind === "refund" && <Badge tone="refund">{t("Refund")}</Badge>} {p.voided_at && <Badge tone="muted">{t("Void")}</Badge>}
                       </span>
                       <Money value={p.kind === "refund" ? -p.amount : p.amount} className={p.voided_at ? "text-faint line-through" : ""} />
                     </li>
