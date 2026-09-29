@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+/*
+ * BS Garage visual system. Colour carries meaning, and only these meanings:
+ *   brand (indigo)  actions and navigation
+ *   green           paid, money received, OK
+ *   amber           partially paid, waiting, attention
+ *   red             overdue, urgent, destructive
+ *   sky             sent
+ *   violet          refund due to the customer
+ * Components use these tokens, never raw hex values.
+ */
+@theme {
+  --font-sans: "Inter", "Noto Sans Arabic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Tahoma, sans-serif;
+
+  --color-canvas: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-line: #e3e6eb;
+  --color-line-strong: #cfd4dc;
+  --color-ink: #0f172a;
+  --color-ink-2: #334155;
+  --color-muted: #64748b;
+  --color-faint: #94a3b8;
+
+  --color-brand: #4f46e5;
+  --color-brand-hover: #4338ca;
+  --color-brand-soft: #eef2ff;
+  --color-brand-ink: #3730a3;
+
+  --color-side: #0b1220;
+  --color-side-2: #131c2e;
+  --color-side-ink: #cbd5e1;
+
+  --color-ok: #15803d;
+  --color-ok-soft: #e8f7ee;
+  --color-warn: #b45309;
+  --color-warn-soft: #fdf3e2;
+  --color-bad: #b91c1c;
+  --color-bad-soft: #fdecec;
+  --color-info: #0369a1;
+  --color-info-soft: #e6f4fb;
+  --color-refund: #6d28d9;
+  --color-refund-soft: #f1ebfd;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "tnum" 0;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+  }
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dialogs use the native <dialog> element (focus trap and Escape for free). */
+dialog.sheet {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  max-width: 100vw;
+  max-height: 100dvh;
+}
+dialog.sheet::backdrop {
+  background: rgb(15 23 42 / 0.45);
+}
+
+/* ---------------------------------------------------------------- printing */
+@page {
+  size: A4;
+  margin: 12mm;
+}
+@media print {
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-sheet {
+    box-shadow: none !important;
+    border: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .avoid-break {
+    break-inside: avoid;
+  }
+}

@@ -20,7 +20,7 @@ function escapeCell(v: string | number | null | undefined): string {
 export function toCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
   const lines = [columns.map((c) => escapeCell(c.header)).join(",")];
   for (const r of rows) lines.push(columns.map((c) => escapeCell(c.value(r))).join(","));
-  return `﻿${lines.join("\r\n")}\r\n`;
+  return `\uFEFF${lines.join("\r\n")}\r\n`;
 }
 
 /**
@@ -28,7 +28,7 @@ export function toCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
  * the header has more semicolons than commas (European Excel exports).
  */
 export function parseCsv(text: string): string[][] {
-  const src = text.replace(/^﻿/, "");
+  const src = text.replace(/^\uFEFF/, "");
   const firstLine = src.split(/\r?\n/, 1)[0] ?? "";
   const sep = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
   const rows: string[][] = [];
